@@ -319,52 +319,18 @@ static const struct attribute_group pic32io_attr_group = {
 static void pic32spi_rx(void *ads)
 {
 	struct pic32io		*pic = ads;
-	u16 y, id;
+	u16 y;
 
-//	pic->dev_busy[0] = gpio_get_value(pic->pic2omap[0]);
-//	pic->dev_busy[1] = gpio_get_value(pic->pic2omap[1]);
-//	pic->dev_busy[2] = gpio_get_value(pic->pic2omap[2]);
-
-	
-	if (pic->dev_busy[0])
-		id = 0;	
-	else if (pic->dev_busy[1])
-		id = 0; ///HACK ALARM -- PIN 0 is broken atm ! 
-	else if (pic->dev_busy[2])
-		id = 2;
-	else {
-//		printk("pic32spi: rx() ERROR no IRQ HIGH\n");
-		gpio_set_value(pic->omap2pic[0], 0);
-		gpio_set_value(pic->omap2pic[1], 0);
-		gpio_set_value(pic->omap2pic[2], 0);
-		return;
-	}
-
-//	gpio_set_value(pic->omap2pic[id], 0);
-//	printk("pic32spi: rx() 0 %d 1 %d 2 %d\n", pic->dev_busy[0], pic->dev_busy[1], pic->dev_busy[2]);
+	printk("pic32spi: rx() 0 %d 1 %d 2 %d  rcv_rdy %d\n", pic->dev_busy[0], pic->dev_busy[1], pic->dev_busy[2], pic->pic32can_rcv_rdy);
 
 	if (pic->dev_busy[2] && !pic->pic32can_rcv_rdy) {
-		
-		pic->dev_busy[2] = 0;
-		
 		for (y=0; y<184; y++) {
 			pic->pic32can_rcv[y] = pic->rcv_dev[2].frameid[0].dat[y];
-	//		if (pic->rcv_dev[2].frameid[0].dat[y] == 0xdd)
-	//			printk("\n %d\n", y);
-	//		printk("%02x", pic->rcv_dev[2].frameid[0].dat[y]);	
-		}
+			}
 		pic->pic32can_rcv_rdy = 1;
-	}
-	else {
-	/*	printk("pic32spi: buffer %d returned data ", id);
-		for (z=0; z<6; z++) {
-			for (y=0; y<16; y++)
-				printk("%d:%d-%02x ", z, y, pic->rcv_dev[id].frameid[z].dat[y]);
-		printk("\n");
-		}*/
-	}
-	
-	pic32spi_rcv_clr_buffer(pic, id);
+		pic32spi_rcv_clr_buffer(pic, 2);
+		}
+	pic->dev_busy[2] = 0;
 }
 
 static void pic32can_send_spi(struct pic32io *pic, int id, int length)
@@ -373,7 +339,7 @@ static void pic32can_send_spi(struct pic32io *pic, int id, int length)
 	struct spi_transfer *x = &pic->xfer[id];
 	int i, status;
 	
-//	printk("pic32spi: sending padding id %d with lenght %d \n", id, length);
+	printk("pic32spi: sending padding id %d with lenght %d \n", id, length);
 		
 	spi_message_init(m);
 	i = 0;
@@ -394,54 +360,55 @@ static void pic32can_send_spi(struct pic32io *pic, int id, int length)
 	x->len = length;
 	x->tx_buf = &pic->snd_dev[id];
 	x->rx_buf = &pic->rcv_dev[id];
-	m->complete = pic32spi_rx;
+//	m->complete = pic32spi_rx;
 	m->context = pic;
 	spi_message_add_tail(x,m);
-	status = spi_async(pic->spi, &pic->msg[id]);
+	
+	status = spi_sync(pic->spi, &pic->msg[id]);
 	if (status)
 		dev_err(&p_pic32io->spi->dev, "spi_sync out --> %d\n", status);
+	
 
+	
 	return;
+}
+
+static irqreturn_t pic32io_hard_irq(int irq, void *handle)
+{
+	struct pic32io		*pic = handle;
+	unsigned long flags;
+	
+	spin_lock_irqsave(&pic->lock, flags);
+	disable_irq(OMAP_GPIO_IRQ(irq));
+	spin_unlock_irqrestore(&pic->lock, flags);
+
+	printk("pic32io: HARD_IRQ_%d\n", irq);
+	return IRQ_WAKE_THREAD;
 }
 
 static irqreturn_t pic32io_irq(int irq, void *handle)
 {
 	struct pic32io		*pic = handle;
-	u8			planned;
-	int id = -1;
+	unsigned long flags;
+	
+	printk("pic32io: IRQ_%d\n", irq);
 	
 	switch (irq) {
 		case 182:
-			id = 0;
 		break;
 		case 179:
-			id = 1;
 		break;
 		case 178:
-			id = 2;
+			pic32can_send_spi(pic, 2, 184);
+			pic32spi_rx(pic);
+			spin_lock_irqsave(&pic->lock, flags);
+			enable_irq(OMAP_GPIO_IRQ(irq));
+			spin_unlock_irqrestore(&pic->lock, flags);
 		break;
 		default:
 			printk("pic32io: ERROR unknown IRQ %d\n", irq);
 		break;
 	}
-	
-	planned = gpio_get_value(pic->omap2pic[id]);
-	pic->dev_busy[id] = gpio_get_value(pic->pic2omap[id]);
-	
-//	printk("pic32io: IRQ_%d() pic2igep %d igep2pic %d\n", id, pic->dev_busy[id], planned);
-	printk("%d\n", id);
-	if (id == 2) {
-		pic->dev_busy[2] = 1;
-		pic32can_send_spi(pic, id, 184);
-		}
-		
-/*	if (pic->dev_busy[id] && !planned) {
-		printk("pic32io: IRQ_%d() no igep2pic - pic is recieving somehting, start clocking out 16\n", id);
-		pic32spi_send_padding(pic, id, 16);
-	}	
-*/
-
-
 	return IRQ_HANDLED;
 }
 
@@ -746,6 +713,7 @@ struct pic32uart_port {
 	struct uart_port	port;
 };
 
+/*
 static struct pic32uart_port pic32uart_ports[] = {
 	{
 	.port = {
@@ -784,16 +752,17 @@ static struct uart_driver pic32uart_reg = {
 	.minor			= PIC32UART_MINOR,
 	.nr				= ARRAY_SIZE(pic32uart_ports),
 };
- 
+*/
+
 unsigned int pic32can_poll(struct file *filp, poll_table *wait)
 {
 	unsigned int mask = 0;
 
 //	poll_wait(filp, &p_pic32io->can_alarm_wq, wait);
-	if (p_pic32io->pic32can_rcv_rdy) {
-		mask |= POLLIN | POLLRDNORM; /* readable */	
+//	if (p_pic32io->pic32can_rcv_rdy) {
+//		mask |= POLLIN | POLLRDNORM; /* readable */	
 //		printk("pic32can: poll rdy \n");
-	}
+//	}
 		
   //if (left != 1)     mask |= POLLOUT | POLLWRNORM; /* writable */
 	return mask;
@@ -983,13 +952,8 @@ static int __devinit pic32io_probe(struct spi_device *spi)
 	int i, ret;
 	unsigned long flags;
 	
-	printk("pic32io_probe: tries probe...\n");
+	printk("pic32io_probe: loading...\n");
 
-/*	if (!spi->irq) {
-		dev_dbg(&spi->dev, "no IRQ?\n");
-		return -ENODEV;
-	}
-*/
 	if (!pdata) {
 		dev_dbg(&spi->dev, "no platform data?\n");
 		return -ENODEV;
@@ -1037,21 +1001,21 @@ static int __devinit pic32io_probe(struct spi_device *spi)
 //		pic->omap2pic[0], pic->omap2pic[1], pic->omap2pic[2]);
 
 	/// REQUEST  interrupt
-	if (request_irq(OMAP_GPIO_IRQ(pic->pic2omap[0]), pic32io_irq, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
+/*	if (request_threaded_irq(OMAP_GPIO_IRQ(pic->pic2omap[0]), pic32io_hard_irq, pic32io_irq, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
 			spi->dev.driver->name, pic)) { //ISR will receive ts as HANDLER struct
 		dev_dbg(&spi->dev, "irq %d busy?\n",OMAP_GPIO_IRQ(pic->pic2omap[0]));
 		err = -EBUSY;
 		goto err_free_mem;
 	}
 	/// REQUEST  interrupt
-	if (request_irq(OMAP_GPIO_IRQ(pic->pic2omap[1]), pic32io_irq, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
+	if (request_threaded_irq(OMAP_GPIO_IRQ(pic->pic2omap[1]), pic32io_hard_irq, pic32io_irq, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
 			spi->dev.driver->name, pic)) { //ISR will receive ts as HANDLER struct
 		dev_dbg(&spi->dev, "irq %d busy?\n", OMAP_GPIO_IRQ(pic->pic2omap[1]));
 		err = -EBUSY;
 		goto err_free_mem;
 	}
-	/// REQUEST  interrupt
-	if (request_irq(OMAP_GPIO_IRQ(pic->pic2omap[2]), pic32io_irq, IRQF_TRIGGER_RISING,
+*/	/// REQUEST  interrupt
+	if (request_threaded_irq(OMAP_GPIO_IRQ(pic->pic2omap[2]), pic32io_hard_irq, pic32io_irq, IRQF_TRIGGER_RISING,
 			spi->dev.driver->name, pic)) { //ISR will receive ts as HANDLER struct
 		dev_dbg(&spi->dev, "irq %d busy?\n", OMAP_GPIO_IRQ(pic->pic2omap[2]));
 		err = -EBUSY;
@@ -1076,14 +1040,14 @@ static int __devinit pic32io_probe(struct spi_device *spi)
 		gpio_export(pic->omap2pic[i], 1);
 	}
 
-	ret = uart_register_driver(&pic32uart_reg);
+/*	ret = uart_register_driver(&pic32uart_reg);
 	if (ret > 0)
 		printk("pic32io: uart_register error %d\n", ret);
 		
 	for (i = 0; i < PIC32UART_NR; i++) {
 		uart_add_one_port(&pic32uart_reg, &pic32uart_ports[i]);
 		}
-
+*/
 	ret = register_chrdev(PIC32CAN_MAJOR, "pic32can", &fops);
 	if (ret > 0)
 		printk("pic32io: register chardev error %d\n", ret);
@@ -1112,7 +1076,7 @@ err_free_mem:
 
 static int __devexit pic32io_remove(struct spi_device *spi)
 {
-	int i;
+//	int i;
 	struct pic32io		*pic = dev_get_drvdata(&spi->dev); 
 
 	pic32io_suspend(spi, PMSG_SUSPEND);
@@ -1127,10 +1091,10 @@ static int __devexit pic32io_remove(struct spi_device *spi)
 
 	unregister_chrdev(PIC32CAN_MAJOR, "pic32can");
 	
-	for (i = 0; i < PIC32UART_NR; i++)
-		uart_remove_one_port(&pic32uart_reg, &pic32uart_ports[i]);
+//	for (i = 0; i < PIC32UART_NR; i++)
+//		uart_remove_one_port(&pic32uart_reg, &pic32uart_ports[i]);
 		
-	uart_unregister_driver(&pic32uart_reg);
+//	uart_unregister_driver(&pic32uart_reg);
 
 	sysfs_remove_group(&spi->dev.kobj, &pic32io_attr_group);
 
@@ -1157,7 +1121,7 @@ static struct spi_driver pic32io_driver = {
 
 static int __init pic32io_init(void)
 {
-	printk("pic32io_init() v0.0.7 -debug\n");
+	printk("pic32io_init() v0.0.8 -debug\n");
  	return (spi_register_driver(&pic32io_driver));
 }
 module_init(pic32io_init);
