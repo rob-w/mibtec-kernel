@@ -648,7 +648,7 @@ omap2_mcspi_txrx_pio(struct spi_device *spi, struct spi_transfer *xfer)
 		 * otherwise these rx datas will affect the direct following
 		 * RX_ONLY transfer.
 		 */
-		omap2_mcspi_set_enable(spi, 0);
+//		omap2_mcspi_set_enable(spi, 0);
 	}
 out:
 	omap2_mcspi_set_enable(spi, 1);
