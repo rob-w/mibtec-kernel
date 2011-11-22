@@ -369,6 +369,12 @@ config LEDS_NETXBIG
 	  and 5Big Network v2 boards. The LEDs are wired to a CPLD and are
 	  controlled through a GPIO extension bus.
 
+config LEDS_TWL4030_PWM
+	tristate "TWL4030 PWM controlled LED support"
+	depends on LEDS_CLASS && TWL4030_CORE
+	help
+		This option enables support for TWL4030 PWM driven LEDs
+
 config LEDS_TRIGGERS
 	bool "LED Trigger support"
 	depends on LEDS_CLASS
