@@ -9,3 +9,4 @@ obj-$(CONFIG_PANEL_ACX565AKM) += panel-acx565akm.o
 obj-$(CONFIG_PANEL_POWERTIP_PH480272T) += panel-powertip-ph480272t.o
 obj-$(CONFIG_PANEL_SEIKO_70WVW1TZ3) += panel-seiko-70wvw1tz3.o
 obj-$(CONFIG_PANEL_AUG12) += panel-aug121x01.o
+obj-$(CONFIG_PANEL_EDT0430) += panel-edt0430.o
