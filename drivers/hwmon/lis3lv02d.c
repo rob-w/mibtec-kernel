@@ -729,6 +729,45 @@ static ssize_t lis3lv02d_selftest_show(struct device *dev,
 		values[0], values[1], values[2]);
 }
 
+static ssize_t lis3lv02d_adc0_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	u8 low, high;
+
+	lis3lv02d_sysfs_poweron(&lis3_dev);
+	mutex_lock(&lis3_dev.mutex);
+	lis3_dev.read(&lis3_dev, OUT_ADC0_L, &low);
+	lis3_dev.read(&lis3_dev, OUT_ADC0_H, &high);
+	mutex_unlock(&lis3_dev.mutex);
+	return sprintf(buf, "%d\n", high << 8 | low);
+}
+
+static ssize_t lis3lv02d_adc1_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	u8 low, high;
+
+	lis3lv02d_sysfs_poweron(&lis3_dev);
+	mutex_lock(&lis3_dev.mutex);
+	lis3_dev.read(&lis3_dev, OUT_ADC1_L, &low);
+	lis3_dev.read(&lis3_dev, OUT_ADC1_H, &high);
+	mutex_unlock(&lis3_dev.mutex);
+	return sprintf(buf, "%d\n", high << 8 | low);
+}
+
+static ssize_t lis3lv02d_adc2_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	u8 low, high;
+
+	lis3lv02d_sysfs_poweron(&lis3_dev);
+	mutex_lock(&lis3_dev.mutex);
+	lis3_dev.read(&lis3_dev, OUT_ADC2_L, &low);
+	lis3_dev.read(&lis3_dev, OUT_ADC2_H, &high);
+	mutex_unlock(&lis3_dev.mutex);
+	return sprintf(buf, "%d\n", high << 8 | low);
+}
+
 static ssize_t lis3lv02d_position_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -763,13 +802,18 @@ static ssize_t lis3lv02d_rate_set(struct device *dev,
 
 	return count;
 }
-
+static DEVICE_ATTR(adc0, S_IRUGO, lis3lv02d_adc0_show, NULL);
+static DEVICE_ATTR(adc1, S_IRUGO, lis3lv02d_adc1_show, NULL);
+static DEVICE_ATTR(adc2, S_IRUGO, lis3lv02d_adc2_show, NULL);
 static DEVICE_ATTR(selftest, S_IRUSR, lis3lv02d_selftest_show, NULL);
 static DEVICE_ATTR(position, S_IRUGO, lis3lv02d_position_show, NULL);
 static DEVICE_ATTR(rate, S_IRUGO | S_IWUSR, lis3lv02d_rate_show,
 					    lis3lv02d_rate_set);
 
 static struct attribute *lis3lv02d_attributes[] = {
+	&dev_attr_adc0.attr,
+	&dev_attr_adc1.attr,
+	&dev_attr_adc2.attr,
 	&dev_attr_selftest.attr,
 	&dev_attr_position.attr,
 	&dev_attr_rate.attr,
