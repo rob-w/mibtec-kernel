@@ -36,6 +36,13 @@
 #include <linux/lis3lv02d.h>
 
 enum lis3_reg {
+	OUT_ADC0_L	= 0x08,
+	OUT_ADC0_H	= 0x09,
+	OUT_ADC1_L	= 0x0A,
+	OUT_ADC1_H	= 0x0B,
+	OUT_ADC2_L	= 0x0C,
+	OUT_ADC2_H	= 0x0D,
+	INTR_CNT	= 0x0E,
 	WHO_AM_I	= 0x0F,
 	OFFSET_X	= 0x16,
 	OFFSET_Y	= 0x17,
