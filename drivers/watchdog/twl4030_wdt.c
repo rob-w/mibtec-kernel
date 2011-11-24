@@ -183,8 +183,8 @@ static int __devinit twl4030_wdt_probe(struct platform_device *pdev)
 	wdt->timer_margin	= 30;
 	wdt->miscdev.parent	= &pdev->dev;
 	wdt->miscdev.fops	= &twl4030_wdt_fops;
-	wdt->miscdev.minor	= WATCHDOG_MINOR;
-	wdt->miscdev.name	= "watchdog";
+	wdt->miscdev.minor	= WATCHDOG_DYNAMIC_MINOR;
+	wdt->miscdev.name	= "twl4030_watchdog";
 
 	platform_set_drvdata(pdev, wdt);
 
