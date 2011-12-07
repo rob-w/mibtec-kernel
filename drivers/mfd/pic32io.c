@@ -328,13 +328,10 @@ static void pic32spi_rx(void *ads)
 
 //	printk("pic32spi: rx() 0 %d 1 %d 2 %d  rcv_rdy %d\n", pic->dev_busy[0], pic->dev_busy[1], pic->dev_busy[2], pic->pic32can_rcv_rdy);
 
-	if (pic->dev_busy[2]/* && !pic->pic32can_rcv_rdy*/) {
-		for (y=0; y<184; y++) {
-			pic->pic32can_rcv[y] = pic->rcv_dev[2].frameid[0].dat[y];
-			}
-		pic->pic32can_rcv_rdy = 2;
-		pic32spi_rcv_clr_buffer(pic, 2);
-		}
+	for (y=0; y<184; y++)
+		pic->pic32can_rcv[y] = pic->rcv_dev[2].frameid[0].dat[y];
+	pic->pic32can_rcv_rdy = 2;
+	pic32spi_rcv_clr_buffer(pic, 2);
 }
 
 static void pic32can_send_spi(struct pic32io *pic, int id, int length)
@@ -343,7 +340,7 @@ static void pic32can_send_spi(struct pic32io *pic, int id, int length)
 	struct spi_transfer *x = &pic->xfer[id];
 	int i, status;
 	
-//	printk("pic32spi: sending padding id %d with lenght %d \n", id, length);
+//	printk("pic32spi: sending padding id %d with lenght %d  can_snd %d -- rdy %d \n", id, length, pic->pic32can_snd[0], pic->pic32can_snd_rdy);
 		
 	spi_message_init(m);
 	i = 0;
@@ -374,53 +371,6 @@ static void pic32can_send_spi(struct pic32io *pic, int id, int length)
 
 	return;
 }
-/*
-static irqreturn_t pic32io_hard_irq(int irq, void *handle)
-{
-	struct pic32io		*pic = handle;
-	unsigned long flags;
-	
-//	spin_lock_irqsave(&pic->lock, flags);
-//	disable_irq(OMAP_GPIO_IRQ(irq));
-//	spin_unlock_irqrestore(&pic->lock, flags);
-
-//	printk("pic32io: HARD_IRQ_%d no disabled\n", irq);
-	return IRQ_WAKE_THREAD;
-}
-
-static irqreturn_t pic32io_irq(int irq, void *handle)
-{
-	struct pic32io		*pic = handle;
-	unsigned long flags;
-	
-	switch (irq) {
-		case 182:
-		break;
-		case 179:
-		break;
-		case 178:
-//			printk("pic32io: IRQ_%d  rdy is %d\n", irq, pic->pic32can_rcv_rdy);
-			if (!pic->pic32can_rcv_rdy){
-				pic->dev_busy[2] = 1;
-				pic32can_send_spi(pic, 2, 184);
-				pic32spi_rx(pic);
-				pic->pic32can_rcv_rdy = 1;
-				}
-//			else
-//				msleep(100);
-//			spin_lock_irqsave(&pic->lock, flags);
-//			enable_irq(OMAP_GPIO_IRQ(irq));
-//			spin_unlock_irqrestore(&pic->lock, flags);
-//			printk("pic32io: IRQ_%d now enabled back \n", irq);
-		break;
-		default:
-			printk("pic32io: ERROR unknown IRQ %d\n", irq);
-		break;
-	}
-//	printk("pic32io: IRQ HANDLED %d\n", pic->pic32can_rcv_rdy);
-	return IRQ_HANDLED;
-}
-*/
 
 static void pic32io_disable(struct pic32io *pic)
 {
@@ -797,7 +747,8 @@ static int pic32can_close(struct inode *node, struct file *instanz)
 	struct pic32io *pic = p_pic32io;
 	unsigned long flags;
 	int ret;
-	
+
+	printk("pic32can: close()\n");
 	if (pic->pic32can_disabled)
 		return 0;
 
@@ -953,6 +904,7 @@ static inline void pic32spi_rcv_clr_buffer(struct pic32io *pic, int id)
 			pic->rcv_dev[id].frameid[z].dat[i] = 0x00;
 			
 }
+
 static enum hrtimer_restart pic32io_timer(struct hrtimer *handle)
 {
 struct pic32io	*pic = container_of(handle, struct pic32io, timer);
@@ -960,9 +912,8 @@ struct pic32io	*pic = container_of(handle, struct pic32io, timer);
 pic->dev_busy[2] = gpio_get_value(pic->pic2omap[2]);
 
  if (pic->dev_busy[2] && !pic->pic32can_rcv_rdy) {
-	pic->dev_busy[2] = 1;
-	pic32can_send_spi(pic, 2, 184);
 	pic->pic32can_rcv_rdy = 1;
+	pic32can_send_spi(pic, 2, 184);
 	}
 
 hrtimer_start(&pic->timer, ktime_set( 0, MS_TO_NS(PIC_POLL_DELAY) ),
@@ -1151,7 +1102,7 @@ static struct spi_driver pic32io_driver = {
 
 static int __init pic32io_init(void)
 {
-	printk("pic32io_init() v0.0.10\n");
+	printk("pic32io_init() v0.0.11\n");
  	return (spi_register_driver(&pic32io_driver));
 }
 module_init(pic32io_init);
