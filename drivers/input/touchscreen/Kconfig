@@ -339,6 +339,11 @@ config TOUCHSCREEN_PENMOUNT
 	  To compile this driver as a module, choose M here: the
 	  module will be called penmount.
 
+config TOUCHSCREEN_EDT_FT5X06
+	tristate "EDT FocalTech FT5x06 I2C Touchscreen support"
+	help
+	  If unsure, say N.
+
 config TOUCHSCREEN_QT602240
 	tristate "QT602240 I2C Touchscreen"
 	depends on I2C
