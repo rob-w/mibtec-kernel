@@ -771,6 +771,20 @@ static ssize_t lis3lv02d_adc3_show(struct device *dev,
 	return sprintf(buf, "%d\n", high << 8 | low);
 }
 
+static ssize_t lis3lv02d_temp_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	u8 low, high;
+
+	lis3lv02d_sysfs_poweron(&lis3_dev);
+	mutex_lock(&lis3_dev.mutex);
+	lis3_dev.write(&lis3_dev, TEMP_CFG, 64);
+	lis3_dev.read(&lis3_dev, OUT_ADC3_L, &low);
+	lis3_dev.read(&lis3_dev, OUT_ADC3_H, &high);
+	mutex_unlock(&lis3_dev.mutex);
+	return sprintf(buf, "%d\n", high << 8 | low);
+}
+
 static ssize_t lis3lv02d_position_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -808,6 +822,7 @@ static ssize_t lis3lv02d_rate_set(struct device *dev,
 static DEVICE_ATTR(adc1, S_IRUGO, lis3lv02d_adc1_show, NULL);
 static DEVICE_ATTR(adc2, S_IRUGO, lis3lv02d_adc2_show, NULL);
 static DEVICE_ATTR(adc3, S_IRUGO, lis3lv02d_adc3_show, NULL);
+static DEVICE_ATTR(temperature, S_IRUGO, lis3lv02d_temp_show, NULL);
 static DEVICE_ATTR(selftest, S_IRUSR, lis3lv02d_selftest_show, NULL);
 static DEVICE_ATTR(position, S_IRUGO, lis3lv02d_position_show, NULL);
 static DEVICE_ATTR(rate, S_IRUGO | S_IWUSR, lis3lv02d_rate_show,
@@ -817,6 +832,7 @@ static struct attribute *lis3lv02d_attributes[] = {
 	&dev_attr_adc1.attr,
 	&dev_attr_adc2.attr,
 	&dev_attr_adc3.attr,
+	&dev_attr_temperature.attr,
 	&dev_attr_selftest.attr,
 	&dev_attr_position.attr,
 	&dev_attr_rate.attr,
