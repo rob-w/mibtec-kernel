@@ -736,7 +736,7 @@ static ssize_t lis3lv02d_adc0_show(struct device *dev,
 
 	lis3lv02d_sysfs_poweron(&lis3_dev);
 	mutex_lock(&lis3_dev.mutex);
-	lis3_dev.write(&lis3_dev, TEMP_CFG, 120);
+	lis3_dev.write(&lis3_dev, TEMP_CFG, 128);
 	lis3_dev.read(&lis3_dev, OUT_ADC0_L, &low);
 	lis3_dev.read(&lis3_dev, OUT_ADC0_H, &high);
 	mutex_unlock(&lis3_dev.mutex);
@@ -750,7 +750,7 @@ static ssize_t lis3lv02d_adc1_show(struct device *dev,
 
 	lis3lv02d_sysfs_poweron(&lis3_dev);
 	mutex_lock(&lis3_dev.mutex);
-	lis3_dev.write(&lis3_dev, TEMP_CFG, 120);
+	lis3_dev.write(&lis3_dev, TEMP_CFG, 128);
 	lis3_dev.read(&lis3_dev, OUT_ADC1_L, &low);
 	lis3_dev.read(&lis3_dev, OUT_ADC1_H, &high);
 	mutex_unlock(&lis3_dev.mutex);
@@ -764,7 +764,7 @@ static ssize_t lis3lv02d_adc2_show(struct device *dev,
 
 	lis3lv02d_sysfs_poweron(&lis3_dev);
 	mutex_lock(&lis3_dev.mutex);
-	lis3_dev.write(&lis3_dev, TEMP_CFG, 120);
+	lis3_dev.write(&lis3_dev, TEMP_CFG, 128);
 	lis3_dev.read(&lis3_dev, OUT_ADC2_L, &low);
 	lis3_dev.read(&lis3_dev, OUT_ADC2_H, &high);
 	mutex_unlock(&lis3_dev.mutex);
