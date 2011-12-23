@@ -702,5 +702,5 @@ module_exit (edt_ft5x06_i2c_ts_exit);
 
 MODULE_AUTHOR ("Simon Budig <simon.budig@kernelconcepts.de>");
 MODULE_DESCRIPTION ("EDT FT5x06 I2C Touchscreen Driver");
-MODULE_LICENSE (GPL);
+MODULE_LICENSE ("GPL");
 
