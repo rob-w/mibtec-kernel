@@ -50,6 +50,7 @@ enum lis3_reg {
 	GAIN_X		= 0x19,
 	GAIN_Y		= 0x1A,
 	GAIN_Z		= 0x1B,
+	TEMP_CFG	= 0x1F,
 	CTRL_REG1	= 0x20,
 	CTRL_REG2	= 0x21,
 	CTRL_REG3	= 0x22,
