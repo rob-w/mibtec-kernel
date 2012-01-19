@@ -11,6 +11,18 @@ menuconfig INPUT_TOUCHSCREEN
 
 if INPUT_TOUCHSCREEN
 
+config  KEYB_TOUCH_MAX1233
+	tristate "SPI based Max1233 Chip"
+	depends on SPI_MASTER
+	help
+	  Say Y here if you have a touchscreen and keyboard interface using
+	  Max1233 controller, and your board-specific
+	  setup code includes that in its table of SPI devices.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called max1233.
+
+
 config TOUCHSCREEN_88PM860X
 	tristate "Marvell 88PM860x touchscreen"
 	depends on MFD_88PM860X
