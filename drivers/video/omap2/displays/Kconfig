@@ -19,6 +19,11 @@ config PANEL_EDT0430
 		help
 			LCD EDT 3.5 zoll
 
+config PANEL_EDT
+		tristate "EDT 800x480"
+		help
+		Generic panel driver for EDT with 800x480.
+
 config PANEL_SHARP_LS037V7DW01
         tristate "Sharp LS037V7DW01 LCD Panel"
         depends on OMAP2_DSS
