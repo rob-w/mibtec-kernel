@@ -740,7 +740,7 @@ static ssize_t lis3lv02d_adc1_show(struct device *dev,
 	lis3_dev.read(&lis3_dev, OUT_ADC1_L, &low);
 	lis3_dev.read(&lis3_dev, OUT_ADC1_H, &high);
 	mutex_unlock(&lis3_dev.mutex);
-	return sprintf(buf, "%d\n", high << 8 | low);
+	return sprintf(buf, "%d\n", (high << 8 | low) >> 6);
 }
 
 static ssize_t lis3lv02d_adc2_show(struct device *dev,
@@ -754,7 +754,7 @@ static ssize_t lis3lv02d_adc2_show(struct device *dev,
 	lis3_dev.read(&lis3_dev, OUT_ADC2_L, &low);
 	lis3_dev.read(&lis3_dev, OUT_ADC2_H, &high);
 	mutex_unlock(&lis3_dev.mutex);
-	return sprintf(buf, "%d\n", high << 8 | low);
+	return sprintf(buf, "%d\n", (high << 8 | low) >> 6);
 }
 
 static ssize_t lis3lv02d_adc3_show(struct device *dev,
@@ -768,7 +768,7 @@ static ssize_t lis3lv02d_adc3_show(struct device *dev,
 	lis3_dev.read(&lis3_dev, OUT_ADC3_L, &low);
 	lis3_dev.read(&lis3_dev, OUT_ADC3_H, &high);
 	mutex_unlock(&lis3_dev.mutex);
-	return sprintf(buf, "%d\n", high << 8 | low);
+	return sprintf(buf, "%d\n", (high << 8 | low) >> 6);
 }
 
 static ssize_t lis3lv02d_temp_show(struct device *dev,
@@ -782,7 +782,7 @@ static ssize_t lis3lv02d_temp_show(struct device *dev,
 	lis3_dev.read(&lis3_dev, OUT_ADC3_L, &low);
 	lis3_dev.read(&lis3_dev, OUT_ADC3_H, &high);
 	mutex_unlock(&lis3_dev.mutex);
-	return sprintf(buf, "%d\n", high << 8 | low);
+	return sprintf(buf, "%d\n", (high << 8 | low) >> 6);
 }
 
 static ssize_t lis3lv02d_position_show(struct device *dev,
