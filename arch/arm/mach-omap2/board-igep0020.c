@@ -258,9 +258,9 @@ static void igep0020_disable_dvi(struct omap_dss_device *dssdev)
 
 static struct omap_dss_device *dss_devices[] = {
 	&igep00x0_dvi_device,
-	&igep00x0_tv_device,
-	&igep00x0_lcd43_device,
-	&igep00x0_lcd70_device,
+//	&igep00x0_tv_device,
+//	&igep00x0_lcd43_device,
+//	&igep00x0_lcd70_device,
 };
 
 static struct omap_dss_board_info dss_board_data = {
@@ -392,6 +392,7 @@ static struct omap_board_mux uart1_as_rs232_mux[] = {
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 
+extern void mis0110_init_display(void);
 
 static inline void igep0020_display_init(void)
 {
@@ -404,11 +405,18 @@ static inline void igep0020_display_init(void)
 	igep00x0_dvi_device.platform_enable = igep0020_enable_dvi;
 	igep00x0_dvi_device.platform_disable = igep0020_disable_dvi;
 
-	platform_device_register(&igep0020_dss_device);
+	/* - MIS0110 RMRFS */
+	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_MIS0110)
+		mis0110_init_display();
+	else
+		platform_device_register(&igep0020_dss_device);
 }
 
 /* Expansion board: IGEP0022 */
 extern void __init igep0022_init(void);
+
+/* Expansion board: MIS0110 */
+extern void __init mis0110_init(void);
 
 static void __init igep0020_init(void)
 {
@@ -475,6 +483,10 @@ static void __init igep0020_init(void)
 	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_IGEP0022)
 		igep0022_init();
 
+	/* - MIS0110 RMRFS */
+	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_MIS0110)
+		mis0110_init();
+
 	/* Common initialitzations */
 	/* - Register flash devices */
 	igep00x0_flash_init();
@@ -489,15 +501,21 @@ static void __init igep0020_init(void)
 	 * NOTE: If we have an expansion board with modem enabled we need to
 	 * disable the bluetooth interface as is INCOMPATIBLE
 	 */
-	opt = igep00x0_buddy_pdata.options & IGEP00X0_BUDDY_OPT_MODEM;
-	if (hwrev == IGEP2_BOARD_HWREV_B)
-		igep00x0_wifi_bt_init(IGEP2_RB_GPIO_WIFI_NPD,
-			IGEP2_RB_GPIO_WIFI_NRESET, IGEP2_RB_GPIO_BT_NRESET,
-			!opt);
-	else if (hwrev == IGEP2_BOARD_HWREV_C)
-		igep00x0_wifi_bt_init(IGEP2_RC_GPIO_WIFI_NPD,
-			IGEP2_RC_GPIO_WIFI_NRESET, IGEP2_RC_GPIO_BT_NRESET,
-			!opt);
+
+	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_MIS0110)
+		printk("MIS0110: not using wifi as baseboard is incompatible to GPIO138\n");
+	else
+	{
+		opt = igep00x0_buddy_pdata.options & IGEP00X0_BUDDY_OPT_MODEM;
+		if (hwrev == IGEP2_BOARD_HWREV_B)
+			igep00x0_wifi_bt_init(IGEP2_RB_GPIO_WIFI_NPD,
+				IGEP2_RB_GPIO_WIFI_NRESET, IGEP2_RB_GPIO_BT_NRESET,
+				!opt);
+		else if (hwrev == IGEP2_BOARD_HWREV_C)
+			igep00x0_wifi_bt_init(IGEP2_RC_GPIO_WIFI_NPD,
+				IGEP2_RC_GPIO_WIFI_NRESET, IGEP2_RC_GPIO_BT_NRESET,
+				!opt);
+	}
 }
 
 static int __init ei485_early_param(char *str)

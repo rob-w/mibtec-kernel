@@ -188,6 +188,9 @@ static int __init buddy_early_param(char *str)
 		if (!strcmp(name, "igep0022")) {
 			igep00x0_buddy_pdata.model = IGEP00X0_BUDDY_IGEP0022;
 			pr_info("IGEP: IGEP0020 machine + IGEP0022 (buddy)\n");
+		} else if (!strcmp(name, "mis0110")) {
+			igep00x0_buddy_pdata.model = IGEP00X0_BUDDY_MIS0110;
+			pr_info("IGEP: IGEP0020 machine + MIS0110 (buddy)\n");
 		} else
 			pr_err("IGEP: Unknown buddy for IGEP0020 machine\n");
 	} else if (machine_is_igep0030() || machine_is_igep0032()) {
@@ -197,6 +200,15 @@ static int __init buddy_early_param(char *str)
 		} else if (!strcmp(name, "ilms0015")) {
 			igep00x0_buddy_pdata.model = IGEP00X0_BUDDY_ILMS0015;
 			pr_info("IGEP: IGEP003x machine + ILMS0015 (buddy)\n");
+		} else if (!strcmp(name, "mis0010")) {
+			igep00x0_buddy_pdata.model = IGEP00X0_BUDDY_MIS0010;
+			pr_info("IGEP: IGEP003x machine + MIS0010 (buddy)\n");
+		} else if (!strcmp(name, "mis0020")) {
+			igep00x0_buddy_pdata.model = IGEP00X0_BUDDY_MIS0020;
+			pr_info("IGEP: IGEP003x machine + MIS0020 (buddy)\n");
+		} else if (!strcmp(name, "mis0030")) {
+			igep00x0_buddy_pdata.model = IGEP00X0_BUDDY_MIS0030;
+			pr_info("IGEP: IGEP003x machine + MIS0030 (buddy)\n");
 		} else
 			pr_err("IGEP: Unknown buddy for IGEP003x machine\n");
 	} else
