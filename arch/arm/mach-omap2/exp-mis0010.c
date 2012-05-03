@@ -15,6 +15,7 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/leds.h>
+#include <linux/leds_pwm.h>
 #include <linux/gpio.h>
 #include <linux/gpio_keys.h>
 #include <linux/input.h>
@@ -399,6 +400,40 @@ static struct platform_device gpio_led_device = {
 		 .platform_data = &gpio_led_pdata,
 	},
 };
+
+static struct led_pwm twl4030_pwm_leds[] = {
+	{
+		.name		= "leda",
+		.pwm_id		= 0,
+		.max_brightness = 255,
+		.default_trigger = "default-on",
+	},{
+		.name		= "ledb",
+		.pwm_id		= 1,
+	},
+	{
+		.name		= "pwm0",
+		.pwm_id		= 2,
+	},{
+		.name		= "pwm1",
+		.pwm_id		= 3,
+		.default_trigger = "default-on",
+	},
+};
+
+static struct led_pwm_platform_data twl4030_pwm_data = {
+	.num_leds	= ARRAY_SIZE(twl4030_pwm_leds),
+	.leds		= twl4030_pwm_leds,
+};
+
+static struct platform_device twl4030_leds_pwm = {
+	.name	= "leds-twl4030-pwm",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &twl4030_pwm_data,
+	},
+};
+
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux mis0010_mux[] __initdata = {
 		
@@ -531,12 +566,13 @@ void __init mis0010_init(struct twl4030_platform_data *pdata)
 	mis0010_gpio_init();
 
 	platform_device_register(&gpio_led_device);
+	platform_device_register(&twl4030_leds_pwm);
 
 	/* Add twl4030 platform data */
 	omap3_pmic_get_config(pdata, 0, TWL_COMMON_REGULATOR_VPLL2);
 	
-	/* Register I2C3 bus */
-	omap_register_i2c_bus(3, 100, NULL, 0);
+///	/* Register I2C3 bus */
+///	omap_register_i2c_bus(3, 100, NULL, 0);
 
 	spidevs_dev_init();
 	spi_register_board_info(igep3_spi_board_info, ARRAY_SIZE(igep3_spi_board_info));

@@ -15,6 +15,7 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/leds.h>
+#include <linux/leds_pwm.h>
 #include <linux/gpio.h>
 #include <linux/gpio_keys.h>
 #include <linux/input.h>
@@ -45,9 +46,9 @@
 #define IGEP3_MCP251X_IRQ		12
 #define IGEP3_MCP251x_NRESET	13
 
-#define IGEP3_MCP251X_TX0_RTS	61
-#define IGEP3_MCP251X_TX1_RTS	52
-#define IGEP3_MCP251X_TX2_RTS	59
+//#define IGEP3_MCP251X_TX0_RTS	61
+//#define IGEP3_MCP251X_TX1_RTS	52
+//#define IGEP3_MCP251X_TX2_RTS	59
 #define IGEP3_MCP251X_RX0_BUF	23
 #define IGEP3_MCP251X_RX1_BUF	22
 
@@ -65,6 +66,17 @@
 #define IGEP3_UART4_DE			18
 #define IGEP3_LCD_NSHUTDOWN		128
 #define IGEP3_LCD_ENABLE		69 /*170*/
+#define IGEP3_LCD_UP_DOWN		78
+#define IGEP3_LCD_LEFT_RIGHT	86
+
+//#define MIS_ID_BIT0				62	/* Schaltplan MUX_R1 H=R209 L=R203 */
+#define MIS_ID_BIT1				170	/* Schaltplan MUX_R2 H=R210 L=R204 */
+//#define MIS_ID_BIT2				41	/* Schaltplan MUX_R3 H=R212 L=R205 */
+//#define MIS_ID_BIT3				60	/* Schaltplan MUX_R4 H=R222 L=R208 */
+
+#define MIS_EXT_OUPUT0			87
+#define MIS_EXT_OUPUT1			79
+#define MIS_EXT_INPUT0			70
 
 /* SMSC911X Ethernet controller */
 #define IGEP3_RA_SMSC911X0_CS       5
@@ -264,6 +276,68 @@ static inline void mis0030_gpio_init(void)
 		}
 	else
 		pr_warning("IGEP: Could not obtain gpio UART4_DE\n");
+
+	if ((gpio_request(IGEP3_LCD_LEFT_RIGHT, "LCD_LEFT_RIGHT") == 0) &&
+		(gpio_direction_output(IGEP3_LCD_LEFT_RIGHT, 1) == 0)) {
+		gpio_export(IGEP3_LCD_LEFT_RIGHT, 0);
+		gpio_set_value(IGEP3_LCD_LEFT_RIGHT, 0);
+		}
+	else
+		pr_warning("IGEP: Could not obtain gpio LCD_LEFT_RIGHT\n");
+
+	if ((gpio_request(IGEP3_LCD_UP_DOWN, "LCD_UP_DOWN") == 0) &&
+		(gpio_direction_output(IGEP3_LCD_UP_DOWN, 1) == 0)) {
+		gpio_export(IGEP3_LCD_UP_DOWN, 0);
+		gpio_set_value(IGEP3_LCD_UP_DOWN, 1);
+		}
+	else
+		pr_warning("IGEP: Could not obtain gpio LCD_UP_DOWN\n");
+
+/*	if (gpio_request(MIS_ID_BIT0, "MIS_ID_BIT0") == 0) {
+		gpio_export(MIS_ID_BIT0, 0);
+		}
+	else
+		pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT0\n");
+*/
+	if (gpio_request(MIS_ID_BIT1, "MIS_ID_BIT1") == 0) {
+		gpio_export(MIS_ID_BIT1, 0);
+		}
+	else
+		pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT1\n");
+
+/*	if (gpio_request(MIS_ID_BIT2, "MIS_ID_BIT2") == 0) {
+		gpio_export(MIS_ID_BIT2, 0);
+		}
+	else
+		pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT2\n");
+
+	if (gpio_request(MIS_ID_BIT3, "MIS_ID_BIT3") == 0) {
+		gpio_export(MIS_ID_BIT3, 0);
+		}
+	else
+		pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT3\n");
+*/
+	if (gpio_request(MIS_EXT_INPUT0, "MIS_EXT_INPUT0") == 0) {
+		gpio_export(MIS_EXT_INPUT0, 0);
+		}
+	else
+		pr_warning("IGEP: Could not obtain gpio MIS_EXT_INPUT0\n");
+
+	if ((gpio_request(MIS_EXT_OUPUT0, "MIS_EXT_OUTPUT0") == 0) &&
+		(gpio_direction_output(MIS_EXT_OUPUT0, 1) == 0)) {
+		gpio_export(MIS_EXT_OUPUT0, 0);
+		gpio_set_value(MIS_EXT_OUPUT0, 0);
+		}
+	else
+		pr_warning("IGEP: Could not obtain gpio MIS_EXT_OUTPUT0\n");
+
+	if ((gpio_request(MIS_EXT_OUPUT1, "MIS_EXT_OUTPU1") == 0) &&
+		(gpio_direction_output(MIS_EXT_OUPUT1, 1) == 0)) {
+		gpio_export(MIS_EXT_OUPUT1, 0);
+		gpio_set_value(MIS_EXT_OUPUT1, 1);
+		}
+	else
+		pr_warning("IGEP: Could not obtain gpio MIS_EXT_OUTPUT1\n");
 }
 
 static struct gpio_led gpio_led_data[] = {
@@ -297,6 +371,37 @@ static struct platform_device gpio_led_device = {
 	 .id     =  0,
 	 .dev    = {
 		 .platform_data = &gpio_led_pdata,
+	},
+};
+
+static struct led_pwm twl4030_pwm_leds[] = {
+	{
+		.name		= "leda",
+		.pwm_id		= 0,
+	},{
+		.name		= "ledb",
+		.pwm_id		= 1,
+	},
+	{
+		.name		= "pwm0",
+		.pwm_id		= 2,
+	},{
+		.name		= "pwm1",
+		.pwm_id		= 3,
+		.default_trigger = "default-on",
+	},
+};
+
+static struct led_pwm_platform_data twl4030_pwm_data = {
+	.num_leds	= ARRAY_SIZE(twl4030_pwm_leds),
+	.leds		= twl4030_pwm_leds,
+};
+
+static struct platform_device twl4030_leds_pwm = {
+	.name	= "leds-twl4030-pwm",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &twl4030_pwm_data,
 	},
 };
 
@@ -338,7 +443,7 @@ static struct omap_board_mux mis0030_mux[] __initdata = {
 	OMAP3_MUX(DSS_HSYNC, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(DSS_VSYNC, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(DSS_ACBIAS, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
-	OMAP3_MUX(DSS_DATA0, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA0, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),		/* GPIO_70 MIS_EXT_INPUT0 */
 	OMAP3_MUX(DSS_DATA1, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),
 	OMAP3_MUX(DSS_DATA2, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(DSS_DATA3, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
@@ -346,16 +451,16 @@ static struct omap_board_mux mis0030_mux[] __initdata = {
 	OMAP3_MUX(DSS_DATA5, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(DSS_DATA6, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(DSS_DATA7, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
-	OMAP3_MUX(DSS_DATA8, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
-	OMAP3_MUX(DSS_DATA9, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA8, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT), 	/* GPIO_78 IGEP3_LCD_UP_DOWN */
+	OMAP3_MUX(DSS_DATA9, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),		/* GPIO_79 MIS_EXT_OUTPUT1 */
 	OMAP3_MUX(DSS_DATA10, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(DSS_DATA11, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(DSS_DATA12, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(DSS_DATA13, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(DSS_DATA14, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(DSS_DATA15, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
-	OMAP3_MUX(DSS_DATA16, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
-	OMAP3_MUX(DSS_DATA17, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA16, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),	/* GPIO_68 IGEP3_LCD_LEFT_RIGHT */
+	OMAP3_MUX(DSS_DATA17, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),	/* GPIO_87 MIS_EXT_OUTPUT0 */
 	OMAP3_MUX(DSS_DATA18, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(DSS_DATA19, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(DSS_DATA20, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
@@ -384,9 +489,9 @@ static struct omap_board_mux mis0030_mux[] __initdata = {
 	OMAP3_MUX(MCSPI1_SIMO, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
 	OMAP3_MUX(MCSPI1_SOMI, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
 
-	OMAP3_MUX(GPMC_NBE1, OMAP_MUX_MODE7),	/* GPIO_61 MCP TX0_RTS */
-	OMAP3_MUX(GPMC_NCS1, OMAP_MUX_MODE7),	/* GPIO_52 MCP TX1_RTS */
-	OMAP3_MUX(GPMC_CLK, OMAP_MUX_MODE7),	/* GPIO_59 MCP TX2_RTS */
+//	OMAP3_MUX(GPMC_NBE1, OMAP_MUX_MODE7),	/* GPIO_61 MCP TX0_RTS */
+//	OMAP3_MUX(GPMC_NCS1, OMAP_MUX_MODE7),	/* GPIO_52 MCP TX1_RTS */
+//	OMAP3_MUX(GPMC_CLK, OMAP_MUX_MODE7),	/* GPIO_59 MCP TX2_RTS */
 	OMAP3_MUX(ETK_D8, OMAP_MUX_MODE7),		/* GPIO_22 MCP RX1_BUF */
 	OMAP3_MUX(ETK_D9, OMAP_MUX_MODE7),		/* GPIO_23 MCP RX0_BUF */
 
@@ -419,6 +524,12 @@ static struct omap_board_mux mis0030_mux[] __initdata = {
 //	OMAP3_MUX(CSI2_DX1, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),	/* GPIO_114 IRQ1 */
 	OMAP3_MUX(ETK_D6, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),		/* GPIO_20 IRQ2 */
 
+	/* MIS ID BITS */
+///	OMAP3_MUX(GPMC_NWP, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),	/* MIS_ID_BIT0 */
+	OMAP3_MUX(HDQ_SIO, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),	/* MIS_ID_BIT1 */
+///	OMAP3_MUX(GPMC_A8, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),	/* MIS_ID_BIT2 */
+///	OMAP3_MUX(GPMC_NBE0_CLE, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),	/* MIS_ID_BIT3 */
+
 	/* all unneeded disabled */
 	OMAP3_MUX(CSI2_DX1, OMAP_MUX_MODE7),
 	OMAP3_MUX(MCSPI1_CS3, OMAP_MUX_MODE7),
@@ -432,7 +543,6 @@ static struct omap_board_mux mis0030_mux[] __initdata = {
 	OMAP3_MUX(ETK_D7, OMAP_MUX_MODE7),
 //	OMAP3_MUX(ETK_D8, OMAP_MUX_MODE7),	/* GPIO_22 */
 //	OMAP3_MUX(ETK_D9, OMAP_MUX_MODE7),	/* GPIO_23 */
-	OMAP3_MUX(GPMC_A8, OMAP_MUX_MODE7),
 
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
@@ -456,6 +566,7 @@ void __init mis0030_init(struct twl4030_platform_data *pdata)
 	mis0030_gpio_init();
 
 	platform_device_register(&gpio_led_device);
+	platform_device_register(&twl4030_leds_pwm);
 
 	/* Add twl4030 platform data */
 	omap3_pmic_get_config(pdata, 0, TWL_COMMON_REGULATOR_VPLL2);

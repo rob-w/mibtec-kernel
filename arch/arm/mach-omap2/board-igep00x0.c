@@ -437,7 +437,7 @@ void __init igep00x0_tsc2046_init(int busnum, int cs, int irq,
 
 static struct mcp251x_platform_data mcp251x_pdata = {
 	.oscillator_frequency	= 20*1000*1000,
-	.irq_flags		= IRQF_TRIGGER_RISING,
+	.irq_flags		= IRQF_TRIGGER_FALLING,
 };
 
 static struct spi_board_info mcp251x_spi_board_info  __initdata = {
@@ -463,9 +463,11 @@ void __init igep00x0_mcp251x_init(int bus_num, int cs, int irq, int nreset)
 	}
 
 	if (nreset) {
-		if ((gpio_request(irq, "MCP251X NRESET") == 0)
-			&& (gpio_direction_output(nreset, 0) == 0))
+		if ((gpio_request(nreset, "MCP251X NRESET") == 0)
+			&& (gpio_direction_output(nreset, 0) == 0)) {
 			gpio_export(nreset, 0);
+			gpio_set_value(nreset, 1);
+		}
 		else
 			pr_err("IGEP: Could not obtain gpio MCP251X NRESET\n");
 	}
