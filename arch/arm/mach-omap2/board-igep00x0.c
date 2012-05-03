@@ -286,17 +286,7 @@ static struct mtd_partition igep00x0_flash_partitions[] = {
 	{
 		.name           = "Boot",
 		.offset         = MTDPART_OFS_APPEND,
-		.size           = 6 * (64*(2*2048)),
-	},
-	{
-		.name           = "old-env",
-		.offset         = MTDPART_OFS_APPEND,
-		.size           = 2 * (64*(2*2048)),
-	},
-	{
-		.name           = "old-kernel",
-		.offset         = MTDPART_OFS_APPEND,
-		.size           = 12 * (64*(2*2048)),
+		.size           = 20 * (64*(2*2048)),
 	},
 	{
 		.name           = "File System",
