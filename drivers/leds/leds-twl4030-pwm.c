@@ -106,8 +106,6 @@ static void twl4030_enable_pwm01(enum twl4030_led led, bool enable)
 		r &= ~clkbit;
 	}
 	
-	printk("leds-twl4030-pwm: enable() %d %d\n", led, enable);
-	
 	twl_i2c_write_u8(TWL4030_MODULE_INTBR, r, TWL_INTBR_GPBR1);
 }
 
@@ -129,10 +127,14 @@ static void twl4030_pwmled_brightness(struct led_classdev *cdev,
 	/* avoid 0: on = off = 0 means full brightness */
 	if (val == 0)
 		val = 1;
-	
-	printk("leds-twl4030-pwm: bright %d \n", val);
 
-	twl_i2c_write_u8(led->module, val, TWL4030_PWMx_PWMxOFF);
+	/// Crazy stuff
+	/// PWMX LED is a inverted signal therefore we need to send 0
+	/// in order to set DUTY_OFF to 0 to get a full LOW or such
+	/// but 0 is masked here so we send 255 as integer to surpass
+	/// this masking but effektivly send 0 on the low 7 bits to turn
+	/// in DUTY CYLE OFF
+	twl_i2c_write_u8(led->module, val + 1, TWL4030_PWMx_PWMxOFF);
 
 	if (led->old_brightness == LED_OFF)
 		led->enable(led->id, 1);
@@ -163,7 +165,7 @@ static int __devinit twl4030_pwmled_probe(struct platform_device *pdev)
 		led->cdev.brightness_set = twl4030_pwmled_brightness;
 		led->cdev.default_trigger = pdata->leds[i].default_trigger;
 		led->id = pdata->leds[i].pwm_id;
-		led->old_brightness = -1; /* unknown */
+		led->old_brightness = LED_OFF; /* unknown */
 
 		switch (pdata->leds[i].pwm_id) {
 		case TWL4030_LEDA:
