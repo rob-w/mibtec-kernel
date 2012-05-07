@@ -105,9 +105,12 @@ struct ads7846 {
 	u16			vref_mv;
 	u16			vref_delay_usecs;
 	u16			x_plate_ohms;
+	u16			y_plate_ohms;
 	u16			pressure_max;
 
 	bool			swap_xy;
+	bool			invertx;
+	bool			inverty;
 
 	struct ads7846_packet	*packet;
 
@@ -687,7 +690,7 @@ static int ads7846_get_value(struct ads7846 *ts, struct spi_message *m)
 		 * adjust:  on-wire is a must-ignore bit, a BE12 value, then
 		 * padding; built from two 8 bit values written msb-first.
 		 */
-		return be16_to_cpup((__be16 *)t->rx_buf) >> 3;
+		return le16_to_cpup((__be16 *)t->rx_buf) >> 3;
 	}
 }
 
@@ -757,7 +760,7 @@ static void ads7846_report_state(struct ads7846 *ts)
 {
 	struct ads7846_packet *packet = ts->packet;
 	unsigned int Rt;
-	u16 x, y, z1, z2;
+	u16 x, y, z1, z2, p2;
 
 	/*
 	 * ads7846_get_value() does in-place conversion (including byte swap)
@@ -790,12 +793,17 @@ static void ads7846_report_state(struct ads7846 *ts)
 		dev_vdbg(&ts->spi->dev, "x/y: %d/%d, PD %d\n", x, y, Rt);
 	} else if (likely(x && z1)) {
 		/* compute touch pressure resistance using equation #2 */
-		Rt = z2;
-		Rt -= z1;
+		Rt = MAX_12BIT - z1 ;
 		Rt *= x;
 		Rt *= ts->x_plate_ohms;
 		Rt /= z1;
-		Rt = (Rt + 2047) >> 12;
+
+		p2 = MAX_12BIT - y;
+		p2 *= ts->y_plate_ohms;
+
+		Rt -= p2;
+		Rt >>= 12;
+
 	} else {
 		Rt = 0;
 	}
@@ -835,6 +843,10 @@ static void ads7846_report_state(struct ads7846 *ts)
 
 		if (ts->swap_xy)
 			swap(x, y);
+		if (ts->invertx)
+			x = (MAX_12BIT - x);
+		if (ts->inverty)
+			y = (MAX_12BIT - y);
 
 		if (!ts->pendown) {
 			input_report_key(input, BTN_TOUCH, 1);
@@ -1233,6 +1245,7 @@ static int __devinit ads7846_probe(struct spi_device *spi)
 	ts->model = pdata->model ? : 7846;
 	ts->vref_delay_usecs = pdata->vref_delay_usecs ? : 100;
 	ts->x_plate_ohms = pdata->x_plate_ohms ? : 400;
+	ts->y_plate_ohms = pdata->y_plate_ohms ? : 400;
 	ts->pressure_max = pdata->pressure_max ? : ~0;
 
 	if (pdata->filter != NULL) {
@@ -1254,6 +1267,13 @@ static int __devinit ads7846_probe(struct spi_device *spi)
 	} else {
 		ts->filter = ads7846_no_filter;
 	}
+
+	pdata->debounce_max = 4;
+	pdata->debounce_tol = 30;
+	pdata->debounce_rep = 1;
+
+	ts->invertx = 0;
+	ts->inverty = 1;
 
 	err = ads7846_setup_pendown(spi, ts);
 	if (err)
