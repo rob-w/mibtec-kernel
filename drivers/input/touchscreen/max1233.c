@@ -1275,6 +1275,12 @@ static int __devinit max1233_probe(struct spi_device *spi)
 		return -ENODEV;
 	}
 
+	spi->bits_per_word = 32;
+	spi->mode = SPI_MODE_3;
+	err = spi_setup(spi);
+	if (err < 0)
+		return err;
+
 	/* don't exceed max specified SPI CLK frequency */
 	if (spi->max_speed_hz > MAX_SPI_FREQ_HZ) {
 		dev_dbg(&spi->dev, "SPI CLK %d Hz?\n",spi->max_speed_hz);
