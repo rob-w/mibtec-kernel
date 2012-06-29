@@ -1510,7 +1510,7 @@ static struct spi_driver max1233_driver = {
 
 static int __init max1233_init(void)
 {
-	printk("max1233_init() v0.8.1 debugger\n");
+	printk("max1233_init() v0.8.2\n");
  	return (spi_register_driver(&max1233_driver));
 }
 module_init(max1233_init);
