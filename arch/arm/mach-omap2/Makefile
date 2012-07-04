@@ -241,6 +241,7 @@ obj-$(CONFIG_MACH_IGEP0030)		+= board-igep0030.o \
 					   exp-mis0010.o \
 					   exp-mis0020.o \
 					   exp-mis0030.o \
+					   exp-mis0040.o \
 					   hsmmc.o
 obj-$(CONFIG_MACH_IGEP0032)		+= board-igep0032.o \
 					   board-flash.o \
@@ -250,6 +251,7 @@ obj-$(CONFIG_MACH_IGEP0032)		+= board-igep0032.o \
 					   exp-mis0010.o \
 					   exp-mis0020.o \
 					   exp-mis0030.o \
+					   exp-mis0040.o \
 					   hsmmc.o
 obj-$(CONFIG_MACH_OMAP3_TOUCHBOOK)	+= board-omap3touchbook.o \
 					   hsmmc.o

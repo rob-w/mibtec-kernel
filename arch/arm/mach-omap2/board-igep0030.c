@@ -239,6 +239,8 @@ extern void __init mis0010_init(struct twl4030_platform_data *pdata);
 extern void __init mis0020_init(struct twl4030_platform_data *pdata);
 /* Expansion board: MIS0030 7" TOUCH */
 extern void __init mis0030_init(struct twl4030_platform_data *pdata);
+/* Expansion board: MIS0030 7"b TOUCH */
+extern void __init mis0040_init(struct twl4030_platform_data *pdata);
 
 static void __init igep0030_init(void)
 {
@@ -270,6 +272,9 @@ static void __init igep0030_init(void)
 
 	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_MIS0030)
 		mis0030_init(&twl4030_pdata);
+
+	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_MIS0040)
+		mis0040_init(&twl4030_pdata);
 
 	/* Add twl4030 common data */
 	omap3_pmic_get_config(&twl4030_pdata, TWL_COMMON_PDATA_USB |
