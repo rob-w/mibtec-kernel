@@ -395,16 +395,20 @@ static struct led_pwm twl4030_pwm_leds[] = {
 	{
 		.name		= "leda",
 		.pwm_id		= 0,
+		.active_low = 0,
 	},{
 		.name		= "ledb",
 		.pwm_id		= 1,
+		.active_low = 0,
 	},
 	{
 		.name		= "pwm0",
 		.pwm_id		= 2,
+		.active_low = 0,
 	},{
 		.name		= "pwm1",
 		.pwm_id		= 3,
+		.active_low = 0,
 		.default_trigger = "default-on",
 	},
 };
