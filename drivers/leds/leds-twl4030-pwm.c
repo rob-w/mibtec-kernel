@@ -7,6 +7,7 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
+ * - added backlight support
  */
 
 #include <linux/kernel.h>
@@ -47,6 +48,7 @@ struct twl4030_pwmled {
 	enum led_brightness old_brightness;
 	enum twl4030_led id;
 	int module;
+	u8 active_low;
 };
 
 static int twl4030_clear_set(u8 mod_no, u8 clear, u8 set, u8 reg)
@@ -117,6 +119,10 @@ static void twl4030_pwmled_brightness(struct led_classdev *cdev,
 
 	led = container_of(cdev, struct twl4030_pwmled, cdev);
 
+/// INVERT INCOMING VALUE
+	if (led->active_low)
+		b = LED_FULL - b;
+
 	if (b == LED_OFF) {
 		if (led->old_brightness != LED_OFF)
 			led->enable(led->id, 0);
@@ -160,12 +166,14 @@ static int __devinit twl4030_pwmled_probe(struct platform_device *pdev)
 
 	for (i = 0; i < pdata->num_leds; i++) {
 		led = &leds[i];
+		led->active_low = 0;
 		led->cdev.name = pdata->leds[i].name;
 		led->cdev.brightness = LED_OFF;
+		led->active_low = pdata->leds[i].active_low;
 		led->cdev.brightness_set = twl4030_pwmled_brightness;
 		led->cdev.default_trigger = pdata->leds[i].default_trigger;
 		led->id = pdata->leds[i].pwm_id;
-		led->old_brightness = LED_OFF; /* unknown */
+		led->old_brightness = LED_OFF;
 
 		switch (pdata->leds[i].pwm_id) {
 		case TWL4030_LEDA:
@@ -179,7 +187,6 @@ static int __devinit twl4030_pwmled_probe(struct platform_device *pdev)
 		case TWL4030_PWM0:
 			led->module = TWL4030_MODULE_PWM0;
 			led->enable = twl4030_enable_pwm01;
-			/* enable PWM0 in pin mux */
 			twl4030_clear_set(TWL4030_MODULE_INTBR,
 				0x0c, 0x04, TWL_INTBR_PMBR1);
 			break;
