@@ -2427,7 +2427,7 @@ static struct platform_driver omap_hsmmc_driver = {
 	.driver		= {
 		.name = DRIVER_NAME,
 		.owner = THIS_MODULE,
-		.pm = &omap_hsmmc_dev_pm_ops,
+		/*.pm = &omap_hsmmc_dev_pm_ops,*/
 	},
 };
 

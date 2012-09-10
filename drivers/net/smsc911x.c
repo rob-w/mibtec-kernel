@@ -1124,92 +1124,10 @@ static void smsc911x_rx_multicast_update_workaround(struct smsc911x_data *pdata)
 	spin_unlock(&pdata->mac_lock);
 }
 
-static int smsc911x_phy_disable_energy_detect(struct smsc911x_data *pdata)
-{
-	int rc = 0;
-
-	if (!pdata->phy_dev)
-		return rc;
-
-	rc = phy_read(pdata->phy_dev, MII_LAN83C185_CTRL_STATUS);
-
-	if (rc < 0) {
-		SMSC_WARNING(HW, "Failed reading PHY control reg");
-		return rc;
-	}
-
-	/*
-	 * If energy is detected the PHY is already awake so is not necessary
-	 * to disable the energy detect power-down mode.
-	 */
-	if ((rc & MII_LAN83C185_EDPWRDOWN) &&
-	    !(rc & MII_LAN83C185_ENERGYON)) {
-		/* Disable energy detect mode for this SMSC Transceivers */
-		rc = phy_write(pdata->phy_dev, MII_LAN83C185_CTRL_STATUS,
-			       rc & (~MII_LAN83C185_EDPWRDOWN));
-
-		if (rc < 0) {
-			SMSC_WARNING(HW, "Failed writing PHY control reg");
-			return rc;
-		}
-
-		mdelay(1);
-	}
-
-	return 0;
-}
-
-static int smsc911x_phy_enable_energy_detect(struct smsc911x_data *pdata)
-{
-	int rc = 0;
-
-	if (!pdata->phy_dev)
-		return rc;
-
-	rc = phy_read(pdata->phy_dev, MII_LAN83C185_CTRL_STATUS);
-
-	if (rc < 0) {
-		SMSC_WARNING(HW, "Failed reading PHY control reg");
-		return rc;
-	}
-
-	/* Only enable if energy detect mode is already disabled */
-	if (!(rc & MII_LAN83C185_EDPWRDOWN)) {
-		mdelay(100);
-		/* Enable energy detect mode for this SMSC Transceivers */
-		rc = phy_write(pdata->phy_dev, MII_LAN83C185_CTRL_STATUS,
-			       rc | MII_LAN83C185_EDPWRDOWN);
-
-		if (rc < 0) {
-			SMSC_WARNING(HW, "Failed writing PHY control reg");
-			return rc;
-		}
-
-		mdelay(1);
-	}
-	return 0;
-}
-
 static int smsc911x_soft_reset(struct smsc911x_data *pdata)
 {
 	unsigned int timeout;
 	unsigned int temp;
-	int ret;
-
-	/*
-	 * LAN9210/LAN9211/LAN9220/LAN9221 chips have an internal PHY that
-	 * are initialized in a Energy Detect Power-Down mode that prevents
-	 * the MAC chip to be software reseted. So we have to wakeup the PHY
-	 * before.
-	 */
-	if (pdata->generation == 4) {
-		ret = smsc911x_phy_disable_energy_detect(pdata);
-
-		if (ret) {
-			SMSC_WARNING(HW, "Failed to wakeup the PHY chip");
-			return ret;
-		}
-	}
 
 	/* Reset the LAN911x */
 	smsc911x_reg_write(pdata, HW_CFG, HW_CFG_SRST_);
@@ -1222,15 +1140,6 @@ static int smsc911x_soft_reset(struct smsc911x_data *pdata)
 	if (unlikely(temp & HW_CFG_SRST_)) {
 		SMSC_WARNING(DRV, "Failed to complete reset");
 		return -EIO;
-	}
-
-	if (pdata->generation == 4) {
-		ret = smsc911x_phy_enable_energy_detect(pdata);
-
-		if (ret) {
-			SMSC_WARNING(HW, "Failed to wakeup the PHY chip");
-			return ret;
-		}
 	}
 
 	return 0;
@@ -1912,6 +1821,7 @@ static int __devinit smsc911x_init(struct net_device *dev)
 {
 	struct smsc911x_data *pdata = netdev_priv(dev);
 	unsigned int byte_test;
+	unsigned int to = 100;
 
 	SMSC_TRACE(PROBE, "Driver Parameters:");
 	SMSC_TRACE(PROBE, "LAN base: 0x%08lX",
@@ -1920,9 +1830,21 @@ static int __devinit smsc911x_init(struct net_device *dev)
 	SMSC_TRACE(PROBE, "PHY will be autodetected.");
 
 	spin_lock_init(&pdata->dev_lock);
+	spin_lock_init(&pdata->mac_lock);
 
 	if (pdata->ioaddr == 0) {
 		SMSC_WARNING(PROBE, "pdata->ioaddr: 0x00000000");
+		return -ENODEV;
+	}
+
+	/*
+	 * poll the READY bit in PMT_CTRL. Any other access to the device is
+	 * forbidden while this bit isn't set. Try for 100ms
+	 */
+	while (!(smsc911x_reg_read(pdata, PMT_CTRL) & PMT_CTRL_READY_) && --to)
+		udelay(1000);
+	if (to == 0) {
+		pr_err("Device not READY in 100ms aborting\n");
 		return -ENODEV;
 	}
 
@@ -1997,8 +1919,11 @@ static int __devinit smsc911x_init(struct net_device *dev)
 	/* workaround for platforms without an eeprom, where the mac address
 	 * is stored elsewhere and set by the bootloader.  This saves the
 	 * mac address before resetting the device */
-	if (pdata->config.flags & SMSC911X_SAVE_MAC_ADDRESS)
+	if (pdata->config.flags & SMSC911X_SAVE_MAC_ADDRESS) {
+		spin_lock_irq(&pdata->mac_lock);
 		smsc911x_read_mac_address(dev);
+		spin_unlock_irq(&pdata->mac_lock);
+	}
 
 	/* Reset the LAN911x */
 	if (smsc911x_soft_reset(pdata))
@@ -2160,8 +2085,6 @@ static int __devinit smsc911x_drv_probe(struct platform_device *pdev)
 	} else {
 		SMSC_TRACE(PROBE, "Network interface: \"%s\"", dev->name);
 	}
-
-	spin_lock_init(&pdata->mac_lock);
 
 	retval = smsc911x_mii_init(pdev, dev);
 	if (retval) {

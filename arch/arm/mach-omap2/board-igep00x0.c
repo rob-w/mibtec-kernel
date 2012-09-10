@@ -86,6 +86,50 @@ struct omap_musb_board_data igep00x0_musb_board_data = {
 	.power		= 100,
 };
 
+/* TWL4030 power init scripts */
+static struct twl4030_ins wrst_seq[] __initdata = {
+/*
+ * Reset twl4030.
+ * Reset VDD1 regulator.
+ * Reset VDD2 regulator.
+ * Reset VPLL1 regulator.
+ * Enable sysclk output.
+ * Reenable twl4030.
+ */
+        {MSG_SINGULAR(DEV_GRP_NULL, 0x1b, RES_STATE_OFF), 2},
+        {MSG_SINGULAR(DEV_GRP_P1, 0xf, RES_STATE_WRST), 15},
+        {MSG_SINGULAR(DEV_GRP_P1, 0x10, RES_STATE_WRST), 15},
+        {MSG_SINGULAR(DEV_GRP_P1, 0x7, RES_STATE_WRST), 0x60},
+        {MSG_SINGULAR(DEV_GRP_P1, 0x19, RES_STATE_ACTIVE), 2},
+        {MSG_SINGULAR(DEV_GRP_NULL, 0x1b, RES_STATE_ACTIVE), 2},
+};
+
+static struct twl4030_script wrst_script __initdata = {
+        .script = wrst_seq,
+        .size   = ARRAY_SIZE(wrst_seq),
+        .flags  = TWL4030_WRST_SCRIPT,
+};
+
+static struct twl4030_script *twl4030_scripts[] __initdata = {
+        &wrst_script,
+};
+
+static struct twl4030_resconfig twl4030_rconfig[] = {
+        { .resource = RES_HFCLKOUT, .devgroup = DEV_GRP_P3, .type = -1,
+                .type2 = -1 },
+        { .resource = RES_VDD1, .devgroup = DEV_GRP_P1, .type = -1,
+                .type2 = -1 },
+        { .resource = RES_VDD2, .devgroup = DEV_GRP_P1, .type = -1,
+                .type2 = -1 },
+        { 0, 0},
+};
+
+static struct twl4030_power_data igep00x0_twl4030_power_data = {
+        .scripts        = twl4030_scripts,
+        .num            = ARRAY_SIZE(twl4030_scripts),
+        .resource_config = twl4030_rconfig,
+};
+
 static struct regulator_consumer_supply vmmc1_supply =
 	REGULATOR_SUPPLY("vmmc", "mmci-omap-hs.0");
 
@@ -166,6 +210,10 @@ void __init igep00x0_pmic_get_config(struct twl4030_platform_data *pmic_data,
 
 	if (regulators_flags &  TWL_IGEP00X0_REGULATOR_VIO && !pmic_data->vio)
 		pmic_data->vio = &igep00x0_vio_idata;
+
+	/* add generic power scripts */
+	if (!pmic_data->power)
+		pmic_data->power = &igep00x0_twl4030_power_data;
 }
 
 /* Expansion boards */

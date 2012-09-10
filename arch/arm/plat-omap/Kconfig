@@ -183,7 +183,9 @@ config OMAP_IOMMU_DEBUG
          Say N unless you know you need this.
 
 config OMAP_IOMMU_IVA2
-	bool
+	bool "Export OMAP IOMMU to IVA2"
+	help
+	 Select this if you want use syslink
 
 choice
 	prompt "System timer"
