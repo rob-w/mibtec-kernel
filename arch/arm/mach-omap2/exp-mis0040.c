@@ -327,7 +327,7 @@ static inline void mis0040_gpio_init(void)
 				gpio_export(MIS_ID_BIT1, 0);
 				}
 			else
-				pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT3\n");
+				pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT1\n");
 
 			if ((gpio_request(MIS_ID_BIT2, "MIS_ID_BIT2") == 0) &&
 				(gpio_direction_input(MIS_ID_BIT2) == 0)){
@@ -336,7 +336,7 @@ static inline void mis0040_gpio_init(void)
 				gpio_export(MIS_ID_BIT2, 0);
 				}
 			else
-				pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT3\n");
+				pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT2\n");
 
 			if ((gpio_request(MIS_ID_BIT3, "MIS_ID_BIT3") == 0) &&
 				(gpio_direction_input(MIS_ID_BIT3) == 0)){
