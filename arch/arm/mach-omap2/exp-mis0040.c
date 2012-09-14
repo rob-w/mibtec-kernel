@@ -163,13 +163,14 @@ static inline void __init mis0040_smsc911x_init(void)
 	smsc911x1_resources[1].end =
 				OMAP_GPIO_IRQ(IGEP3_RA_SMSC911X1_IRQ);
 
+	/// turned around order on customer demands
 	/* Set up first smsc911x chip */
-	igep00x0_smsc911x_init(&smsc911x0_device, IGEP3_RA_SMSC911X0_CS,
-		IGEP3_RA_SMSC911X0_IRQ, IGEP3_RA_SMSC911X0_NRESET);
-
-	/* Set up second smsc911x chip */
 	igep00x0_smsc911x_init(&smsc911x1_device, IGEP3_RA_SMSC911X1_CS,
 		IGEP3_RA_SMSC911X1_IRQ,	IGEP3_RA_SMSC911X1_NRESET);
+
+	/* Set up second smsc911x chip */
+	igep00x0_smsc911x_init(&smsc911x0_device, IGEP3_RA_SMSC911X0_CS,
+		IGEP3_RA_SMSC911X0_IRQ, IGEP3_RA_SMSC911X0_NRESET);
 }
 #else
 static inline void __init mis0040_smsc911x_init(void) { }
