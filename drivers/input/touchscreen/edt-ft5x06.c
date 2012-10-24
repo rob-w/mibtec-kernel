@@ -597,6 +597,21 @@ static int edt_ft5x06_i2c_ts_probe(struct i2c_client *client,
 		goto err_free_irq_pin;
 	}
 
+	tsdata->threshold = edt_ft5x06_i2c_register_read(tsdata,
+							 WORK_REGISTER_THRESHOLD);
+	tsdata->gain      = edt_ft5x06_i2c_register_read(tsdata,
+							 WORK_REGISTER_GAIN);
+	tsdata->offset    = edt_ft5x06_i2c_register_read(tsdata,
+							 WORK_REGISTER_OFFSET);
+	tsdata->report_rate = edt_ft5x06_i2c_register_read(tsdata,
+							 WORK_REGISTER_REPORT_RATE);
+	tsdata->num_x     = edt_ft5x06_i2c_register_read(tsdata,
+							 WORK_REGISTER_NUM_X);
+	tsdata->num_y     = edt_ft5x06_i2c_register_read(tsdata,
+							 WORK_REGISTER_NUM_Y);
+
+	mutex_unlock(&tsdata->mutex);
+
 	rdbuf[22] = '\0';
 	if (rdbuf[21] == '$')
 		rdbuf[21] = '\0';
@@ -606,21 +621,6 @@ static int edt_ft5x06_i2c_ts_probe(struct i2c_client *client,
 	/* look for Model/Version separator */
 	while (fw_version[0] != '\0' && fw_version[0] != '*')
 		fw_version++;
-
-	tsdata->threshold = edt_ft5x06_i2c_register_read (tsdata,
-							WORK_REGISTER_THRESHOLD);
-	tsdata->gain      = edt_ft5x06_i2c_register_read (tsdata,
-							WORK_REGISTER_GAIN);
-	tsdata->offset    = edt_ft5x06_i2c_register_read (tsdata,
-							WORK_REGISTER_OFFSET);
-	tsdata->report_rate = edt_ft5x06_i2c_register_read(tsdata,
-							WORK_REGISTER_REPORT_RATE);
-	tsdata->num_x     = edt_ft5x06_i2c_register_read (tsdata,
-							WORK_REGISTER_NUM_X);
-	tsdata->num_y     = edt_ft5x06_i2c_register_read (tsdata,
-							WORK_REGISTER_NUM_Y);
-
-	mutex_unlock(&tsdata->mutex);
 
 	if (fw_version[0] == '*') {
 		fw_version[0] = '\0';
