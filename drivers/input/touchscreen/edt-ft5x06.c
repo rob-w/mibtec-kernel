@@ -664,7 +664,7 @@ static int edt_ft5x06_i2c_ts_probe(struct i2c_client *client,
 		goto err_free_input_device;
 
 	if (request_threaded_irq(tsdata->irq, NULL, edt_ft5x06_ts_isr,
-				 IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+				 IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
 				 client->name, tsdata)) {
 		dev_err(&client->dev, "Unable to request touchscreen IRQ.\n");
 		input = NULL;
