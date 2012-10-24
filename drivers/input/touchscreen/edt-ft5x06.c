@@ -522,8 +522,7 @@ static int edt_ft5x06_i2c_ts_probe(struct i2c_client *client,
 	struct input_dev *input;
 	int error;
 	u8 rdbuf[23];
-	char *model_name = NULL;
-	char *fw_version = NULL;
+	char *model_name, *fw_version;
 
 	dev_dbg(&client->dev, "probing for EDT FT5x06 I2C\n");
 
@@ -610,24 +609,23 @@ static int edt_ft5x06_i2c_ts_probe(struct i2c_client *client,
 
 	mutex_unlock(&tsdata->mutex);
 
+	/* remove last '$' end marker */
 	rdbuf[22] = '\0';
 	if (rdbuf[21] == '$')
 		rdbuf[21] = '\0';
 
 	model_name = rdbuf + 1;
-	fw_version = rdbuf;
 	/* look for Model/Version separator */
-	while (fw_version[0] != '\0' && fw_version[0] != '*')
-		fw_version++;
+	fw_version = strchr(rdbuf, '*');
 
-	if (fw_version[0] == '*') {
+	if (fw_version) {
 		fw_version[0] = '\0';
 		fw_version++;
 		dev_info(&client->dev,
 			 "Model \"%s\", Rev. \"%s\", %dx%d sensors\n",
 			 model_name, fw_version, tsdata->num_x, tsdata->num_y);
 	} else {
-		dev_info(&client->dev, "Product ID \"%s\"\n", rdbuf + 1);
+		dev_info(&client->dev, "Product ID \"%s\"\n", model_name);
 	}
 
 	input = input_allocate_device();
