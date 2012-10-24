@@ -60,7 +60,7 @@ struct edt_ft5x06_i2c_ts_data {
 	int num_y;
 
 	struct mutex mutex;
-	int factory_mode;
+	bool factory_mode;
 	int threshold;
 	int gain;
 	int offset;
@@ -251,9 +251,10 @@ static ssize_t edt_ft5x06_i2c_setting_show(struct device *dev,
 
 	mutex_lock(&tsdata->mutex);
 
-	if (tsdata->factory_mode == 1) {
+	if (tsdata->factory_mode) {
 		dev_err(dev,
 			"setting register not available in factory mode\n");
+		mutex_unlock(&tsdata->mutex);
 		return -EIO;
 	}
 
@@ -288,7 +289,7 @@ static ssize_t edt_ft5x06_i2c_setting_store(struct device *dev,
 
 	mutex_lock(&tsdata->mutex);
 
-	if (tsdata->factory_mode == 1) {
+	if (tsdata->factory_mode) {
 		dev_err(dev,
 			"setting register not available in factory mode\n");
 		ret = -EIO;
@@ -339,12 +340,9 @@ static ssize_t edt_ft5x06_i2c_setting_store(struct device *dev,
 		goto out;
 	}
 
-	mutex_unlock(&tsdata->mutex);
-	return count;
-
 out:
 	mutex_unlock(&tsdata->mutex);
-	return ret;
+	return ret < 0 ? ret : count;
 }
 
 
@@ -353,7 +351,7 @@ static ssize_t edt_ft5x06_i2c_mode_show(struct device *dev,
 					char *buf)
 {
 	struct edt_ft5x06_i2c_ts_data *tsdata = dev_get_drvdata(dev);
-	return sprintf(buf, "%d\n", tsdata->factory_mode);
+	return sprintf(buf, "%d\n", tsdata->factory_mode ? 1 : 0);
 }
 
 static ssize_t edt_ft5x06_i2c_mode_store(struct device *dev,
@@ -374,7 +372,7 @@ static ssize_t edt_ft5x06_i2c_mode_store(struct device *dev,
 		return count;
 
 	mutex_lock(&tsdata->mutex);
-	if (tsdata->factory_mode == 0) { /* switch to factory mode */
+	if (!tsdata->factory_mode) { /* switch to factory mode */
 		disable_irq(tsdata->irq);
 		/* mode register is 0x3c when in the work mode */
 		ret = edt_ft5x06_i2c_register_write(tsdata,
@@ -448,7 +446,7 @@ static ssize_t edt_ft5x06_i2c_raw_data_show(struct device *dev,
 	int i, ret;
 	char *ptr, wrbuf[3];
 
-	if (tsdata->factory_mode == 0) {
+	if (!tsdata->factory_mode) {
 		dev_err(dev, "raw data not available in work mode\n");
 		return -EIO;
 	}
@@ -465,7 +463,7 @@ static ssize_t edt_ft5x06_i2c_raw_data_show(struct device *dev,
 	if (i == 100 || ret < 0) {
 		dev_err(dev, "waiting time exceeded or error: %d\n", ret);
 		mutex_unlock(&tsdata->mutex);
-		return ret || ETIMEDOUT;
+		return ret < 0 ? ret : -ETIMEDOUT;
 	}
 
 	ptr = buf;
