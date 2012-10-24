@@ -39,6 +39,7 @@
 #define DRIVER_VERSION "v0.5"
 
 #define WORK_REGISTER_THRESHOLD   0x00
+#define WORK_REGISTER_REPORT_RATE 0x08
 #define WORK_REGISTER_GAIN        0x30
 #define WORK_REGISTER_OFFSET      0x31
 #define WORK_REGISTER_NUM_X       0x33
@@ -63,6 +64,7 @@ struct edt_ft5x06_i2c_ts_data {
 	int threshold;
 	int gain;
 	int offset;
+	int report_rate;
 };
 
 static int edt_ft5x06_ts_readwrite(struct i2c_client *client,
@@ -236,6 +238,10 @@ static ssize_t edt_ft5x06_i2c_setting_show(struct device *dev,
 		addr = WORK_REGISTER_OFFSET;
 		value = &tsdata->offset;
 		break;
+	case 'r':    /* report rate */
+		addr = WORK_REGISTER_REPORT_RATE;
+		value = &tsdata->report_rate;
+		break;
 	default:
 		dev_err(&client->dev,
 			"unknown attribute for edt_ft5x06_i2c_setting_show: %s\n",
@@ -311,6 +317,11 @@ static ssize_t edt_ft5x06_i2c_setting_store(struct device *dev,
 		addr = WORK_REGISTER_OFFSET;
 		val = val < 0 ? 0 : val > 31 ? 31 : val;
 		tsdata->offset = val;
+		break;
+	case 'r':    /* report rate */
+		addr = WORK_REGISTER_REPORT_RATE;
+		val = val < 3 ? 3 : val > 14 ? 14 : val;
+		tsdata->report_rate = val;
 		break;
 	default:
 		dev_err(&client->dev,
@@ -416,6 +427,9 @@ static ssize_t edt_ft5x06_i2c_mode_store(struct device *dev,
 			edt_ft5x06_i2c_register_write(tsdata,
 						      WORK_REGISTER_OFFSET,
 						      tsdata->offset);
+			edt_ft5x06_i2c_register_write(tsdata,
+						      WORK_REGISTER_REPORT_RATE,
+						      tsdata->report_rate);
 
 			enable_irq(tsdata->irq);
 		}
@@ -481,6 +495,8 @@ static DEVICE_ATTR(offset,    0664,
 		   edt_ft5x06_i2c_setting_show, edt_ft5x06_i2c_setting_store);
 static DEVICE_ATTR(threshold, 0664,
 		   edt_ft5x06_i2c_setting_show, edt_ft5x06_i2c_setting_store);
+static DEVICE_ATTR(report_rate, 0664,
+		   edt_ft5x06_i2c_setting_show, edt_ft5x06_i2c_setting_store);
 static DEVICE_ATTR(mode,      0664,
 		   edt_ft5x06_i2c_mode_show, edt_ft5x06_i2c_mode_store);
 static DEVICE_ATTR(raw_data,  0444,
@@ -490,6 +506,7 @@ static struct attribute *edt_ft5x06_i2c_attrs[] = {
 	&dev_attr_gain.attr,
 	&dev_attr_offset.attr,
 	&dev_attr_threshold.attr,
+	&dev_attr_report_rate.attr,
 	&dev_attr_mode.attr,
 	&dev_attr_raw_data.attr,
 	NULL
@@ -596,6 +613,8 @@ static int edt_ft5x06_i2c_ts_probe(struct i2c_client *client,
 							WORK_REGISTER_GAIN);
 	tsdata->offset    = edt_ft5x06_i2c_register_read (tsdata,
 							WORK_REGISTER_OFFSET);
+	tsdata->report_rate = edt_ft5x06_i2c_register_read(tsdata,
+							WORK_REGISTER_REPORT_RATE);
 	tsdata->num_x     = edt_ft5x06_i2c_register_read (tsdata,
 							WORK_REGISTER_NUM_X);
 	tsdata->num_y     = edt_ft5x06_i2c_register_read (tsdata,
