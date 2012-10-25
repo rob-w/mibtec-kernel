@@ -45,6 +45,8 @@
 #define WORK_REGISTER_NUM_X       0x33
 #define WORK_REGISTER_NUM_Y       0x34
 
+#define NO_REGISTER               0x99
+
 #define WORK_REGISTER_OPMODE      0x3c
 #define FACTORY_REGISTER_OPMODE   0x01
 
@@ -65,6 +67,7 @@ struct edt_ft5x06_i2c_ts_data {
 	int gain;
 	int offset;
 	int report_rate;
+	int fingers;
 };
 
 static int edt_ft5x06_ts_readwrite(struct i2c_client *client,
@@ -130,7 +133,17 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 	}
 
 	have_abs = 0;
+
+	/* 0 fingers basicly mutes it */
+	if (tsdata->fingers == 0)
+		goto out;
+
 	touching = rdbuf[3];
+
+	/* if fingers setting is lower then events, limit it*/
+	if (touching > tsdata->fingers)
+		touching = tsdata->fingers;
+
 	for (i = 0; i < touching; i++) {
 		type = rdbuf[i*4+5] >> 6;
 		/* ignore Touch Down and Reserved events */
@@ -242,12 +255,19 @@ static ssize_t edt_ft5x06_i2c_setting_show(struct device *dev,
 		addr = WORK_REGISTER_REPORT_RATE;
 		value = &tsdata->report_rate;
 		break;
+	case 'f':    /* max fingers */
+		addr = NO_REGISTER;
+		value = &tsdata->fingers;
+		break;
 	default:
 		dev_err(&client->dev,
 			"unknown attribute for edt_ft5x06_i2c_setting_show: %s\n",
 			attr->attr.name);
 		return -EINVAL;
 	}
+
+	if (addr == NO_REGISTER)
+		return sprintf(buf, "%d\n", *value);
 
 	mutex_lock(&tsdata->mutex);
 
@@ -323,6 +343,11 @@ static ssize_t edt_ft5x06_i2c_setting_store(struct device *dev,
 		addr = WORK_REGISTER_REPORT_RATE;
 		val = val < 3 ? 3 : val > 14 ? 14 : val;
 		tsdata->report_rate = val;
+		break;
+	case 'f':    /* fingers */
+		addr = WORK_REGISTER_REPORT_RATE;
+		val = val < 0 ? 0 : val > 5 ? 5 : val;
+		tsdata->fingers = val;
 		break;
 	default:
 		dev_err(&client->dev,
@@ -495,6 +520,8 @@ static DEVICE_ATTR(threshold, 0664,
 		   edt_ft5x06_i2c_setting_show, edt_ft5x06_i2c_setting_store);
 static DEVICE_ATTR(report_rate, 0664,
 		   edt_ft5x06_i2c_setting_show, edt_ft5x06_i2c_setting_store);
+static DEVICE_ATTR(fingers, 0664,
+		   edt_ft5x06_i2c_setting_show, edt_ft5x06_i2c_setting_store);
 static DEVICE_ATTR(mode,      0664,
 		   edt_ft5x06_i2c_mode_show, edt_ft5x06_i2c_mode_store);
 static DEVICE_ATTR(raw_data,  0444,
@@ -505,6 +532,7 @@ static struct attribute *edt_ft5x06_i2c_attrs[] = {
 	&dev_attr_offset.attr,
 	&dev_attr_threshold.attr,
 	&dev_attr_report_rate.attr,
+	&dev_attr_fingers.attr,
 	&dev_attr_mode.attr,
 	&dev_attr_raw_data.attr,
 	NULL
@@ -606,6 +634,9 @@ static int edt_ft5x06_i2c_ts_probe(struct i2c_client *client,
 							 WORK_REGISTER_NUM_X);
 	tsdata->num_y     = edt_ft5x06_i2c_register_read(tsdata,
 							 WORK_REGISTER_NUM_Y);
+
+	/* default to 1 Finger at least */
+	tsdata->fingers = 1;
 
 	mutex_unlock(&tsdata->mutex);
 
