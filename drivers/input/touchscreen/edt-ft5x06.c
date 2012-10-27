@@ -68,6 +68,12 @@ struct edt_ft5x06_i2c_ts_data {
 	int offset;
 	int report_rate;
 	int fingers;
+	unsigned char rdbuf[20][27];
+	int queue_size;
+	int queue_ptn;
+	int queue_timeout;
+	struct timer_list queue_up_timer;
+	bool events_valid;
 };
 
 static int edt_ft5x06_ts_readwrite(struct i2c_client *client,
@@ -102,42 +108,16 @@ static int edt_ft5x06_ts_readwrite(struct i2c_client *client,
 	return ret;
 }
 
-
-static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
+static void edt_ft5x06_report_event( void *dev_id)
 {
 	struct edt_ft5x06_i2c_ts_data *tsdata = dev_id;
 	unsigned char touching = 0;
-	unsigned char rdbuf[26], wrbuf[1];
-	int i, have_abs, type, ret;
+	unsigned char rdbuf[26];
+	int i, have_abs, type;
 
-	memset(wrbuf, 0, sizeof(wrbuf));
-	memset(rdbuf, 0, sizeof(rdbuf));
-
-	wrbuf[0] = 0xf9;
-
-	mutex_lock(&tsdata->mutex);
-	ret = edt_ft5x06_ts_readwrite(tsdata->client,
-				      1, wrbuf,
-				      sizeof(rdbuf), rdbuf);
-	mutex_unlock(&tsdata->mutex);
-	if (ret < 0) {
-		dev_err(&tsdata->client->dev,
-			"Unable to write to i2c touchscreen!\n");
-		goto out;
-	}
-
-	if (rdbuf[0] != 0xaa || rdbuf[1] != 0xaa || rdbuf[2] != 26) {
-		dev_err(&tsdata->client->dev,
-			"Unexpected header: %02x%02x%02x!\n",
-			rdbuf[0], rdbuf[1], rdbuf[2]);
-	}
+	memcpy (rdbuf, tsdata->rdbuf[tsdata->queue_ptn], sizeof(rdbuf));
 
 	have_abs = 0;
-
-	/* 0 fingers basicly mutes it */
-	if (tsdata->fingers == 0)
-		goto out;
-
 	touching = rdbuf[3];
 
 	/* if fingers setting is lower then events, limit it*/
@@ -174,11 +154,68 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 		input_report_abs(tsdata->input, ABS_PRESSURE, 0);
 	}
 	input_sync(tsdata->input);
+}
 
+static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
+{
+	struct edt_ft5x06_i2c_ts_data *tsdata = dev_id;
+	unsigned char rdbuf[26], wrbuf[1];
+	int ret;
+
+	memset(wrbuf, 0, sizeof(wrbuf));
+	memset(rdbuf, 0, sizeof(rdbuf));
+
+	wrbuf[0] = 0xf9;
+
+	mutex_lock(&tsdata->mutex);
+	ret = edt_ft5x06_ts_readwrite(tsdata->client,
+				      1, wrbuf,
+				      sizeof(rdbuf), rdbuf);
+	mutex_unlock(&tsdata->mutex);
+	if (ret < 0) {
+		dev_err(&tsdata->client->dev,
+			"Unable to write to i2c touchscreen!\n");
+		goto out;
+	}
+
+	if (rdbuf[0] != 0xaa || rdbuf[1] != 0xaa || rdbuf[2] != 26) {
+		dev_err(&tsdata->client->dev,
+			"Unexpected header: %02x%02x%02x!\n",
+			rdbuf[0], rdbuf[1], rdbuf[2]);
+	}
+
+	/* 0 fingers basicly mutes it */
+	if (tsdata->fingers == 0)
+		goto out;
+
+	memcpy(tsdata->rdbuf[tsdata->queue_ptn], rdbuf, 26);
+
+	if (!tsdata->events_valid)
+		tsdata->queue_ptn++;
+	else
+		edt_ft5x06_report_event(dev_id);
+
+	if (tsdata->queue_ptn == tsdata->queue_size) {
+		for (tsdata->queue_ptn = 0; tsdata->queue_ptn < tsdata->queue_size; tsdata->queue_ptn++)
+			edt_ft5x06_report_event(dev_id);
+		tsdata->events_valid = 1;
+		tsdata->queue_ptn = 0;
+		}
+	mod_timer(&tsdata->queue_up_timer, jiffies + msecs_to_jiffies(tsdata->queue_timeout));
 out:
 	return IRQ_HANDLED;
 }
 
+
+static void edt_ft5x06_queue_up_timer(unsigned long data)
+{
+	struct edt_ft5x06_i2c_ts_data		*tsdata = (void *)data;
+
+	tsdata->events_valid = 0;
+	tsdata->queue_ptn = 0;
+	/* clear queue again */
+	memset(tsdata->rdbuf, 0, sizeof(tsdata->rdbuf));
+}
 
 static int edt_ft5x06_i2c_register_write(struct edt_ft5x06_i2c_ts_data *tsdata,
 					 u8 addr, u8 value)
@@ -258,6 +295,14 @@ static ssize_t edt_ft5x06_i2c_setting_show(struct device *dev,
 	case 'f':    /* max fingers */
 		addr = NO_REGISTER;
 		value = &tsdata->fingers;
+		break;
+	case 'q':    /* queue size */
+		addr = NO_REGISTER;
+		value = &tsdata->queue_size;
+		break;
+	case 'i':    /* invalidate  queue timeout */
+		addr = NO_REGISTER;
+		value = &tsdata->queue_timeout;
 		break;
 	default:
 		dev_err(&client->dev,
@@ -345,9 +390,22 @@ static ssize_t edt_ft5x06_i2c_setting_store(struct device *dev,
 		tsdata->report_rate = val;
 		break;
 	case 'f':    /* fingers */
-		addr = WORK_REGISTER_REPORT_RATE;
+		addr = NO_REGISTER;
 		val = val < 0 ? 0 : val > 5 ? 5 : val;
 		tsdata->fingers = val;
+		goto out;
+		break;
+	case 'q':    /* queue_size */
+		addr = NO_REGISTER;
+		val = val < 5 ? 5 : val > 20 ? 20 : val;
+		tsdata->queue_size = val;
+		goto out;
+		break;
+	case 'i':    /* invalidate queue timeout */
+		addr = NO_REGISTER;
+		val = val < 28 ? 28 : val > 100 ? 100 : val;
+		tsdata->queue_timeout = val;
+		goto out;
 		break;
 	default:
 		dev_err(&client->dev,
@@ -522,6 +580,10 @@ static DEVICE_ATTR(report_rate, 0664,
 		   edt_ft5x06_i2c_setting_show, edt_ft5x06_i2c_setting_store);
 static DEVICE_ATTR(fingers, 0664,
 		   edt_ft5x06_i2c_setting_show, edt_ft5x06_i2c_setting_store);
+static DEVICE_ATTR(queue_size, 0664,
+		   edt_ft5x06_i2c_setting_show, edt_ft5x06_i2c_setting_store);
+static DEVICE_ATTR(invalidate_queue, 0664,
+		   edt_ft5x06_i2c_setting_show, edt_ft5x06_i2c_setting_store);
 static DEVICE_ATTR(mode,      0664,
 		   edt_ft5x06_i2c_mode_show, edt_ft5x06_i2c_mode_store);
 static DEVICE_ATTR(raw_data,  0444,
@@ -533,6 +595,8 @@ static struct attribute *edt_ft5x06_i2c_attrs[] = {
 	&dev_attr_threshold.attr,
 	&dev_attr_report_rate.attr,
 	&dev_attr_fingers.attr,
+	&dev_attr_queue_size.attr,
+	&dev_attr_invalidate_queue.attr,
 	&dev_attr_mode.attr,
 	&dev_attr_raw_data.attr,
 	NULL
@@ -549,6 +613,7 @@ static int edt_ft5x06_i2c_ts_probe(struct i2c_client *client,
 	struct edt_ft5x06_i2c_ts_data *tsdata;
 	struct input_dev *input;
 	int error;
+	int i;
 	u8 rdbuf[23];
 	char *model_name, *fw_version;
 
@@ -635,8 +700,14 @@ static int edt_ft5x06_i2c_ts_probe(struct i2c_client *client,
 	tsdata->num_y     = edt_ft5x06_i2c_register_read(tsdata,
 							 WORK_REGISTER_NUM_Y);
 
-	/* default to 1 Finger at least */
-	tsdata->fingers = 1;
+	/* default to 5 Fingers */
+	tsdata->fingers = 5;
+
+	/* default queue size to 8 */
+	tsdata->queue_size = 8;
+
+	/* default queue timeout to 30ms */
+	tsdata->queue_timeout = 30;
 
 	mutex_unlock(&tsdata->mutex);
 
@@ -690,6 +761,15 @@ static int edt_ft5x06_i2c_ts_probe(struct i2c_client *client,
 	if ((error = input_register_device(input)))
 		goto err_free_input_device;
 
+	for (i = 0; i < tsdata->queue_size; i++)
+		memset(tsdata->rdbuf, 0, sizeof(tsdata->rdbuf));
+
+	setup_timer(&tsdata->queue_up_timer, edt_ft5x06_queue_up_timer,
+		    (unsigned long)tsdata);
+
+	tsdata->events_valid = 0;
+	tsdata->queue_ptn = 0;
+
 	if (request_threaded_irq(tsdata->irq, NULL, edt_ft5x06_ts_isr,
 				 IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
 				 client->name, tsdata)) {
@@ -735,6 +815,7 @@ static int edt_ft5x06_i2c_ts_remove(struct i2c_client *client)
 	sysfs_remove_group(&client->dev.kobj, &edt_ft5x06_i2c_attr_group);
 
 	free_irq(client->irq, tsdata);
+	del_timer_sync(&tsdata->queue_up_timer);
 	input_unregister_device(tsdata->input);
 	kfree (tsdata->input->name);
 	input_free_device(tsdata->input);
