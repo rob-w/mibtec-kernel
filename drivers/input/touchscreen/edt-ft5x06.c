@@ -36,7 +36,7 @@
 
 #include <linux/input/edt-ft5x06.h>
 
-#define DRIVER_VERSION "v0.5"
+#define DRIVER_VERSION "v0.6"
 
 #define WORK_REGISTER_THRESHOLD   0x00
 #define WORK_REGISTER_REPORT_RATE 0x08
@@ -74,6 +74,7 @@ struct edt_ft5x06_i2c_ts_data {
 	int queue_timeout;
 	struct timer_list queue_up_timer;
 	bool events_valid;
+	int filter_cnt;
 };
 
 static int edt_ft5x06_ts_readwrite(struct i2c_client *client,
@@ -211,6 +212,10 @@ static void edt_ft5x06_queue_up_timer(unsigned long data)
 {
 	struct edt_ft5x06_i2c_ts_data		*tsdata = (void *)data;
 
+	/* count up if filter timeout came but had no valid amount */
+	if (!tsdata->events_valid)
+		tsdata->filter_cnt++;
+
 	tsdata->events_valid = 0;
 	tsdata->queue_ptn = 0;
 	/* clear queue again */
@@ -265,6 +270,25 @@ static int edt_ft5x06_i2c_register_read(struct edt_ft5x06_i2c_ts_data *tsdata,
 	return ret < 0 ? ret : rdbuf[0];
 }
 
+static void edt_ft5x06_perform_reset(struct edt_ft5x06_i2c_ts_data *tsdata)
+{
+
+	/* this pulls reset down, enabling the low active reset */
+	gpio_direction_output (tsdata->reset_pin, 0);
+	gpio_set_value (tsdata->reset_pin, 0);
+	/* release reset */
+	mdelay (300);
+	gpio_set_value (tsdata->reset_pin, 1);
+	dev_info(&tsdata->client->dev, "reset performed, i2c transfers might fail now\n");
+	edt_ft5x06_i2c_register_read(tsdata, WORK_REGISTER_THRESHOLD);
+	edt_ft5x06_i2c_register_read(tsdata, WORK_REGISTER_THRESHOLD);
+
+	edt_ft5x06_i2c_register_write(tsdata, WORK_REGISTER_GAIN, tsdata->gain);
+	edt_ft5x06_i2c_register_write(tsdata, WORK_REGISTER_OFFSET, tsdata->offset);
+	edt_ft5x06_i2c_register_write(tsdata, WORK_REGISTER_THRESHOLD, tsdata->threshold);
+	edt_ft5x06_i2c_register_write(tsdata, WORK_REGISTER_REPORT_RATE, tsdata->report_rate);
+}
+
 static ssize_t edt_ft5x06_i2c_setting_show(struct device *dev,
 					   struct device_attribute *attr,
 					   char *buf)
@@ -303,6 +327,14 @@ static ssize_t edt_ft5x06_i2c_setting_show(struct device *dev,
 	case 'i':    /* invalidate  queue timeout */
 		addr = NO_REGISTER;
 		value = &tsdata->queue_timeout;
+		break;
+	case 'c':    /* count_filter */
+		addr = NO_REGISTER;
+		value = &tsdata->filter_cnt;
+		break;
+	case 'p':    /* perform chip reset */
+		addr = NO_REGISTER;
+		value = 0;
 		break;
 	default:
 		dev_err(&client->dev,
@@ -405,6 +437,18 @@ static ssize_t edt_ft5x06_i2c_setting_store(struct device *dev,
 		addr = NO_REGISTER;
 		val = val < 28 ? 28 : val > 100 ? 100 : val;
 		tsdata->queue_timeout = val;
+		goto out;
+		break;
+	case 'c':    /* count filter */
+		addr = NO_REGISTER;
+		val = val < 0 ? 0 : val > 1000 ? 1000 : val;
+		tsdata->filter_cnt = val;
+		goto out;
+		break;
+	case 'p':    /* perform chip reset */
+		addr = NO_REGISTER;
+		val = val < 0 ? 0 : val > 1 ? 1 : val;
+		edt_ft5x06_perform_reset(tsdata);
 		goto out;
 		break;
 	default:
@@ -588,6 +632,10 @@ static DEVICE_ATTR(mode,      0664,
 		   edt_ft5x06_i2c_mode_show, edt_ft5x06_i2c_mode_store);
 static DEVICE_ATTR(raw_data,  0444,
 		   edt_ft5x06_i2c_raw_data_show, NULL);
+static DEVICE_ATTR(count_filter,  0664,
+		   edt_ft5x06_i2c_setting_show, edt_ft5x06_i2c_setting_store);
+static DEVICE_ATTR(perform_chip_reset,  0664,
+		   edt_ft5x06_i2c_setting_show, edt_ft5x06_i2c_setting_store);
 
 static struct attribute *edt_ft5x06_i2c_attrs[] = {
 	&dev_attr_gain.attr,
@@ -599,6 +647,8 @@ static struct attribute *edt_ft5x06_i2c_attrs[] = {
 	&dev_attr_invalidate_queue.attr,
 	&dev_attr_mode.attr,
 	&dev_attr_raw_data.attr,
+	&dev_attr_count_filter.attr,
+	&dev_attr_perform_chip_reset.attr,
 	NULL
 };
 
@@ -787,8 +837,8 @@ static int edt_ft5x06_i2c_ts_probe(struct i2c_client *client,
 	device_init_wakeup(&client->dev, 1);
 
 	dev_info(&tsdata->client->dev,
-		"EDT FT5x06 initialized: IRQ pin %d, Reset pin %d.\n",
-		tsdata->irq_pin, tsdata->reset_pin);
+		"EDT FT5x06 initialized: Driver %s IRQ pin %d, Reset pin %d.\n",
+		DRIVER_VERSION, tsdata->irq_pin, tsdata->reset_pin);
 
 	return 0;
 
