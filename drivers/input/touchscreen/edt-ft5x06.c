@@ -737,6 +737,12 @@ static int edt_ft5x06_i2c_ts_probe(struct i2c_client *client,
 		goto err_free_irq_pin;
 	}
 
+	if (edt_ft5x06_ts_readwrite(client, 1, "\xbb", 22, rdbuf) < 0) {
+		dev_err(&client->dev, "probing failed\n");
+		error = -ENODEV;
+		goto err_free_irq_pin;
+	}
+
 	tsdata->threshold = edt_ft5x06_i2c_register_read(tsdata,
 							 WORK_REGISTER_THRESHOLD);
 	tsdata->gain      = edt_ft5x06_i2c_register_read(tsdata,
