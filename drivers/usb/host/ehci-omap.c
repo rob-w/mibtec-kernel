@@ -675,13 +675,13 @@ static int omap_start_ehc(struct ehci_hcd_omap *omap, struct usb_hcd *hcd)
 
 		if (gpio_is_valid(omap->reset_gpio_port[1]))
 			gpio_set_value(omap->reset_gpio_port[1], 1);
+	} else {
+		/* Soft reset the PHY using PHY reset command over ULPI */
+		if (omap->port_mode[0] == EHCI_HCD_OMAP_MODE_PHY)
+			omap_ehci_soft_phy_reset(omap, 0);
+		if (omap->port_mode[1] == EHCI_HCD_OMAP_MODE_PHY)
+			omap_ehci_soft_phy_reset(omap, 1);
 	}
-
-	/* Soft reset the PHY using PHY reset command over ULPI */
-	if (omap->port_mode[0] == EHCI_HCD_OMAP_MODE_PHY)
-		omap_ehci_soft_phy_reset(omap, 0);
-	if (omap->port_mode[1] == EHCI_HCD_OMAP_MODE_PHY)
-		omap_ehci_soft_phy_reset(omap, 1);
 
 	return 0;
 
