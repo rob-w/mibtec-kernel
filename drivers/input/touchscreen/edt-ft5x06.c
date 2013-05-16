@@ -36,7 +36,7 @@
 
 #include <linux/input/edt-ft5x06.h>
 
-#define DRIVER_VERSION "v0.6"
+#define DRIVER_VERSION "v0.7"
 
 #define WORK_REGISTER_THRESHOLD   0x00
 #define WORK_REGISTER_REPORT_RATE 0x08
