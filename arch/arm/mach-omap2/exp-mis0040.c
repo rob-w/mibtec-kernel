@@ -236,122 +236,106 @@ static inline void mis0040_gpio_init(void)
 		(gpio_direction_output(IGEP3_SUMMER, 1) == 0)) {
 		gpio_export(IGEP3_SUMMER, 0);
 		gpio_set_value(IGEP3_SUMMER, 0);
-		}
-	else
+	} else
 		pr_warning("IGEP: Could not obtain gpio GPIO_SUMMER\n"); 
 
 	if ((gpio_request(IGEP3_LCD_ENABLE, "LCD_ENABLE") == 0) &&
 		(gpio_direction_output(IGEP3_LCD_ENABLE, 1) == 0)) {
 		gpio_export(IGEP3_LCD_ENABLE, 0);
-		}
-	else
+	} else
 		pr_warning("IGEP: Could not obtain gpio LCD_ENABLE\n");
 
 	if ((gpio_request(IGEP3_USB_NOC, "USB_NOC") == 0) &&
 		(gpio_direction_output(IGEP3_USB_NOC, 0) == 0)) {
 		gpio_export(IGEP3_USB_NOC, 0);
-		}
-	else
+	} else
 		pr_warning("IGEP: Could not obtain gpio LCD_ENABLE\n");
 
 	if ((gpio_request(IGEP3_UART2_TERM, "UART2_TERM") == 0) &&
 		(gpio_direction_output(IGEP3_UART2_TERM, 1) == 0)) {
 		gpio_export(IGEP3_UART2_TERM, 0);
 		gpio_set_value(IGEP3_UART2_TERM, 0);
-		}
-	else
+	} else
 		pr_warning("IGEP: Could not obtain gpio UART2_TERM\n");
 
 	if ((gpio_request(IGEP3_UART2_RI, "UART2_RI") == 0) &&
 		(gpio_direction_output(IGEP3_UART2_RI, 0) == 0)) {
 		gpio_export(IGEP3_UART2_RI, 0);
-		}
-	else
+	} else
 		pr_warning("IGEP: Could not obtain gpio UART2_RI\n");
 
 	if ((gpio_request(IGEP3_UART3_TERM, "UART3_TERM") == 0) &&
 		(gpio_direction_output(IGEP3_UART3_TERM, 1) == 0)) {
 		gpio_export(IGEP3_UART3_TERM, 0);
 		gpio_set_value(IGEP3_UART3_TERM, 0);
-		}
-	else
+	} else
 		pr_warning("IGEP: Could not obtain gpio UART3_TERM\n");
 
 	if ((gpio_request(IGEP3_UART3_RI, "UART3_RI") == 0) &&
 		(gpio_direction_output(IGEP3_UART3_RI, 0) == 0)) {
 		gpio_export(IGEP3_UART3_RI, 0);
-		}
-	else
+	} else
 		pr_warning("IGEP: Could not obtain gpio UART3_RI\n");
 
 	if ((gpio_request(IGEP3_LCD_PWRCTRL, "LCD_PWRCtRL") == 0) &&
 		(gpio_direction_output(IGEP3_LCD_PWRCTRL, 1) == 0)) {
 		gpio_export(IGEP3_LCD_PWRCTRL, 0);
 		gpio_set_value(IGEP3_LCD_PWRCTRL, 1);
-		}
-	else
+	} else
 		pr_warning("IGEP: Could not obtain gpio LCD_PWRCTRL\n");
 
 	if ((gpio_request(MIS_LOW_VOLTAGE, "MIS_LOW_VOLTAGE") == 0) &&
 		(gpio_direction_input(MIS_LOW_VOLTAGE) == 0)) {
 		gpio_export(MIS_LOW_VOLTAGE, 0);
-		}
-	else
+	} else
 		pr_warning("IGEP: Could not obtain gpio MIS_LOW_VOLTAGE\n");
-		
+
 	if ((gpio_request(MIS_3V3_DISABLE, "MIS_3V3_DISABLE") == 0) &&
 		(gpio_direction_output(MIS_3V3_DISABLE, 1) == 0)) {
 		gpio_export(MIS_3V3_DISABLE, 0);
 		gpio_set_value(MIS_3V3_DISABLE, 0);
-		}
-	else
+	} else
 		pr_warning("IGEP: Could not obtain gpio MIS_3V3_DISABLE\n");
-		
+
 	if ((gpio_request(MIS_1V8_DISABLE, "MIS_1V8_DISABLE") == 0) &&
 		(gpio_direction_output(MIS_1V8_DISABLE, 1) == 0)) {
 		gpio_export(MIS_1V8_DISABLE, 0);
 		gpio_set_value(MIS_1V8_DISABLE, 0);
-		}
-	else
+	} else
 		pr_warning("IGEP: Could not obtain gpio MIS_1V8_DISABLE\n");
 
 	if ((gpio_request(MIS_ID_BIT0, "MIS_ID_BIT0") == 0) &&
-		(gpio_direction_input(MIS_ID_BIT0) == 0)){
+		(gpio_direction_input(MIS_ID_BIT0) == 0)) {
 		misrev = gpio_get_value(MIS_ID_BIT0);
 		gpio_export(MIS_ID_BIT0, 0);
-
-		if (misrev) {
-			if ((gpio_request(MIS_ID_BIT1, "MIS_ID_BIT1") == 0) &&
-				(gpio_direction_input(MIS_ID_BIT1) == 0)){
-				if (gpio_get_value(MIS_ID_BIT1))
-					misrev |= (1<<1);
-				gpio_export(MIS_ID_BIT1, 0);
-				}
-			else
-				pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT1\n");
-
-			if ((gpio_request(MIS_ID_BIT2, "MIS_ID_BIT2") == 0) &&
-				(gpio_direction_input(MIS_ID_BIT2) == 0)){
-				if (gpio_get_value(MIS_ID_BIT2))
-					misrev |= (1<<2);
-				gpio_export(MIS_ID_BIT2, 0);
-				}
-			else
-				pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT2\n");
-
-			if ((gpio_request(MIS_ID_BIT3, "MIS_ID_BIT3") == 0) &&
-				(gpio_direction_input(MIS_ID_BIT3) == 0)){
-				if (gpio_get_value(MIS_ID_BIT3))
-					misrev |= (1<<3);
-				gpio_export(MIS_ID_BIT3, 0);
-				}
-			else
-				pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT3\n");
-			}
-		pr_info("MIS: Rev. %d\n", misrev);
-		}
-	else
+	} else
 		pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT0\n");
+
+	if ((gpio_request(MIS_ID_BIT1, "MIS_ID_BIT1") == 0) &&
+		(gpio_direction_input(MIS_ID_BIT1) == 0)) {
+		if (gpio_get_value(MIS_ID_BIT1))
+			misrev |= (1<<1);
+		gpio_export(MIS_ID_BIT1, 0);
+	} else
+		pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT1\n");
+
+	if ((gpio_request(MIS_ID_BIT2, "MIS_ID_BIT2") == 0) &&
+		(gpio_direction_input(MIS_ID_BIT2) == 0)) {
+		if (gpio_get_value(MIS_ID_BIT2))
+			misrev |= (1<<2);
+		gpio_export(MIS_ID_BIT2, 0);
+	} else
+		pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT2\n");
+
+	if ((gpio_request(MIS_ID_BIT3, "MIS_ID_BIT3") == 0) &&
+		(gpio_direction_input(MIS_ID_BIT3) == 0)) {
+		if (gpio_get_value(MIS_ID_BIT3))
+			misrev |= (1<<3);
+		gpio_export(MIS_ID_BIT3, 0);
+	} else
+		pr_warning("IGEP: Could not obtain gpio MIS_ID_BIT3\n");
+
+	pr_info("MIS: too early(!) Rev. %d\n", misrev);
 }
 
 static struct gpio_led gpio_led_data[] = {
