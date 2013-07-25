@@ -35,7 +35,7 @@
 #define IGEP2_LED1_GPIO         132
 #define IGEP2_LED2_GPIO         133
 #define IGEP2_LED3_GPIO         134
-#define IGEP2_LED4_GPIO         135
+#define IGEP2_RESET_BUTTON		139
 #define IGEP2_RESET_PIC_GPIO    136
 #define IGEP2_LCD_RESET         137
 #define IGEP2_LCD_POWER         138
@@ -96,10 +96,11 @@ static void request_gpios(void)
 	else
 		printk(KERN_ERR "could not obtain gpio for " "LED3_GPIO\n");
 
-	if ((gpio_request(IGEP2_LED4_GPIO, "GPIO_LED4") == 0) && (gpio_direction_output(IGEP2_LED4_GPIO, 1) == 0))
-		gpio_export(IGEP2_LED4_GPIO, 1);
-	else
-		printk(KERN_ERR "could not obtain gpio for " "LED4_GPIO\n");
+	if ((gpio_request(IGEP2_RESET_BUTTON, "IGEP2_RESET_BUTTON") == 0) &&
+		(gpio_direction_input(IGEP2_RESET_BUTTON) == 0)) {
+		gpio_export(IGEP2_RESET_BUTTON, 0);
+	} else
+		pr_warning("IGEP: Could not obtain gpio IGEP2_RESET_BUTTON\n");
 
 	if ((gpio_request(IGEP2_RESET_PIC_GPIO, "GPIO_RESET_PIC") == 0) && (gpio_direction_output(IGEP2_RESET_PIC_GPIO, 1) == 0))
 		gpio_export(IGEP2_RESET_PIC_GPIO, 1);
@@ -199,6 +200,7 @@ static struct omap_board_mux mis0110_mux[] __initdata = {
 	OMAP3_MUX(MCSPI1_CLK, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
 	OMAP3_MUX(MCSPI1_SIMO, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
 	OMAP3_MUX(MCSPI1_SOMI, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(SDMMC2_DAT7, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),	///RESET GPIO BUTTON
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 #else
@@ -214,6 +216,6 @@ void __init mis0110_init(void)
 
 	request_gpios();
 	spi_register_board_info(igep2_spi_board_info, ARRAY_SIZE(igep2_spi_board_info));
-	max1233_dev_init();
+//	max1233_dev_init();
 	printk(KERN_INFO "exp-mis0110.c finished\n");
 }
