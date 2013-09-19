@@ -232,6 +232,7 @@ obj-$(CONFIG_MACH_IGEP0020)		+= board-igep0020.o \
 					   exp-igep0022.o \
 					   board-igep00x0.o \
 					   exp-mis0110.o \
+					   exp-mis0120.o \
 					   hsmmc.o
 obj-$(CONFIG_MACH_IGEP0030)		+= board-igep0030.o \
 					   board-flash.o \

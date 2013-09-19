@@ -393,6 +393,7 @@ static struct omap_board_mux uart1_as_rs232_mux[] = {
 };
 
 extern void mis0110_init_display(void);
+extern void mis0120_init_display(void);
 
 static inline void igep0020_display_init(void)
 {
@@ -408,6 +409,9 @@ static inline void igep0020_display_init(void)
 	/* - MIS0110 RMRFS */
 	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_MIS0110)
 		mis0110_init_display();
+	/* - MIS0120 OQ */
+	else if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_MIS0120)
+		mis0120_init_display();
 	else
 		platform_device_register(&igep0020_dss_device);
 }
@@ -417,6 +421,8 @@ extern void __init igep0022_init(void);
 
 /* Expansion board: MIS0110 */
 extern void __init mis0110_init(void);
+/* Expansion board: MIS0120 */
+extern void __init mis0120_init(void);
 
 static void __init igep0020_init(void)
 {
@@ -487,6 +493,11 @@ static void __init igep0020_init(void)
 	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_MIS0110)
 		mis0110_init();
 
+	/* - MIS0120 OQ */
+	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_MIS0120)
+		mis0120_init();
+
+
 	/* Common initialitzations */
 	/* - Register flash devices */
 	igep00x0_flash_init();
@@ -504,6 +515,8 @@ static void __init igep0020_init(void)
 
 	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_MIS0110)
 		printk("MIS0110: not using wifi as baseboard is incompatible to GPIO138\n");
+	else if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_MIS0120)
+		printk("MIS0120: not using wifi as baseboard is incompatible to GPIO138\n");
 	else
 	{
 		opt = igep00x0_buddy_pdata.options & IGEP00X0_BUDDY_OPT_MODEM;
