@@ -331,8 +331,8 @@ struct max1233 {
 	int spi_active;
 	int spi_kb_active;
 	int irq_cnt;
-	spinlock_t		lock;
-	struct timer_list	timer;		/* P: lock */
+	struct mutex		lock;
+	struct timer_list	ts_timer;		/* P: lock */
 	struct timer_list	kb_timer;
 
 //	struct hrtimer		timer;
@@ -351,6 +351,7 @@ struct max1233 {
 
 static void max1233_enable(struct max1233 *ts);
 static void max1233_disable(struct max1233 *ts);
+static void max1233_callback_kp(void *handle);
 
 int xold, yold;
 
@@ -927,22 +928,16 @@ static void max1233_rx(void *ads)
 	y = (ts->conversion_data[1] >> 16);
 	z1 = (ts->conversion_data[1] & 0x00FF);
 	z2 = (ts->conversion_data[2] >> 16);
-	
-/*
-	x = ts->conversion_data[MAX1233_SEQ_XPOS] & MAX_12BIT;
-	y = ts->conversion_data[MAX1233_SEQ_YPOS]& MAX_12BIT;
-	z1 = ts->conversion_data[MAX1233_SEQ_Z1] & MAX_12BIT;
-	z2 = ts->conversion_data[MAX1233_SEQ_Z2] & MAX_12BIT;
-*/
 
-//	printk("max1233: Prior  X:%d Y:%d Z1:%d Z2:%d X_OHM:%d Y_OHM:%d\n", x, y, z1, z2, ts->x_plate_ohms, ts->y_plate_ohms);
+//	printk("max1233: Prior  X:%d Y:%d Z1:%d Z2:%d X_OHM:%d Y_OHM:%d\n", 
+//		x, y, z1, z2, ts->x_plate_ohms, ts->y_plate_ohms);
 
 	if (x == MAX_12BIT)
 		x = 0;
 
 	if (likely(x && z1 && (y != MAX_12BIT) && !device_suspended(&ts->spi->dev))) {
 		/* compute touch pressure resistance using equation #2 */
-			
+
 		Rt = MAX_12BIT - z1 ;
 		Rt *= x;
 		Rt *= ts->x_plate_ohms;
@@ -957,55 +952,47 @@ static void max1233_rx(void *ads)
 	} else
 		Rt = 0;
 
+//	printk("max1233: Prior 2 X:%d Y:%d Z1:%d Z2:%d Rt %d X_OHM:%d Y_OHM:%d\n", 
+//		x, y, z1, z2, Rt, ts->x_plate_ohms, ts->y_plate_ohms);
 
-//	printk("max1233: Prior 2 X:%d Y:%d Z1:%d Z2:%d Rt %d X_OHM:%d Y_OHM:%d\n", x, y, z1, z2, Rt, ts->x_plate_ohms, ts->y_plate_ohms);
 	if (Rt > 20000)
 		return;
 
 	x = (MAX_12BIT - x);
 	y = (MAX_12BIT - y);
 	swap(x, y);
-		
+
 	if (x > xold + 50
 		|| x < xold - 50
 		|| y > yold + 50
 		|| y < yold - 50 ) {
-//		printk("max1233: xold %d yold %d\n", xold, yold);
-//		printk("max1233: NOT Reporting X:%d Y:%d Z1:%d Z2:%d Rt %d X_OHM:%d Y_OHM:%d\n",  x, y, z1, z2, Rt, ts->x_plate_ohms, ts->y_plate_ohms);
-		}
-	else {
-//		printk("max1233: Reporting X:%d Y:%d Z1:%d Z2:%d Rt %d X_OHM:%d Y_OHM:%d\n",  x, y, z1, z2, Rt, ts->x_plate_ohms, ts->y_plate_ohms);
+//		printk("max1233: xold %d yold %d - ", xold, yold);
+//		printk("NOT Reporting X:%d Y:%d Z1:%d Z2:%d Rt %d X_OHM:%d Y_OHM:%d\n",
+//			x, y, z1, z2, Rt, ts->x_plate_ohms, ts->y_plate_ohms);
+		msleep(5);
+	} else {
+//		printk("max1233: Reporting X:%d Y:%d Z1:%d Z2:%d Rt %d X_OHM:%d Y_OHM:%d\n",
+//			x, y, z1, z2, Rt, ts->x_plate_ohms, ts->y_plate_ohms);
 		input_report_key(input_dev, BTN_TOUCH, 1);
 		input_report_abs(input_dev, ABS_X, x);
 		input_report_abs(input_dev, ABS_Y, y);
 		input_report_abs(input_dev, ABS_PRESSURE,Rt);
 		input_sync(input_dev);
 		msleep(5);
-		t = mod_timer(&ts->timer, jiffies + TS_PEN_UP_TIMEOUT);
-		}
+		t = mod_timer(&ts->ts_timer, jiffies + TS_PEN_UP_TIMEOUT);
+	}
 	xold = x;
 	yold = y;
 }
 
-
-static void max1233_timer(unsigned long handle)
-//static enum hrtimer_restart max1233_timer(struct hrtimer *handle)
+static void max1233_ts_timer(unsigned long handle)
 {
 	struct max1233	*ts = (void *)handle;
 	struct input_dev *input_dev = ts->input;
-        unsigned long flags;
-
-	spin_lock_irqsave(&ts->lock, flags);
 
 	input_report_abs(input_dev, ABS_PRESSURE, 0);
 	input_report_key(input_dev, BTN_TOUCH, 0);
 	input_sync(input_dev);
-//	printk("max1233: timer up  %d\n", 0);
-
-	spin_unlock(&ts->lock);
-
-
-//	return HRTIMER_NORESTART;
 }
 
 
@@ -1013,156 +1000,113 @@ static irqreturn_t max1233_irq_ts(int irq, void *handle)
 {
 	struct max1233 *ts = handle;
 	int status;
-	unsigned long flags;
-	
-	spin_lock_irqsave(&ts->lock, flags);
 
-	status = spi_async(ts->spi, &ts->msg);
-
+	msleep(10);
+	status = spi_sync(ts->spi, &ts->msg);
 	if (status)
 		dev_err(&ts->spi->dev, "spi_sync --> %d\n", status);
-
-	spin_unlock(&ts->lock);
+	max1233_rx(ts);
 
 	return IRQ_HANDLED;
 }
 
+static void max1233_callback_kp(void *handle)
+{
+	struct max1233 *ts = handle;
+	struct input_dev *input_dev = ts->kb_input;
+	int	i, status, gotimer;
+
+	do {
+		gotimer = 0;
+		for (i=0; i<HAVE_KEYS; i++) {
+			if ((((ts->kb_data[0]) & (1<<ts->key[i].offset)) == (1<<ts->key[i].offset))
+				&& (((ts->kb_data[0]) & (0<<(ts->key[i].offset + 1))) == (0<<(ts->key[i].offset +1)))) {
+				//printk("max1233: KP Report %d UP\n", i);
+				ts->key[i].down = 0;
+				input_report_key(input_dev, ts->key[i].key, 0);
+			} else if ((((ts->kb_data[0]) & (0<<ts->key[i].offset)) == (0<<ts->key[i].offset))
+				&& (((ts->kb_data[0]) & (1<<(ts->key[i].offset + 1))) == (1<<(ts->key[i].offset + 1)))) {
+				//printk("max1233: KP Report %d DOWN\n", i);
+				ts->key[i].down = 1;
+				input_report_key(input_dev, ts->key[i].key, 1);
+			}
+		}
+
+		for (i=0; i<HAVE_KEYS; i++) {
+			if (ts->key[i].down) {
+				//printk("max1233: %d DOWN starting timer\n", i);
+				gotimer = 1;
+			}
+		}
+		input_sync(input_dev);
+		if (gotimer) {
+			msleep(50);
+			status = spi_sync(ts->spi, &ts->kb_msg);
+			if (status)
+				dev_err(&ts->spi->dev, "spi_sync --> %d\n", status);
+		}
+	} while (gotimer);
+}
 
 static void max1233_kb_timer(unsigned long handle)
-
-//static enum hrtimer_restart max1233_kb_timer(struct hrtimer *handle)
 {
 	struct max1233		*ts = (void *)handle;
 	int status;
-        unsigned long flags;
 
 //	printk("max1233_kb_timer()\n");
-    
-	spin_lock_irqsave(&ts->lock, flags);
-
 	status = spi_async(ts->spi, &ts->kb_msg);
 	if (status)
 		dev_err(&ts->spi->dev, "spi_sync --> %d\n", status);
-
-	spin_unlock(&ts->lock);
 }
 
 static irqreturn_t max1233_irq_kp(int irq, void *handle)
 {
-	struct max1233 		*ts = handle;
-	int 			status;
-        unsigned long flags;
-//	printk("max1233: IRQ KP active %d\n", ts->spi_kb_active);
+	struct max1233 *ts = handle;
+	int status;
 
-	spin_lock_irqsave(&ts->lock, flags);
+	msleep(10);
 
-	if (ts->spi_kb_active) {
-		spin_unlock(&ts->lock);
-		return IRQ_HANDLED;
-		}
-	ts->spi_kb_active = 1;
-
-	status = spi_async(ts->spi, &ts->kb_msg);
+	status = spi_sync(ts->spi, &ts->kb_msg);
 	if (status)
 		dev_err(&ts->spi->dev, "spi_sync --> %d\n", status);
-
-	spin_unlock(&ts->lock);
+	max1233_callback_kp(ts);
 
 	return IRQ_HANDLED;
 }
 
-static void max1233_callback_kp(void *_ts)
-{
-	struct max1233 *ts = _ts;
-	struct input_dev	*input_dev = ts->kb_input;
-	int	i;
-	int gotimer;
-        unsigned long flags;
-//	printk("max1233: KP callback data is %x\n", ts->kb_data[0]);
-	spin_lock_irqsave(&ts->lock, flags);
-
-	for (i=0; i<HAVE_KEYS; i++) {
-		if ((((ts->kb_data[0]) & (1<<ts->key[i].offset)) == (1<<ts->key[i].offset))
-			&&  (((ts->kb_data[0]) & (0<<(ts->key[i].offset + 1))) == (0<<(ts->key[i].offset +1)))) {
-//			printk("max1233: KP Report %d UP\n", i);
-			ts->key[i].down = 0;
-			input_report_key(input_dev, ts->key[i].key, 0);
-			}
-
-		else if ((((ts->kb_data[0]) & (0<<ts->key[i].offset)) == (0<<ts->key[i].offset))
-			&&  (((ts->kb_data[0]) & (1<<(ts->key[i].offset + 1))) == (1<<(ts->key[i].offset + 1)))) {
-//			printk("max1233: KP Report %d DOWN\n", i);
-			ts->key[i].down = 1;
-			input_report_key(input_dev, ts->key[i].key, 1);
-			}
-		}
-
-	gotimer = 0;
-	for (i=0; i<HAVE_KEYS; i++) {
-		if (ts->key[i].down) {
-//			printk("max1233: %d DOWN starting timer\n", i);
-			gotimer = 1;
-			}
-		}
-
-	if (gotimer) {
-		mod_timer(&ts->kb_timer, jiffies + KB_POLL_TIMER);
-//		hrtimer_start(&ts->kb_timer, ktime_set(0, TS_POLL_PERIOD),
-//				HRTIMER_MODE_REL);
-		}
-	else
-		ts->spi_kb_active = 0;
-	
-	input_sync(input_dev);
-
-	spin_unlock(&ts->lock);
-
-}
-
-
 /* Must be called with ts->lock held */
 static void max1233_disable(struct max1233 *ts)
 {
-	unsigned long flags;
-
 	if (ts->disabled)
 		return;
 
 	ts->disabled = 1;
 
 	if (!ts->pending) {
-		spin_lock_irqsave(&ts->lock, flags);
+		mutex_lock(&ts->lock);
 		ts->irq_disabled = 1;
 		disable_irq(ts->spi->irq);
-		spin_unlock_irqrestore(&ts->lock, flags);
+		mutex_unlock(&ts->lock);
 	} else {
 		/* the kthread will run at least once more, and
 		 * leave everything in a clean state, IRQ disabled
 		 */
 		while (ts->pending)
 			msleep(1);
-
 	}
-
-	/* we know the chip's in lowpower mode since we always
-	 * leave it that way after every request
-	 */
-
 }
 
 /* Must be called with ts->lock held */
 static void max1233_enable(struct max1233 *ts)
 {
-	unsigned long flags;
-
 	if (!ts->disabled)
 		return;
 
-	spin_lock_irqsave(&ts->lock, flags);
+	mutex_lock(&ts->lock);
 	ts->disabled = 0;
 	ts->irq_disabled = 0;
 	enable_irq(ts->spi->irq);
-	spin_unlock_irqrestore(&ts->lock, flags);
+	mutex_unlock(&ts->lock);
 }
 
 static int max1233_suspend(struct spi_device *spi, pm_message_t message)
@@ -1233,33 +1177,12 @@ static inline void max1233_setup_ts_def_msg(struct spi_device *spi, struct max12
 	spi_message_add_tail(kx,k);
 }
 
-/*
-static int max1233bl_set_intensity(struct backlight_device *bd)
-{
-	int intensity = bd->props.brightness;
-
-
-	return 0;
-}
-
-static int max1233bl_get_intensity(struct backlight_device *bd)
-{
-	
-	return 0;
-}
-
-static struct backlight_ops max1233bl_ops = {
-	.get_brightness = max1233bl_get_intensity,
-	.update_status  = max1233bl_set_intensity,
-};
-*/
 static int __devinit max1233_probe(struct spi_device *spi)
 {
 	struct max1233			*ts;
 	struct input_dev		*input_dev;
 	struct input_dev		*kb_dev;
 	struct max1233_platform_data	*pdata = spi->dev.platform_data;
-//	struct backlight_device *bd;
 	int				err;
 	u16				verify;
 
@@ -1296,24 +1219,19 @@ static int __devinit max1233_probe(struct spi_device *spi)
 		goto err_free_mem;
 	}
 
-	dev_set_drvdata(&spi->dev, ts); //register the loval handler struct ts with driver in kernel
+	dev_set_drvdata(&spi->dev, ts);
 	spi->dev.power.power_state = PMSG_ON;
 
 	ts->spi = spi;
 	ts->input = input_dev;
 	ts->intr_flag = 0;
 
-	setup_timer(&ts->timer, max1233_timer, (unsigned long) ts); //TIMER registers ts as HANDLER struct
-//	hrtimer_init(&ts->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-//	ts->timer.function = max1233_timer;
+	setup_timer(&ts->ts_timer, max1233_ts_timer, (unsigned long) ts);
 
-
-	spin_lock_init(&ts->lock);
+	mutex_init(&ts->lock);
 
 	ts->model = pdata->model ? : 1233;
 	ts->vref_delay_usecs = pdata->vref_delay_usecs ? : 100;
-//	ts->x_plate_ohms = pdata->x_plate_ohms ? : 400;
-//	ts->y_plate_ohms = pdata->y_plate_ohms ? : 400;
 	ts->x_plate_ohms = 820;
 	ts->y_plate_ohms = 325;
 	
@@ -1337,12 +1255,6 @@ static int __devinit max1233_probe(struct spi_device *spi)
 	input_dev->phys = ts->phys;
 	input_dev->dev.parent = &spi->dev;
 
-/*
-	__set_bit(EV_ABS, input_dev->evbit);
-	__set_bit(ABS_X, input_dev->absbit);
-	__set_bit(ABS_Y, input_dev->absbit);
-	__set_bit(ABS_PRESSURE, input_dev->absbit);
-*/
 	input_dev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS);
 	input_dev->keybit[BIT_WORD(BTN_TOUCH)] |= BIT_MASK(BTN_TOUCH);
 	input_dev->absbit[0] = BIT(ABS_X) | BIT(ABS_Y) | BIT(ABS_PRESSURE);
@@ -1384,8 +1296,6 @@ static int __devinit max1233_probe(struct spi_device *spi)
 	input_set_capability(kb_dev, EV_KEY, ts->key[2].key);
 
 	setup_timer(&ts->kb_timer, max1233_kb_timer, (unsigned long) ts);
-//	hrtimer_init(&ts->kb_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-//	ts->timer.function = max1233_kb_timer;
 
 	/// TURN ON KEYPAD
 	max1233_write((struct device *) spi, MAX1233_PAGEADDR(MAX1233_PAGE1, MAX1233_REG_GPIO), 0xFF00);	
@@ -1409,16 +1319,16 @@ static int __devinit max1233_probe(struct spi_device *spi)
 	max1233_setup_ts_def_msg(spi, ts); //general setup
 
 	/// REQUEST TS interrupt
-	if (request_irq(spi->irq, max1233_irq_ts, IRQF_TRIGGER_RISING | IRQF_SAMPLE_RANDOM,
-			spi->dev.driver->name, ts)) { //ISR will receive ts as HANDLER struct
+	if (request_threaded_irq(spi->irq, NULL, max1233_irq_ts,
+				IRQF_TRIGGER_RISING | IRQF_ONESHOT, spi->dev.driver->name, ts)) {
 		dev_dbg(&spi->dev, "irq %d busy?\n", spi->irq);
 		err = -EBUSY;
 		goto err_free_mem;
 	}
 
 	/// REQUEST KP IRQ
-	if (request_irq(ts->kp_irq, max1233_irq_kp, IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
-			"max1233_kb", ts)) { //ISR will receive ts as HANDLER struct
+	if (request_threaded_irq(ts->kp_irq, NULL, max1233_irq_kp,
+			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING | IRQF_ONESHOT, "max1233_kb", ts)) {
 		dev_dbg(&spi->dev, "irq %d busy?\n", spi->irq);
 		err = -EBUSY;
 		goto err_free_mem;
@@ -1438,15 +1348,6 @@ static int __devinit max1233_probe(struct spi_device *spi)
 	err = input_register_device(kb_dev);
 	if (err)
 		goto err_idev;
-
-
-	/// BACKLIGHT on DAC 
-/*	bd = backlight_device_register ("max1233-bl", &spi->dev, NULL,
-		    &max1233bl_ops);
-
-	bd->props.max_brightness = BL_MAX_INTENSITY;
-	bd->props.brightness = BL_DEFAULT_INTENSITY;
-*/
 
 	max1233_read((struct device *) spi, MAX1233_PAGEADDR(MAX1233_PAGE0, MAX1233_REG_X), &verify);
 
@@ -1472,7 +1373,6 @@ err_free_mem:
 static int __devexit max1233_remove(struct spi_device *spi)
 {
 	struct max1233		*ts = dev_get_drvdata(&spi->dev); //reference allocated driver struct in kernel
-//	struct backlight_device *bd = dev_get_drvdata(&spi->dev);
 
 	max1233_suspend(spi, PMSG_SUSPEND);
 
@@ -1483,10 +1383,6 @@ static int __devexit max1233_remove(struct spi_device *spi)
 
 	input_unregister_device(ts->input);
 	input_unregister_device(ts->kb_input);
-
-//	bd->props.brightness = 0;
-//	bd->props.power = 0;
-//	backlight_device_unregister(bd);
 
 	kfree(ts); //free the driver struct
 
@@ -1510,7 +1406,7 @@ static struct spi_driver max1233_driver = {
 
 static int __init max1233_init(void)
 {
-	printk("max1233_init() v0.8.2\n");
+	printk("max1233_init() v0.8.4\n");
  	return (spi_register_driver(&max1233_driver));
 }
 module_init(max1233_init);
