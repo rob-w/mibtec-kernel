@@ -60,7 +60,7 @@ static void request_gpios(void)
 
 	/// we need to pull this one down on dm3730 igepv2-C to disable WIFI and have our LEDS free to toggle
     if (cpu_is_omap3630())
-		gpio_set_value(IGEP2_LCD_POWER, 1);
+		gpio_set_value(IGEP2_LCD_POWER, 0);
 	else {
 		gpio_set_value(IGEP2_LCD_POWER, 1);
 
