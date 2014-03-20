@@ -102,7 +102,7 @@ struct edt_ft5x06_i2c_ts_data {
 	unsigned char rdbuf[20][30];
 	int queue_size;
 	int queue_ptn;
-	int queue_timeout;
+	int invalidate_queue;
 	struct timer_list queue_up_timer;
 	bool events_valid;
 	int filter_cnt;
@@ -163,13 +163,6 @@ static void edt_ft5x06_report_event( void *dev_id)
 
 	have_abs = 0;
 
-	dev_info(&tsdata->client->dev,"queue_%d ", tsdata->queue_ptn);
-	for (i =0; i< 29; i++) {
-		printk("%d-%d ", i, tsdata->rdbuf[tsdata->queue_ptn][i]);
-	}
-	printk("\n");
-
-
 	for (i = 0; i < tsdata->fingers; i++) {
 		u8 *buf = &tsdata->rdbuf[tsdata->queue_ptn][i * tplen + offset];
 
@@ -197,7 +190,7 @@ static void edt_ft5x06_report_event( void *dev_id)
 		input_report_abs(tsdata->input, ABS_MT_POSITION_Y, y);
 		input_report_abs(tsdata->input, ABS_MT_TRACKING_ID, id);
 		input_mt_sync(tsdata->input);
-		dev_info(&tsdata->client->dev,"report x %d y %d id %d\n", x, y, id);
+//		dev_info(&tsdata->client->dev,"queue_%d x %d y %d id %d\n", tsdata->queue_ptn, x, y, id);
 	}
 	if (!have_abs) {
 		input_report_key(tsdata->input, BTN_TOUCH,    0);
@@ -231,7 +224,7 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 {
 	struct edt_ft5x06_i2c_ts_data *tsdata = dev_id;
 	int datalen;
-	int error, i;
+	int error;
 	u8 cmd;
 
 	switch (tsdata->version){
@@ -296,7 +289,7 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 		tsdata->events_valid = 1;
 		tsdata->queue_ptn = 0;
 	}
-	mod_timer(&tsdata->queue_up_timer, jiffies + msecs_to_jiffies(tsdata->queue_timeout));
+	mod_timer(&tsdata->queue_up_timer, jiffies + msecs_to_jiffies(tsdata->invalidate_queue));
 out:
 	return IRQ_HANDLED;
 }
@@ -313,6 +306,7 @@ static void edt_ft5x06_queue_up_timer(unsigned long data)
 	tsdata->events_valid = 0;
 	tsdata->queue_ptn = 0;
 	/* clear queue again */
+	dev_info(&tsdata->client->dev, "clearing\n");
 	memset(tsdata->rdbuf, 0, sizeof(tsdata->rdbuf));
 }
 
@@ -711,7 +705,7 @@ static EDT_ATTR(fingers, S_IWUSR | S_IRUGO,
 static EDT_ATTR(queue_size, S_IWUSR | S_IRUGO,
 		NO_REGISTER, NO_REGISTER, 5, 20);
 
-static EDT_ATTR(queue_timeout, S_IWUSR | S_IRUGO,
+static EDT_ATTR(invalidate_queue, S_IWUSR | S_IRUGO,
 		NO_REGISTER, NO_REGISTER, 28, 100);
 
 //static EDT_ATTR(mode, S_IWUSR | S_IRUGO,
@@ -721,7 +715,7 @@ static EDT_ATTR(queue_timeout, S_IWUSR | S_IRUGO,
 //		NO_REGISTER, NO_REGISTER, 0, 5);
 
 static EDT_ATTR(filter_cnt, S_IWUSR | S_IRUGO,
-		NO_REGISTER, NO_REGISTER, 0, 1000);
+		NO_REGISTER, NO_REGISTER, 0, 128);
 
 //static EDT_ATTR(perform_chip_reset, S_IWUSR | S_IRUGO,
 //		NO_REGISTER, NO_REGISTER, 0, 1);
@@ -733,7 +727,7 @@ static struct attribute *edt_ft5x06_attrs[] = {
 	&edt_ft5x06_attr_report_rate.dattr.attr,
 	&edt_ft5x06_attr_fingers.dattr.attr,
 	&edt_ft5x06_attr_queue_size.dattr.attr,
-	&edt_ft5x06_attr_queue_timeout.dattr.attr,
+	&edt_ft5x06_attr_invalidate_queue.dattr.attr,
 //	&edt_ft5x06_attr_mode.dattr.attr,
 //	&edt_ft5x06_attr_raw_data.dattr.attr,
 	&edt_ft5x06_attr_filter_cnt.dattr.attr,
@@ -941,7 +935,7 @@ static int edt_ft5x06_i2c_ts_probe(struct i2c_client *client,
 	tsdata->queue_size = 8;
 
 	/* default queue timeout to 30ms */
-	tsdata->queue_timeout = 30;
+	tsdata->invalidate_queue = 30;
 
 	mutex_unlock(&tsdata->mutex);
 
