@@ -809,8 +809,8 @@ static int edt_ft5x06_ts_identify(struct i2c_client *client,
 
 		if (error)
 			return error;
-		sprintf(fw_version, "%ld", simple_strtol(&rdbuf, NULL, 2));
-//		strlcpy(fw_version, rdbuf, 2);
+//		sprintf(fw_version, "%ld", simple_strtol(&rdbuf, NULL, 2));
+		strlcpy(fw_version, rdbuf[0], 1);
 
 		error = edt_ft5x06_ts_readwrite(client, 1, "\xA8",
 				1, rdbuf);
