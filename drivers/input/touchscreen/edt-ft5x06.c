@@ -67,8 +67,12 @@
 #define TOUCH_EVENT_RESERVED		0x03
 
 #define EDT_NAME_LEN			23
+#define EDT_SWITCH_MODE_RETRIES		10
+#define EDT_SWITCH_MODE_DELAY		5 /* msec */
+#define EDT_RAW_DATA_RETRIES		100
+#define EDT_RAW_DATA_DELAY		1 /* msec */
 
-static struct i2c_driver edt_ft5x06_i2c_ts_driver;
+static struct i2c_driver edt_ft5x06_ts_driver;
 
 enum edt_ver {
 	M06,
@@ -84,7 +88,7 @@ struct edt_reg_addr {
 	int reg_num_y;
 };
 
-struct edt_ft5x06_i2c_ts_data {
+struct edt_ft5x06_ts_data {
 	struct i2c_client *client;
 	struct input_dev *input;
 	int irq;
@@ -92,6 +96,12 @@ struct edt_ft5x06_i2c_ts_data {
 	int reset_pin;
 	int num_x;
 	int num_y;
+
+#if defined(CONFIG_DEBUG_FS)
+	struct dentry *debug_dir;
+	u8 *raw_buffer;
+	size_t raw_bufsize;
+#endif
 
 	struct mutex mutex;
 	bool factory_mode;
@@ -147,7 +157,7 @@ static int edt_ft5x06_ts_readwrite(struct i2c_client *client,
 
 static void edt_ft5x06_report_event( void *dev_id)
 {
-	struct edt_ft5x06_i2c_ts_data *tsdata = dev_id;
+	struct edt_ft5x06_ts_data *tsdata = dev_id;
 	int i, type, x, y, id, tplen, offset;
 	bool down;
 
@@ -167,13 +177,6 @@ static void edt_ft5x06_report_event( void *dev_id)
 	for (i = 0; i < tsdata->fingers; i++) {
 		u8 *buf = &tsdata->rdbuf[tsdata->queue_ptn][i * tplen + offset];
 
-/*		printk("q_%d:", tsdata->queue_ptn);
-
-		for (i = 0; i < 10; i++) {
-			printk("%d-%d ", i, buf[i]);
-		}
-		printk("\n");
-*/
 		id = (buf[2] >> 4) & 0x0f;
 		type = buf[0] >> 6;
 
@@ -204,7 +207,7 @@ out:
 	return;
 }
 
-static bool edt_ft5x06_ts_check_crc(struct edt_ft5x06_i2c_ts_data *tsdata,
+static bool edt_ft5x06_ts_check_crc(struct edt_ft5x06_ts_data *tsdata,
 				    u8 *buf, int buflen)
 {
 	int i;
@@ -225,7 +228,7 @@ static bool edt_ft5x06_ts_check_crc(struct edt_ft5x06_i2c_ts_data *tsdata,
 
 static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 {
-	struct edt_ft5x06_i2c_ts_data *tsdata = dev_id;
+	struct edt_ft5x06_ts_data *tsdata = dev_id;
 	int datalen;
 	int error;
 	u8 cmd;
@@ -259,7 +262,6 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 	if (tsdata->fingers == 0)
 		goto out;
 
-
 	/*M09 does not send header or CRC*/
 	if (tsdata->version == M06){
 		if (tsdata->rdbuf[tsdata->queue_ptn][0] != 0xaa
@@ -273,14 +275,6 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 			goto out;
 	}
 
-/*	dev_info(&tsdata->client->dev, "ISR\n");
-	dev_info(&tsdata->client->dev,
-			"queue_%d ", tsdata->queue_ptn);
-	for (i =0; i< 29; i++) {
-		printk("%d-%d ", i, tsdata->rdbuf[tsdata->queue_ptn][i]);
-	}
-	printk("\n");
-*/
 	if (!tsdata->events_valid)
 		tsdata->queue_ptn++;
 	else
@@ -302,7 +296,7 @@ out:
 
 static void edt_ft5x06_queue_up_timer(unsigned long data)
 {
-	struct edt_ft5x06_i2c_ts_data		*tsdata = (void *)data;
+	struct edt_ft5x06_ts_data		*tsdata = (void *)data;
 
 	/* count up if filter timeout came but had no valid amount */
 	if (!tsdata->events_valid)
@@ -314,7 +308,7 @@ static void edt_ft5x06_queue_up_timer(unsigned long data)
 	memset(tsdata->rdbuf, 0, sizeof(tsdata->rdbuf));
 }
 
-static int edt_ft5x06_i2c_register_write(struct edt_ft5x06_i2c_ts_data *tsdata,
+static int edt_ft5x06_register_write(struct edt_ft5x06_ts_data *tsdata,
 					 u8 addr, u8 value)
 {
 	u8 wrbuf[4];
@@ -349,7 +343,7 @@ static int edt_ft5x06_i2c_register_write(struct edt_ft5x06_i2c_ts_data *tsdata,
 	return ret;
 }
 
-static int edt_ft5x06_i2c_register_read(struct edt_ft5x06_i2c_ts_data *tsdata,
+static int edt_ft5x06_register_read(struct edt_ft5x06_ts_data *tsdata,
 					u8 addr)
 {
 	u8 wrbuf[2], rdbuf[2];
@@ -389,7 +383,7 @@ static int edt_ft5x06_i2c_register_read(struct edt_ft5x06_i2c_ts_data *tsdata,
 	return ret < 0 ? ret : rdbuf[0];
 }
 
-static int edt_ft5x06_ts_reset(struct edt_ft5x06_i2c_ts_data *tsdata)
+static int edt_ft5x06_ts_reset(struct edt_ft5x06_ts_data *tsdata)
 {
 	struct edt_reg_addr reg_addr = tsdata->reg_addr;
 
@@ -402,14 +396,14 @@ static int edt_ft5x06_ts_reset(struct edt_ft5x06_i2c_ts_data *tsdata)
 	mdelay(100);
 
 	dev_info(&tsdata->client->dev, "reset performed, i2c transfers might fail now\n");
-	edt_ft5x06_i2c_register_read(tsdata, reg_addr.reg_threshold);
-	edt_ft5x06_i2c_register_read(tsdata, reg_addr.reg_threshold);
+	edt_ft5x06_register_read(tsdata, reg_addr.reg_threshold);
+	edt_ft5x06_register_read(tsdata, reg_addr.reg_threshold);
 
-	edt_ft5x06_i2c_register_write(tsdata, reg_addr.reg_gain, tsdata->gain);
-	edt_ft5x06_i2c_register_write(tsdata, reg_addr.reg_offset, tsdata->offset);
-	edt_ft5x06_i2c_register_write(tsdata, reg_addr.reg_threshold, tsdata->threshold);
+	edt_ft5x06_register_write(tsdata, reg_addr.reg_gain, tsdata->gain);
+	edt_ft5x06_register_write(tsdata, reg_addr.reg_offset, tsdata->offset);
+	edt_ft5x06_register_write(tsdata, reg_addr.reg_threshold, tsdata->threshold);
 	if (reg_addr.reg_report_rate)
-		edt_ft5x06_i2c_register_write(tsdata, reg_addr.reg_report_rate, tsdata->report_rate);
+		edt_ft5x06_register_write(tsdata, reg_addr.reg_report_rate, tsdata->report_rate);
 
 	return 0;
 }
@@ -426,22 +420,22 @@ struct edt_ft5x06_attribute {
 #define EDT_ATTR(_field, _mode, _addr_m06, _addr_m09, _limit_low, _limit_high)		\
 	struct edt_ft5x06_attribute edt_ft5x06_attr_##_field = {	\
 		.dattr = __ATTR(_field, _mode,				\
-				edt_ft5x06_i2c_setting_show,		\
-				edt_ft5x06_i2c_setting_store),		\
+				edt_ft5x06_setting_show,		\
+				edt_ft5x06_setting_store),		\
 		.field_offset =						\
-			offsetof(struct edt_ft5x06_i2c_ts_data, _field),	\
+			offsetof(struct edt_ft5x06_ts_data, _field),	\
 		.limit_low = _limit_low,				\
 		.limit_high = _limit_high,				\
 		.addr_m06 = _addr_m06,					\
 		.addr_m09 = _addr_m09,					\
 	}
 
-static ssize_t edt_ft5x06_i2c_setting_show(struct device *dev,
+static ssize_t edt_ft5x06_setting_show(struct device *dev,
 					   struct device_attribute *dattr,
 					   char *buf)
 {
 	struct i2c_client *client = to_i2c_client(dev);
-	struct edt_ft5x06_i2c_ts_data *tsdata = i2c_get_clientdata(client);
+	struct edt_ft5x06_ts_data *tsdata = i2c_get_clientdata(client);
 	struct edt_ft5x06_attribute *attr =
 			container_of(dattr, struct edt_ft5x06_attribute, dattr);
 	u8 *field = (u8 *)((char *)tsdata + attr->field_offset);
@@ -449,11 +443,7 @@ static ssize_t edt_ft5x06_i2c_setting_show(struct device *dev,
 	size_t count = 0;
 	int error = 0;
 	u8 addr;
-/*	int error = 0;
-	int ret = 0;
-	int *value;
-	u8 addr;
-*/
+
 	mutex_lock(&tsdata->mutex);
 
 	if (tsdata->factory_mode) {
@@ -480,7 +470,7 @@ static ssize_t edt_ft5x06_i2c_setting_show(struct device *dev,
 				"report rate on M09 not supported\n");
 		val = 0;
 	} else if (addr != NO_REGISTER) {
-		val = edt_ft5x06_i2c_register_read(tsdata, addr);
+		val = edt_ft5x06_register_read(tsdata, addr);
 		if (val < 0) {
 			error = val;
 			dev_err(&tsdata->client->dev,
@@ -504,12 +494,12 @@ out:
 	return error ?: count;
 }
 
-static ssize_t edt_ft5x06_i2c_setting_store(struct device *dev,
+static ssize_t edt_ft5x06_setting_store(struct device *dev,
 					    struct device_attribute *dattr,
 					    const char *buf, size_t count)
 {
 	struct i2c_client *client = to_i2c_client(dev);
-	struct edt_ft5x06_i2c_ts_data *tsdata = i2c_get_clientdata(client);
+	struct edt_ft5x06_ts_data *tsdata = i2c_get_clientdata(client);
 	struct edt_ft5x06_attribute *attr =
 			container_of(dattr, struct edt_ft5x06_attribute, dattr);
 	u8 *field = (u8 *)((char *)tsdata + attr->field_offset);
@@ -557,7 +547,7 @@ static ssize_t edt_ft5x06_i2c_setting_store(struct device *dev,
 		dev_err(&tsdata->client->dev,
 				"report rate on M09 not supported\n");
 	} else if (addr != NO_REGISTER) {
-		error = edt_ft5x06_i2c_register_write(tsdata, addr, val);
+		error = edt_ft5x06_register_write(tsdata, addr, val);
 		if (error) {
 			dev_err(&tsdata->client->dev,
 				"Failed to update attribute %s, error: %d\n",
@@ -574,19 +564,19 @@ out:
 }
 
 
-static ssize_t edt_ft5x06_i2c_mode_show(struct device *dev,
+static ssize_t edt_ft5x06_mode_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
 {
-	struct edt_ft5x06_i2c_ts_data *tsdata = dev_get_drvdata(dev);
+	struct edt_ft5x06_ts_data *tsdata = dev_get_drvdata(dev);
 	return sprintf(buf, "%d\n", tsdata->factory_mode ? 1 : 0);
 }
 
-static ssize_t edt_ft5x06_i2c_mode_store(struct device *dev,
+static ssize_t edt_ft5x06_mode_store(struct device *dev,
 					 struct device_attribute *attr,
 					 const char *buf, size_t count)
 {
-	struct edt_ft5x06_i2c_ts_data *tsdata = dev_get_drvdata(dev);
+	struct edt_ft5x06_ts_data *tsdata = dev_get_drvdata(dev);
 	struct edt_reg_addr *reg_addr = &(tsdata->reg_addr);
 	int i, ret = 0;
 	unsigned int mode;
@@ -604,7 +594,7 @@ static ssize_t edt_ft5x06_i2c_mode_store(struct device *dev,
 	if (!tsdata->factory_mode) { /* switch to factory mode */
 		disable_irq(tsdata->irq);
 		/* mode register is 0x3c when in the work mode */
-		ret = edt_ft5x06_i2c_register_write(tsdata,
+		ret = edt_ft5x06_register_write(tsdata,
 						    WORK_REGISTER_OPMODE, 0x03);
 		if (ret < 0) {
 			dev_err(dev, "failed to switch to factory mode (%d)\n",
@@ -614,7 +604,7 @@ static ssize_t edt_ft5x06_i2c_mode_store(struct device *dev,
 			for (i = 0; i < 10; i++) {
 				mdelay(5);
 				/* mode register is 0x01 when in factory mode */
-				ret = edt_ft5x06_i2c_register_read(tsdata, FACTORY_REGISTER_OPMODE);
+				ret = edt_ft5x06_register_read(tsdata, FACTORY_REGISTER_OPMODE);
 				if (ret == 0x03)
 					break;
 			}
@@ -625,7 +615,7 @@ static ssize_t edt_ft5x06_i2c_mode_store(struct device *dev,
 		}
 	} else {  /* switch to work mode */
 		/* mode register is 0x01 when in the factory mode */
-		ret = edt_ft5x06_i2c_register_write(tsdata,
+		ret = edt_ft5x06_register_write(tsdata,
 						    FACTORY_REGISTER_OPMODE,
 						    0x01);
 		if (ret < 0) {
@@ -636,7 +626,7 @@ static ssize_t edt_ft5x06_i2c_mode_store(struct device *dev,
 			for (i = 0; i < 10; i++) {
 				mdelay(5);
 				/* mode register is 0x01 when in factory mode */
-				ret = edt_ft5x06_i2c_register_read(tsdata, WORK_REGISTER_OPMODE);
+				ret = edt_ft5x06_register_read(tsdata, WORK_REGISTER_OPMODE);
 				if (ret == 0x01)
 					break;
 			}
@@ -645,17 +635,17 @@ static ssize_t edt_ft5x06_i2c_mode_store(struct device *dev,
 					i*5);
 
 			/* restore parameters */
-			edt_ft5x06_i2c_register_write(tsdata,
+			edt_ft5x06_register_write(tsdata,
 						      reg_addr->reg_threshold ,
 						      tsdata->threshold);
-			edt_ft5x06_i2c_register_write(tsdata,
+			edt_ft5x06_register_write(tsdata,
 						      reg_addr->reg_gain,
 						      tsdata->gain);
-			edt_ft5x06_i2c_register_write(tsdata,
+			edt_ft5x06_register_write(tsdata,
 						      reg_addr->reg_offset,
 						      tsdata->offset);
 			if (reg_addr->reg_report_rate)
-				edt_ft5x06_i2c_register_write(tsdata,
+				edt_ft5x06_register_write(tsdata,
 						      reg_addr->reg_report_rate,
 						      tsdata->report_rate);
 
@@ -668,11 +658,11 @@ static ssize_t edt_ft5x06_i2c_mode_store(struct device *dev,
 }
 
 
-static ssize_t edt_ft5x06_i2c_raw_data_show(struct device *dev,
+static ssize_t edt_ft5x06_raw_data_show(struct device *dev,
 					    struct device_attribute *attr,
 					    char *buf)
 {
-	struct edt_ft5x06_i2c_ts_data *tsdata = dev_get_drvdata(dev);
+	struct edt_ft5x06_ts_data *tsdata = dev_get_drvdata(dev);
 	int i, ret;
 	char *ptr, wrbuf[3];
 
@@ -682,9 +672,9 @@ static ssize_t edt_ft5x06_i2c_raw_data_show(struct device *dev,
 	}
 
 	mutex_lock(&tsdata->mutex);
-	ret = edt_ft5x06_i2c_register_write(tsdata, 0x08, 0x01);
+	ret = edt_ft5x06_register_write(tsdata, 0x08, 0x01);
 	for (i = 0; i < 100; i++) {
-		ret = edt_ft5x06_i2c_register_read(tsdata, 0x08);
+		ret = edt_ft5x06_register_read(tsdata, 0x08);
 		if (ret < 1)
 			break;
 		udelay(1000);
@@ -766,7 +756,7 @@ static const struct attribute_group edt_ft5x06_attr_group = {
 };
 
 static int edt_ft5x06_ts_identify(struct i2c_client *client,
-					struct edt_ft5x06_i2c_ts_data *tsdata,
+					struct edt_ft5x06_ts_data *tsdata,
 					char *fw_version)
 {
 	u8 rdbuf[EDT_NAME_LEN];
@@ -809,8 +799,7 @@ static int edt_ft5x06_ts_identify(struct i2c_client *client,
 
 		if (error)
 			return error;
-//		sprintf(fw_version, "%ld", simple_strtol(&rdbuf, NULL, 2));
-		strlcpy(fw_version, rdbuf[0], 1);
+		sprintf(fw_version, "%d", rdbuf[0]);
 
 		error = edt_ft5x06_ts_readwrite(client, 1, "\xA8",
 				1, rdbuf);
@@ -823,23 +812,21 @@ static int edt_ft5x06_ts_identify(struct i2c_client *client,
 }
 
 static void
-edt_ft5x06_ts_get_parameters(struct edt_ft5x06_i2c_ts_data *tsdata)
+edt_ft5x06_ts_get_parameters(struct edt_ft5x06_ts_data *tsdata)
 {
 	struct edt_reg_addr reg_addr = tsdata->reg_addr;
 
-	tsdata->threshold = edt_ft5x06_i2c_register_read(tsdata,
-						     reg_addr.reg_threshold);
-	tsdata->gain = edt_ft5x06_i2c_register_read(tsdata, reg_addr.reg_gain);
-	tsdata->offset = edt_ft5x06_i2c_register_read(tsdata, reg_addr.reg_offset);
+	tsdata->threshold = edt_ft5x06_register_read(tsdata, reg_addr.reg_threshold);
+	tsdata->gain = edt_ft5x06_register_read(tsdata, reg_addr.reg_gain);
+	tsdata->offset = edt_ft5x06_register_read(tsdata, reg_addr.reg_offset);
 	if (reg_addr.reg_report_rate)
-		tsdata->report_rate = edt_ft5x06_i2c_register_read(tsdata,
-						reg_addr.reg_report_rate);
-	tsdata->num_x = edt_ft5x06_i2c_register_read(tsdata, reg_addr.reg_num_x);
-	tsdata->num_y = edt_ft5x06_i2c_register_read(tsdata, reg_addr.reg_num_y);
+		tsdata->report_rate = edt_ft5x06_register_read(tsdata, reg_addr.reg_report_rate);
+	tsdata->num_x = edt_ft5x06_register_read(tsdata, reg_addr.reg_num_x);
+	tsdata->num_y = edt_ft5x06_register_read(tsdata, reg_addr.reg_num_y);
 }
 
 static void
-edt_ft5x06_ts_set_regs(struct edt_ft5x06_i2c_ts_data *tsdata)
+edt_ft5x06_ts_set_regs(struct edt_ft5x06_ts_data *tsdata)
 {
 	struct edt_reg_addr *reg_addr = &(tsdata->reg_addr);
 	switch (tsdata->version){
@@ -871,11 +858,10 @@ edt_ft5x06_ts_set_regs(struct edt_ft5x06_i2c_ts_data *tsdata)
 	}
 }
 
-static int edt_ft5x06_i2c_ts_probe(struct i2c_client *client,
+static int edt_ft5x06_ts_probe(struct i2c_client *client,
 				   const struct i2c_device_id *id)
 {
-
-	struct edt_ft5x06_i2c_ts_data *tsdata;
+	struct edt_ft5x06_ts_data *tsdata;
 	struct input_dev *input;
 	int error;
 	int i;
@@ -1048,9 +1034,9 @@ err_free_tsdata:
 	return error;
 }
 
-static int edt_ft5x06_i2c_ts_remove(struct i2c_client *client)
+static int edt_ft5x06_ts_remove(struct i2c_client *client)
 {
-	struct edt_ft5x06_i2c_ts_data *tsdata = dev_get_drvdata(&client->dev);
+	struct edt_ft5x06_ts_data *tsdata = dev_get_drvdata(&client->dev);
 
 	sysfs_remove_group(&client->dev.kobj, &edt_ft5x06_attr_group);
 
@@ -1067,9 +1053,9 @@ static int edt_ft5x06_i2c_ts_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int edt_ft5x06_i2c_ts_suspend(struct i2c_client *client, pm_message_t mesg)
+static int edt_ft5x06_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 {
-	struct edt_ft5x06_i2c_ts_data *tsdata = dev_get_drvdata(&client->dev);
+	struct edt_ft5x06_ts_data *tsdata = dev_get_drvdata(&client->dev);
 
 	if (device_may_wakeup(&client->dev))
 		enable_irq_wake(tsdata->irq);
@@ -1077,9 +1063,9 @@ static int edt_ft5x06_i2c_ts_suspend(struct i2c_client *client, pm_message_t mes
 	return 0;
 }
 
-static int edt_ft5x06_i2c_ts_resume(struct i2c_client *client)
+static int edt_ft5x06_ts_resume(struct i2c_client *client)
 {
-	struct edt_ft5x06_i2c_ts_data *tsdata = dev_get_drvdata(&client->dev);
+	struct edt_ft5x06_ts_data *tsdata = dev_get_drvdata(&client->dev);
 
 	if (device_may_wakeup(&client->dev))
 		disable_irq_wake(tsdata->irq);
@@ -1087,36 +1073,36 @@ static int edt_ft5x06_i2c_ts_resume(struct i2c_client *client)
 	return 0;
 }
 
-static const struct i2c_device_id edt_ft5x06_i2c_ts_id[] =
+static const struct i2c_device_id edt_ft5x06_ts_id[] =
 {
 	{ "edt-ft5x06", 0 },
 	{ /* sentinel */ }
 };
-MODULE_DEVICE_TABLE(i2c, edt_ft5x06_i2c_ts_id);
+MODULE_DEVICE_TABLE(i2c, edt_ft5x06_ts_id);
 
-static struct i2c_driver edt_ft5x06_i2c_ts_driver = {
+static struct i2c_driver edt_ft5x06_ts_driver = {
 	.driver = {
 		.owner = THIS_MODULE,
-		.name = "edt_ft5x06_i2c",
+		.name = "edt_ft5x06",
 	},
-	.id_table = edt_ft5x06_i2c_ts_id,
-	.probe    = edt_ft5x06_i2c_ts_probe,
-	.remove   = edt_ft5x06_i2c_ts_remove,
-	.suspend  = edt_ft5x06_i2c_ts_suspend,
-	.resume   = edt_ft5x06_i2c_ts_resume,
+	.id_table = edt_ft5x06_ts_id,
+	.probe    = edt_ft5x06_ts_probe,
+	.remove   = edt_ft5x06_ts_remove,
+	.suspend  = edt_ft5x06_ts_suspend,
+	.resume   = edt_ft5x06_ts_resume,
 };
 
-static int __init edt_ft5x06_i2c_ts_init(void)
+static int __init edt_ft5x06_ts_init(void)
 {
-	return i2c_add_driver(&edt_ft5x06_i2c_ts_driver);
+	return i2c_add_driver(&edt_ft5x06_ts_driver);
 }
-module_init(edt_ft5x06_i2c_ts_init);
+module_init(edt_ft5x06_ts_init);
 
-static void __exit edt_ft5x06_i2c_ts_exit(void)
+static void __exit edt_ft5x06_ts_exit(void)
 {
-	i2c_del_driver(&edt_ft5x06_i2c_ts_driver);
+	i2c_del_driver(&edt_ft5x06_ts_driver);
 }
-module_exit(edt_ft5x06_i2c_ts_exit);
+module_exit(edt_ft5x06_ts_exit);
 
 MODULE_AUTHOR("Simon Budig <simon.budig@kernelconcepts.de>");
 MODULE_DESCRIPTION("EDT FT5x06 I2C Touchscreen Driver");
