@@ -175,5 +175,7 @@ source "drivers/staging/intel_sst/Kconfig"
 
 source "drivers/staging/speakup/Kconfig"
 
+source "drivers/staging/edredaq/Kconfig"
+
 endif # !STAGING_EXCLUDE_BUILD
 endif # STAGING

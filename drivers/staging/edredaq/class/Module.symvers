@@ -1,0 +1,2 @@
+0xedc82852	edredaq_register_dev	/usr/src/edrelib-2.6.7/drivers/edredaq/class/edredaqdrv	EXPORT_SYMBOL_GPL
+0x3e52dc25	edredaq_deregister_dev	/usr/src/edrelib-2.6.7/drivers/edredaq/class/edredaqdrv	EXPORT_SYMBOL_GPL

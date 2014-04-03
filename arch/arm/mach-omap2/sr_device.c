@@ -39,6 +39,55 @@ static struct omap_device_pm_latency omap_sr_latency[] = {
 	},
 };
 
+#define SWCALC_OPP6_DELTA_NNT	379
+#define SWCALC_OPP6_DELTA_PNT	227
+#define GAIN_MAXLIMIT		16
+
+static void swcalc_opp6_RG(u32 rFuse, u32 gainFuse, u32 deltaNT,
+                               u32* rAdj, u32* gainAdj)
+{
+       u32 nAdj;
+       u32 g, r;
+
+		if(!rFuse)
+			return;
+
+       nAdj = ((1 << (gainFuse + 8))/rFuse) + deltaNT;
+
+       for (g = 0; g < GAIN_MAXLIMIT; g++) {
+               r = (1 << (g + 8)) / nAdj;
+               if (r < 256) {
+                       *rAdj = r;
+                       *gainAdj = g;
+               }
+       }
+}
+
+static u32 swcalc_opp6_nvalue(u32 opp5_nvalue)
+{
+       u32 opp6_nvalue;
+       u32 opp5_senPgain, opp5_senNgain, opp5_senPRN, opp5_senNRN;
+       u32 opp6_senPgain, opp6_senNgain, opp6_senPRN, opp6_senNRN;
+
+       opp5_senPgain = (opp5_nvalue & 0x00f00000) >> 0x14;
+       opp5_senNgain = (opp5_nvalue & 0x000f0000) >> 0x10;
+
+       opp5_senPRN = (opp5_nvalue & 0x0000ff00) >> 0x8;
+       opp5_senNRN = (opp5_nvalue & 0x000000ff);
+
+       swcalc_opp6_RG(opp5_senNRN, opp5_senNgain, SWCALC_OPP6_DELTA_NNT,
+                               &opp6_senNRN, &opp6_senNgain);
+
+       swcalc_opp6_RG(opp5_senPRN, opp5_senPgain, SWCALC_OPP6_DELTA_PNT,
+                               &opp6_senPRN, &opp6_senPgain);
+
+       opp6_nvalue = (opp6_senPgain << 0x14) | (opp6_senNgain < 0x10) |
+                       (opp6_senPRN << 0x8) | opp6_senNRN;
+
+       return opp6_nvalue;
+}
+
+
 /* Read EFUSE values from control registers for OMAP3430 */
 static void __init sr_set_nvalues(struct omap_volt_data *volt_data,
 				struct omap_sr_data *sr_data)
@@ -68,7 +117,10 @@ static void __init sr_set_nvalues(struct omap_volt_data *volt_data,
 		} else {
 			 v = omap_ctrl_readl(volt_data[i].sr_efuse_offs);
 		}
-
+		if (cpu_is_omap34xx() && omap3_has_720mhz()) {
+				nvalue_table[count-1].nvalue = swcalc_opp6_nvalue(
+								nvalue_table[count-2].nvalue);
+		}
 		nvalue_table[i].efuse_offs = volt_data[i].sr_efuse_offs;
 		nvalue_table[i].nvalue = v;
 	}

@@ -251,9 +251,10 @@ static void omap_read_buf_pref(struct mtd_info *mtd, u_char *buf, int len)
 	uint32_t r_count = 0;
 	int ret = 0;
 	u32 *p = (u32 *)buf;
-
+	
 	/* take care of subpage reads */
 	if (len % 4) {
+		ndelay(20);
 		if (info->nand.options & NAND_BUSWIDTH_16)
 			omap_read_buf16(mtd, buf, len % 4);
 		else
@@ -261,12 +262,12 @@ static void omap_read_buf_pref(struct mtd_info *mtd, u_char *buf, int len)
 		p = (u32 *) (buf + len % 4);
 		len -= len % 4;
 	}
-
 	/* configure and start prefetch transfer */
 	ret = gpmc_prefetch_enable(info->gpmc_cs,
 			PREFETCH_FIFOTHRESHOLD_MAX, 0x0, len, 0x0);
 	if (ret) {
 		/* PFPW engine is busy, use cpu copy method */
+
 		if (info->nand.options & NAND_BUSWIDTH_16)
 			omap_read_buf16(mtd, (u_char *)p, len);
 		else
@@ -274,10 +275,12 @@ static void omap_read_buf_pref(struct mtd_info *mtd, u_char *buf, int len)
 	} else {
 		do {
 			r_count = gpmc_read_status(GPMC_PREFETCH_FIFO_CNT);
-			r_count = r_count >> 2;
-			ioread32_rep(info->nand.IO_ADDR_R, p, r_count);
-			p += r_count;
-			len -= r_count << 2;
+			if((r_count % 4) == 0){
+				r_count = r_count >> 2;
+				ioread32_rep(info->nand.IO_ADDR_R, p, r_count);
+				p += r_count;
+				len -= r_count << 2;
+			}
 		} while (len);
 		/* disable and stop the PFPW engine */
 		gpmc_prefetch_reset(info->gpmc_cs);
@@ -950,7 +953,7 @@ static int omap_dev_ready(struct mtd_info *mtd)
 	unsigned int val = 0;
 	struct omap_nand_info *info = container_of(mtd, struct omap_nand_info,
 							mtd);
-
+#ifdef __notdef
 	val = gpmc_read_status(GPMC_GET_IRQ_STATUS);
 	if ((val & 0x100) == 0x100) {
 		/* Clear IRQ Interrupt */
@@ -965,8 +968,9 @@ static int omap_dev_ready(struct mtd_info *mtd)
 			val = gpmc_read_status(GPMC_GET_IRQ_STATUS);
 		}
 	}
-
-	return 1;
+#endif
+	return gpmc_read_status(GPMC_STATUS_RAW) & (1 << 8);
+// 	return 1;
 }
 
 static int __devinit omap_nand_probe(struct platform_device *pdev)
@@ -1007,6 +1011,7 @@ static int __devinit omap_nand_probe(struct platform_device *pdev)
 	info->nand.options	|= NAND_SKIP_BBTSCAN;
 
 	info->nand.badblockbits = 8;
+		
 
 	/* NAND write protect off */
 	gpmc_cs_configure(info->gpmc_cs, GPMC_CONFIG_WP, 0);
@@ -1035,13 +1040,17 @@ static int __devinit omap_nand_probe(struct platform_device *pdev)
 	 * chip delay which is slightly more than tR (AC Timing) of the NAND
 	 * device and read status register until you get a failure or success
 	 */
+	info->nand.dev_ready = omap_dev_ready;
+	info->nand.waitfunc = NULL;
+	info->nand.chip_delay = 0;
+/*	 
 	if (pdata->dev_ready) {
 		info->nand.dev_ready = omap_dev_ready;
 		info->nand.chip_delay = 0;
 	} else {
 		info->nand.waitfunc = omap_wait;
 		info->nand.chip_delay = 50;
-	}
+	} */
 	switch (pdata->xfer_type) {
 	case NAND_OMAP_PREFETCH_POLLED:
 		info->nand.read_buf   = omap_read_buf_pref;

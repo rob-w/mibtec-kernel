@@ -1373,6 +1373,9 @@ static void set_data_timeout(struct omap_hsmmc_host *host,
 			dto = 14;
 	}
 
+    // Use 14 by default because this seems to work will with all cards
+    dto = 14;
+
 	reg &= ~DTO_MASK;
 	reg |= dto << DTO_SHIFT;
 	OMAP_HSMMC_WRITE(host->base, SYSCTL, reg);
@@ -2137,10 +2140,8 @@ static int __init omap_hsmmc_probe(struct platform_device *pdev)
 	mmc->caps |= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED |
 		     MMC_CAP_WAIT_WHILE_BUSY | MMC_CAP_SDIO_IRQ;
 
-	if (mmc_slot(host).wires >= 8)
-		mmc->caps |= (MMC_CAP_8_BIT_DATA | MMC_CAP_4_BIT_DATA);
-	else if (mmc_slot(host).wires >= 4)
-		mmc->caps |= MMC_CAP_4_BIT_DATA;
+	/* Add pdata caps */
+	mmc->caps |= mmc_slot(host).caps;
 
 	if (mmc_slot(host).nonremovable)
 		mmc->caps |= MMC_CAP_NONREMOVABLE;

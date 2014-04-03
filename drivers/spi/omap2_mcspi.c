@@ -918,6 +918,14 @@ static void omap2_mcspi_work(struct work_struct *work)
 					par_override = 0;
 			}
 
+			if (cd && cd->cs_per_word) {
+				chconf = omap2_mcspi_ctx[spi->master->bus_num -1].modulctrl;
+				MOD_REG_BIT(chconf, OMAP2_MCSPI_MODULCTRL_SINGLE, 0);
+				mcspi_write_reg(spi->master, OMAP2_MCSPI_MODULCTRL, chconf);
+				omap2_mcspi_ctx[spi->master->bus_num - 1].modulctrl =
+					mcspi_read_cs_reg(spi, OMAP2_MCSPI_MODULCTRL);
+			}
+
 			if (!cs_active) {
 				omap2_mcspi_force_cs(spi, 1);
 				cs_active = 1;
@@ -978,6 +986,14 @@ static void omap2_mcspi_work(struct work_struct *work)
 
 		if (cs_active)
 			omap2_mcspi_force_cs(spi, 0);
+
+		if (cd && cd->cs_per_word) {
+			chconf = omap2_mcspi_ctx[spi->master->bus_num - 1].modulctrl;
+			MOD_REG_BIT(chconf, OMAP2_MCSPI_MODULCTRL_SINGLE, 1);
+			mcspi_write_reg(spi->master, OMAP2_MCSPI_MODULCTRL, chconf);
+			omap2_mcspi_ctx[spi->master->bus_num - 1].modulctrl =
+				mcspi_read_cs_reg(spi, OMAP2_MCSPI_MODULCTRL);
+		}
 
 		omap2_mcspi_set_enable(spi, 0);
 

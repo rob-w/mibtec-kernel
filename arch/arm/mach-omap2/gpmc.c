@@ -12,7 +12,7 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
-#undef DEBUG
+#define DEBUG
 
 #include <linux/irq.h>
 #include <linux/kernel.h>
@@ -478,7 +478,9 @@ int gpmc_read_status(int cmd)
 		/* 1 : buffer is available to write */
 		status = regval & GPMC_STATUS_BUFF_EMPTY;
 		break;
-
+	case GPMC_STATUS_RAW:
+		status = gpmc_read_reg(GPMC_STATUS);
+		break;
 	default:
 		printk(KERN_ERR "gpmc_read_status: Not supported\n");
 	}

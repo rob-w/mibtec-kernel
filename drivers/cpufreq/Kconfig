@@ -114,6 +114,7 @@ endchoice
 
 config CPU_FREQ_GOV_PERFORMANCE
 	tristate "'performance' governor"
+	select CPU_FREQ_TABLE
 	help
 	  This cpufreq governor sets the frequency statically to the
 	  highest available CPU frequency.

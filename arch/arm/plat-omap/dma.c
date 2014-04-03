@@ -697,7 +697,7 @@ int omap_request_dma(int dev_id, const char *dev_name,
 	if (cpu_class_is_omap2())
 		omap_clear_dma(free_ch);
 
-	spin_unlock_irqrestore(&dma_chan_lock, flags);
+	// spin_unlock_irqrestore(&dma_chan_lock, flags);
 
 	chan->dev_name = dev_name;
 	chan->callback = callback;
@@ -743,7 +743,7 @@ int omap_request_dma(int dev_id, const char *dev_name,
 	}
 
 	*dma_ch_out = free_ch;
-
+	spin_unlock_irqrestore(&dma_chan_lock, flags);
 	return 0;
 }
 EXPORT_SYMBOL(omap_request_dma);

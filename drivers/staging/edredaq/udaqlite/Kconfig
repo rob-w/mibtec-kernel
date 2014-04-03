@@ -1,0 +1,10 @@
+#
+# USB MicroDAQLite Driver Support
+#
+config EDREDAQ_UDAQLITE
+	tristate "USB MicroDAQLite Device Driver Support"
+	depends on USB && EDREDAQ_CLASS
+	---help---
+	  Say M if you want support for the USB MicroDAQLite device.
+
+

@@ -43,6 +43,8 @@
 
 #define GPMC_ENABLE_IRQ		0x0000000d
 
+#define GPMC_STATUS_RAW		0x0000000e
+
 /* ECC commands */
 #define GPMC_ECC_READ		0 /* Reset Hardware ECC for read */
 #define GPMC_ECC_WRITE		1 /* Reset Hardware ECC for write */

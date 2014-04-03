@@ -40,6 +40,7 @@
 #include <plat/mcspi.h>
 #include <plat/onenand.h>
 #include <plat/usb.h>
+#include <plat/nand.h>
 
 #include "board-flash.h"
 #include "board-igep00x0.h"
@@ -47,6 +48,8 @@
 #include "devices.h"
 #include "mux.h"
 #include "sdram-numonyx-m65kxxxxam.h"
+
+#define NAND_BLOCK_SIZE			SZ_128K
 
 struct omap_mux_partition *mux_partition = NULL;
 
@@ -335,7 +338,7 @@ static struct mtd_partition igep00x0_flash_partitions[] = {
 	{
 		.name           = "X-Loader",
 		.offset         = 0,
-		.size           = 2 * (64*(2*2048))
+		.size           = 4 * NAND_BLOCK_SIZE,
 	},
 	{
 		.name           = "Boot",
@@ -347,6 +350,43 @@ static struct mtd_partition igep00x0_flash_partitions[] = {
 		.offset         = MTDPART_OFS_APPEND,
 		.size           = MTDPART_SIZ_FULL,
 	},
+};
+
+static struct gpmc_timings igep00x0_nand_timings = {
+
+	.sync_clk = 0,
+
+	.cs_on = 0,
+	.cs_rd_off = 36,
+	.cs_wr_off = 36,
+
+	.adv_on = 6,
+	.adv_rd_off = 24,
+	.adv_wr_off = 36,
+
+	.we_off = 30,
+	.oe_off = 48,
+
+	.access = 35,
+	.rd_cycle = 45,
+	.wr_cycle = 45,
+
+	.wr_access = 35,
+	.wr_data_mux_bus = 0,
+};
+
+
+static struct omap_nand_platform_data igep00x0_nand_data = {
+	.cs		    = 0,
+	.devsize	= 1,	/* '0' for 8-bit, '1' for 16-bit device */
+	.parts		= igep00x0_flash_partitions,
+	.nr_parts	= ARRAY_SIZE(igep00x0_flash_partitions),
+	.xfer_type  = NAND_OMAP_PREFETCH_POLLED,
+	/* .dev_ready  = 1, */
+	.gpmc_t     = &igep00x0_nand_timings,
+	.nand_setup = NULL,
+	/* .gpmc_irq   = OMAP_GPMC_IRQ_BASE + 0, */
+	.dma_channel	= -1,
 };
 
 static inline u32 get_sysboot_value(void)
@@ -361,9 +401,10 @@ void __init igep00x0_flash_init(void)
 
 	if (mux == IGEP00X0_SYSBOOT_NAND) {
 		pr_info("IGEP: initializing NAND memory device\n");
-		board_nand_init(igep00x0_flash_partitions,
+		/*board_nand_init(igep00x0_flash_partitions,
 			ARRAY_SIZE(igep00x0_flash_partitions),
-			0, NAND_BUSWIDTH_16);
+			0, NAND_BUSWIDTH_16);*/
+		gpmc_nand_init(&igep00x0_nand_data);
 	} else if (mux == IGEP00X0_SYSBOOT_ONENAND) {
 		pr_info("IGEP: initializing OneNAND memory device\n");
 		board_onenand_init(igep00x0_flash_partitions,
@@ -428,9 +469,92 @@ static struct omap2_mcspi_device_config tsc2046_mcspi_config = {
 	.single_channel	= 1,	/* 0: slave, 1: master */
 };
 
+static struct ads7846_platform_data tsc2046_pdata;
+
+struct igep00x0_ads7846_filter_data {
+	int			read_cnt;
+	int			read_rep;
+	int			last_read;
+
+	u16			debounce_max;
+	u16			debounce_tol;
+	u16			debounce_rep;
+};
+
+int igep00x0_ads7846_filter(void *ads, int data_idx, int *val)
+{
+	struct igep00x0_ads7846_filter_data *ts = (struct igep00x0_ads7846_filter_data*) ads;
+
+	if (!ts->read_cnt || (abs(ts->last_read - *val) > ts->debounce_tol)) {
+		/* Start over collecting consistent readings. */
+		ts->read_rep = 0;
+		/*
+		 * Repeat it, if this was the first read or the read
+		 * wasn't consistent enough.
+		 */
+		if (ts->read_cnt < ts->debounce_max) {
+			ts->last_read = *val;
+			ts->read_cnt++;
+			return ADS7846_FILTER_REPEAT;
+		} else {
+			/*
+			 * Maximum number of debouncing reached and still
+			 * not enough number of consistent readings. Abort
+			 * the whole sample, repeat it in the next sampling
+			 * period.
+			 */
+			ts->read_cnt = 0;
+			return ADS7846_FILTER_IGNORE;
+		}
+	} else {
+		if (++ts->read_rep > ts->debounce_rep) {
+			/*
+			 * Got a good reading for this coordinate,
+			 * go for the next one.
+			 */
+			ts->read_cnt = 0;
+			ts->read_rep = 0;
+
+			/* invert y axis */
+			if (data_idx == 0) {
+				*val ^= 0x0fff;
+			}
+
+			return ADS7846_FILTER_OK;
+		} else {
+			/* Read more values that are consistent. */
+			ts->read_cnt++;
+			return ADS7846_FILTER_REPEAT;
+		}
+	}
+};
+
+int igep00x0_ads7846_filter_init(const struct ads7846_platform_data *pdata,
+				 void **f_data)
+{
+	struct igep00x0_ads7846_filter_data *fd = kzalloc(sizeof(struct igep00x0_ads7846_filter_data), GFP_KERNEL);
+	if(!fd) {
+		return -ENOMEM;
+	}
+
+	fd->debounce_max = pdata->debounce_max;
+	fd->debounce_tol = pdata->debounce_tol;
+	fd->debounce_rep = pdata->debounce_rep;
+
+	*f_data = fd;
+
+	return 0;
+};
+
+void igep00x0_ads7846_filter_cleanup(void *data) {
+	kfree(data);
+};
+
 static struct ads7846_platform_data tsc2046_pdata = {
-	.x_max			= 0x0fff,
-	.y_max			= 0x0fff,
+	.x_max			= 3923,
+	.x_min			= 138,
+	.y_max			= 3962,
+	.y_min			= 311,
 	.x_plate_ohms		= 180,
 	.pressure_max		= 255,
 	.debounce_max		= 10,
@@ -438,6 +562,9 @@ static struct ads7846_platform_data tsc2046_pdata = {
 	.debounce_rep		= 1,
 	.gpio_pendown		= -EINVAL,
 	.keep_vref_on		= 1,
+	.filter 		= igep00x0_ads7846_filter,
+	.filter_init		= igep00x0_ads7846_filter_init,
+	.filter_cleanup		= igep00x0_ads7846_filter_cleanup,
 };
 
 static struct spi_board_info tsc2046_spi_board_info __initdata = {
@@ -453,6 +580,19 @@ static struct spi_board_info tsc2046_spi_board_info __initdata = {
 	.irq			= -EINVAL,
 	.platform_data		= &tsc2046_pdata,
 };
+
+static int __init tsc2046_early_param(char* options)
+{
+	if (strcmp(options, "lcd-43") == 0)
+	{
+		tsc2046_pdata.x_max = 3830;
+		tsc2046_pdata.x_min = 330;
+		tsc2046_pdata.y_max = 3830;
+		tsc2046_pdata.y_min = 330;
+	}
+	return 0;
+}
+early_param("omapdss.def_disp", tsc2046_early_param);
 
 void __init igep00x0_tsc2046_init(int busnum, int cs, int irq,
 			int debounce)

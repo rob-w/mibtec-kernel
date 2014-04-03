@@ -133,6 +133,7 @@ struct lbs_private {
 	u8 wep_tx_key;
 	u8 wep_key[4][WLAN_KEY_LEN_WEP104];
 	u8 wep_key_len[4];
+	bool wep_ibss;
 
 	/* Wake On LAN */
 	uint32_t wol_criteria;

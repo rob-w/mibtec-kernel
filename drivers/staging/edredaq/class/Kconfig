@@ -1,0 +1,10 @@
+#
+# EDR Enhanced Class Driver
+#
+config EDREDAQ_CLASS
+	tristate "EDR Enhanced Class Driver"
+	depends on EDREDAQ
+	---help---
+	  This driver is needed by all EDR Enhanced supported drivers.
+
+

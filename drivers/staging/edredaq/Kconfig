@@ -1,0 +1,19 @@
+
+# EDR Enhanced Data Acquisition Kernel Configuration
+#
+
+menu "EDREDAQ support"
+
+# EDREDAQ
+config EDREDAQ
+	tristate "Support for EDR Enhanced Data Acquisition Devices"
+	---help---
+	  Support EDR Enhanced Data Acquisition by Eagle Technology.
+	  Make sure the choose M for module support.
+
+source "drivers/staging/edredaq/class/Kconfig"
+
+source "drivers/staging/edredaq/udaqlite/Kconfig"
+
+endmenu
+

@@ -28,6 +28,8 @@
 #include "clock.h"
 #include "pm.h"
 
+#define RATE_1GHZ 1000000000
+
 static struct omap_device_pm_latency *pm_lats;
 
 static struct device *mpu_dev;
@@ -62,7 +64,6 @@ struct device *omap4_get_dsp_device(void)
 }
 EXPORT_SYMBOL(omap4_get_dsp_device);
 
-#ifndef CONFIG_CPU_FREQ
 static unsigned long compute_lpj(unsigned long ref, u_int div, u_int mult)
 {
 	unsigned long new_jiffy_l, new_jiffy_h;
@@ -82,7 +83,6 @@ static unsigned long compute_lpj(unsigned long ref, u_int div, u_int mult)
 
 	return new_jiffy_h + new_jiffy_l * 100;
 }
-#endif
 
 /* static int _init_omap_device(struct omap_hwmod *oh, void *user) */
 static int _init_omap_device(char *name, struct device **new_dev)
@@ -288,6 +288,7 @@ static int __init omap2_set_init_voltage(char *vdd_name, char *clk_name,
 	struct clk *clk;
 	struct opp *opp;
 	unsigned long freq, bootup_volt;
+	int ret;
 
 	if (!vdd_name || !clk_name || !dev) {
 		printk(KERN_ERR "%s: Invalid parameters!\n", __func__);
@@ -310,6 +311,11 @@ static int __init omap2_set_init_voltage(char *vdd_name, char *clk_name,
 
 	freq = clk->rate;
 	clk_put(clk);
+	
+	/* set up for a voltage to support 1GHz */
+	if (cpu_is_omap3630())
+		if (!strcmp(vdd_name, "mpu"))
+			freq = RATE_1GHZ;
 
 	opp = opp_find_freq_ceil(dev, &freq);
 	if (IS_ERR(opp)) {
@@ -326,6 +332,26 @@ static int __init omap2_set_init_voltage(char *vdd_name, char *clk_name,
 	}
 
 	omap_voltage_scale_vdd(voltdm, bootup_volt);
+
+	/* once voltage is changed, we can scale freq to max */
+	if (cpu_is_omap3630()) {
+		if (!strcmp(vdd_name, "mpu")) {
+			unsigned long cur_rate;
+			cur_rate = clk->rate;
+
+			ret = clk_set_rate(clk, RATE_1GHZ);
+			if (ret) {
+				dev_warn(dev, "%s: Unable to set rate to %d\n",
+					 __func__, RATE_1GHZ);
+				return ret;
+			}
+			/* Update loops_per_jiffy because processor speed is 
+			   being changed.  Necessary to keep BogoMIPS happy. */
+			loops_per_jiffy = compute_lpj(loops_per_jiffy,
+						      cur_rate / 1000000, 
+						      RATE_1GHZ / 1000000);
+		}
+	}
 	return 0;
 
 exit:

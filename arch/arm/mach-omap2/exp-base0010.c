@@ -175,8 +175,11 @@ static inline void __init base0010_smsc911x_init(void)
 	} else {
 		/* Configure MUX for hardware rev. B */
 		if (machine_is_igep0032()) {
-			/* id=0 is already on IGEP0032 board file */
-			smsc911x0_device.id = 1;
+			/*
+			 * The id 0 is on SMSC controller from IGEP0032 board
+			 * file. This conflics with smssc911x0 id, so we set
+			 * smsc911x0 to id2 and maintain the id 1 for smsc011x1
+			 */
 			smsc911x0_device.id = 2;
 		}
 

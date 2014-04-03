@@ -36,7 +36,7 @@ static struct omap_opp_def __initdata omap34xx_opp_def_list[] = {
 	/* MPU OPP5 */
 	OPP_INITIALIZER("mpu", true, 600000000, 1350000),
 	/* MPU OPP6 */
-	OPP_INITIALIZER("mpu", false, 720000000, 1350000),
+	OPP_INITIALIZER("mpu", false, 720000000, 1350001),
 
 	/*
 	 * L3 OPP1 - 41.5 MHz is disabled because: The voltage for that OPP is
@@ -46,9 +46,9 @@ static struct omap_opp_def __initdata omap34xx_opp_def_list[] = {
 	 * impact that frequency will do to the MPU and the whole system in
 	 * general.
 	 */
-	OPP_INITIALIZER("l3_main", false, 41500000, 975000),
+	OPP_INITIALIZER("l3_main", false, 166000000, 1150000),
 	/* L3 OPP2 */
-	OPP_INITIALIZER("l3_main", true, 83000000, 1050000),
+	OPP_INITIALIZER("l3_main", true, 166000000, 1150000),
 	/* L3 OPP3 */
 	OPP_INITIALIZER("l3_main", true, 166000000, 1150000),
 
@@ -63,7 +63,7 @@ static struct omap_opp_def __initdata omap34xx_opp_def_list[] = {
 	/* DSP OPP5 */
 	OPP_INITIALIZER("iva", true, 430000000, 1350000),
 	/* DSP OPP6 */
-	OPP_INITIALIZER("iva", false, 520000000, 1350000),
+	OPP_INITIALIZER("iva", false, 520000000, 1350001),
 };
 
 static struct omap_opp_def __initdata omap36xx_opp_def_list[] = {

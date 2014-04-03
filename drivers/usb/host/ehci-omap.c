@@ -794,6 +794,57 @@ static void omap_stop_ehc(struct ehci_hcd_omap *omap, struct usb_hcd *hcd)
 	dev_dbg(omap->dev, "Clock to USB host has been disabled\n");
 }
 
+#ifdef CONFIG_PM
+/*-------------------------------------------------------------------------*/
+static int ehci_omap_dev_suspend(struct device *dev)
+{
+	struct ehci_hcd_omap *omap = dev_get_drvdata(dev);
+
+	if (!omap->suspended)
+		ehci_omap_enable(omap, 0);
+	return 0;
+}
+
+static int ehci_omap_dev_resume(struct device *dev)
+{
+	struct ehci_hcd_omap *omap = dev_get_drvdata(dev);
+
+	if (omap->suspended)
+		ehci_omap_enable(omap, 1);
+	return 0;
+}
+
+static int ehci_omap_bus_suspend(struct usb_hcd *hcd)
+{
+	struct usb_bus *bus = hcd_to_bus(hcd);
+	int ret;
+
+	ret = ehci_bus_suspend(hcd);
+
+	ehci_omap_dev_suspend(bus->controller);
+
+	return ret;
+}
+static int ehci_omap_bus_resume(struct usb_hcd *hcd)
+{
+	struct usb_bus *bus = hcd_to_bus(hcd);
+	int ret;
+
+	ehci_omap_dev_resume(bus->controller);
+
+	ret = ehci_bus_resume(hcd);
+
+	return ret;
+}
+static const struct dev_pm_ops ehci_omap_dev_pm_ops = {
+	.suspend	= ehci_omap_dev_suspend,
+	.resume_noirq	= ehci_omap_dev_resume,
+};
+#define EHCI_OMAP_DEV_PM_OPS (&ehci_omap_dev_pm_ops)
+#else
+#define EHCI_OMAP_DEV_PM_OPS NULL
+#endif
+
 /**
  * ehci_omap_port_handed_over - hand the port out if failed to enable it
  * @hcd:	Pointer to the usb_hcd device to which the host controller bound
@@ -1051,6 +1102,7 @@ static struct platform_driver ehci_hcd_omap_driver = {
 	.shutdown		= ehci_hcd_omap_shutdown,
 	.driver = {
 		.name		= "ehci-omap",
+		.pm		= EHCI_OMAP_DEV_PM_OPS,
 	}
 };
 
@@ -1094,8 +1146,8 @@ static const struct hc_driver ehci_omap_hc_driver = {
 	.hub_status_data	= ehci_hub_status_data,
 	.hub_control		= ehci_hub_control,
 #ifdef CONFIG_PM
-	.bus_suspend		= ehci_bus_suspend,
-	.bus_resume		= ehci_bus_resume,
+	.bus_suspend		= ehci_omap_bus_suspend,
+	.bus_resume		= ehci_omap_bus_resume,
 #endif
 	.relinquish_port        = NULL,
 	.port_handed_over       = ehci_omap_port_handed_over,

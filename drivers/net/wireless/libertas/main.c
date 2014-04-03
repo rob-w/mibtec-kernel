@@ -728,8 +728,9 @@ static int lbs_init_adapter(struct lbs_private *priv)
 	init_waitqueue_head(&priv->ds_awake_q);
 	init_waitqueue_head(&priv->scan_q);
 	priv->authtype_auto = 1;
+	priv->wep_ibss = 0;
 	priv->is_host_sleep_configured = 0;
-	priv->is_host_sleep_activated = 0;
+	priv->is_host_sleep_activated = 0;	
 	init_waitqueue_head(&priv->host_sleep_q);
 	mutex_init(&priv->lock);
 

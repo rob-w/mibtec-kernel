@@ -1435,6 +1435,12 @@ static int lbs_cfg_set_default_key(struct wiphy *wiphy,
 		priv->wep_tx_key = key_index;
 		lbs_set_wep_keys(priv);
 	}
+	
+/*	if(priv->wep_ibss){
+		priv->mac_control |= CMD_ACT_MAC_WEP_ENABLE;
+		lbs_set_mac_control(priv);
+		lbs_enable_rsn(priv, 0);	
+	} */
 
 	return 0;
 }
@@ -1911,7 +1917,7 @@ static int lbs_ibss_start_new(struct lbs_private *priv,
 	if (MRVL_FW_MAJOR_REV(priv->fwrelease) <= 8)
 		cmd.probedelay = cpu_to_le16(CMD_SCAN_PROBE_DELAY_TIME);
 	/* TODO: mix in WLAN_CAPABILITY_PRIVACY */
-	capability = WLAN_CAPABILITY_IBSS;
+	capability = WLAN_CAPABILITY_IBSS | WLAN_CAPABILITY_PRIVACY;
 	cmd.capability = cpu_to_le16(capability);
 	lbs_add_rates(cmd.rates);
 
@@ -1962,13 +1968,21 @@ static int lbs_join_ibss(struct wiphy *wiphy, struct net_device *dev,
 	bss = cfg80211_get_bss(wiphy, params->channel, params->bssid,
 		params->ssid, params->ssid_len,
 		WLAN_CAPABILITY_IBSS, WLAN_CAPABILITY_IBSS);
+	
+	priv->wep_ibss = params->privacy;
+	if(priv->wep_ibss){
+		priv->mac_control |= CMD_ACT_MAC_WEP_ENABLE;
+		lbs_set_mac_control(priv);
+		/* No RSN mode for WEP */
+		// lbs_enable_rsn(priv, 0);	
+	}
+		
 
 	if (bss) {
 		ret = lbs_ibss_join_existing(priv, params, bss);
 		cfg80211_put_bss(bss);
 	} else
-		ret = lbs_ibss_start_new(priv, params);
-
+		ret = lbs_ibss_start_new(priv, params);			
 
  out:
 	lbs_deb_leave_args(LBS_DEB_CFG80211, "ret %d", ret);
@@ -1983,6 +1997,8 @@ static int lbs_leave_ibss(struct wiphy *wiphy, struct net_device *dev)
 	int ret = 0;
 
 	lbs_deb_enter(LBS_DEB_CFG80211);
+	
+	priv->wep_ibss = 0;
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.hdr.size = cpu_to_le16(sizeof(cmd));

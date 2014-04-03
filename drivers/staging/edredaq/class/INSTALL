@@ -1,0 +1,38 @@
+Basic Installation
+==================
+
+1.Requirements
+--------------
+Make sure that either the kernel headers are installed or the actual kernel 
+source. These can be download from http://www.kernel.org
+
+2.Installation
+--------------
+Copy the driver source to the <kernel source>/drivers/edredaq directory.
+The source layout should look as follows:
+	<kernel source>/drivers/edredaq/class
+	<kernel source>/drivers/edredaq/pci703
+	<kernel source>/drivers/edredaq/pci730
+	...
+The class driver is the main Data Acquisition Bus driver and always needs to be
+installed. All other drivers will register itself with the class driver.
+To copy first extract the files and then copy them as follows: 
+	"cp -R * drivers/edredaq/."
+
+3. Build & Install the Drivers
+------------------------------
+To build the drivers simply goto to the edredaq driver directory and do a 
+"make clean" & "make build". Thereafter install it by doing a "make install". 
+Once this has been completed do a "depmod -a" to update the dependancy tables.
+The drivers are now completely installed and ready to use. For plug in devices
+like USB, connect the device and the driver will be loaded automatically.
+
+4. UDEV script
+--------------
+It's very important to make sure the EDR Enhanced UDEV script is installed 
+to create the necessary file nodes when a new device is detected. See the 
+EDR Enhanced installation instructions for more information. Check the 
+/etc/udev/rules.d folder if the "z-edredaq.rules" files exist. Make sure
+to reboot your PC if a new rules script is installed to ensure that it is 
+loaded by UDEV.
+

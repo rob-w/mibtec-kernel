@@ -45,6 +45,10 @@
 #define VP_TRANXDONE_TIMEOUT	300
 #define VOLTAGE_DIR_SIZE	16
 
+#define ABB_TRANXDONE_TIMEOUT   100
+#define ABB_FAST_OPP            1
+#define ABB_NOMINAL_OPP         2
+
 /* Voltage processor register offsets */
 struct vp_reg_offs {
 	u8 vpconfig;
@@ -358,6 +362,7 @@ static struct omap_volt_data omap34xx_vddmpu_volt_data[] = {
 	VOLT_DATA_DEFINE(OMAP3430_VDD_MPU_OPP3_UV, OMAP343X_CONTROL_FUSE_OPP3_VDD1, 0xf9, 0x18),
 	VOLT_DATA_DEFINE(OMAP3430_VDD_MPU_OPP4_UV, OMAP343X_CONTROL_FUSE_OPP4_VDD1, 0xf9, 0x18),
 	VOLT_DATA_DEFINE(OMAP3430_VDD_MPU_OPP5_UV, OMAP343X_CONTROL_FUSE_OPP5_VDD1, 0xf9, 0x18),
+	VOLT_DATA_DEFINE(OMAP3430_VDD_MPU_OPP6_UV, OMAP343X_CONTROL_FUSE_OPP5_VDD1, 0xf9, 0x18),
 	VOLT_DATA_DEFINE(0, 0, 0, 0),
 };
 
@@ -424,6 +429,7 @@ static struct omap_vdd_dep_volt omap34xx_vdd1_vdd2_data[] = {
 	{.main_vdd_volt = 1200000, .dep_vdd_volt = 1150000},
 	{.main_vdd_volt = 1270000, .dep_vdd_volt = 1150000},
 	{.main_vdd_volt = 1350000, .dep_vdd_volt = 1150000},
+	{.main_vdd_volt = 1350001, .dep_vdd_volt = 1150000},
 	{.main_vdd_volt = 0, .dep_vdd_volt = 0},
 };
 
@@ -765,6 +771,112 @@ static int vc_bypass_scale_voltage(struct omap_vdd_info *vdd,
 	return 0;
 }
 
+/**
+ * omap3630_abb_change_active_opp - handle OPP changes with Adaptive Body-Bias
+ * @target_opp_no: ABB_FAST_OPP or ABB_NOMINAL_OPP
+ *
+ * Adaptive Body-Bias is a 3630-specific technique to boost voltage in high
+ * OPPs for silicon with weak characteristics as well as lower voltage in low
+ * OPPs for silicon with strong characteristics.
+ *
+ * Only Foward Body-Bias for operating at high OPPs is implemented below.
+ * Reverse Body-Bias for saving power in active cases and sleep cases is not
+ * yet implemented.
+ */
+static int omap3630_abb_change_active_opp(u32 target_opp_no)
+{
+       u32 sr2en_enabled;
+       int timeout;
+
+       /* has SR2EN been enabled previously? */
+       sr2en_enabled = (omap2_prm_read_mod_reg(OMAP3430_GR_MOD,
+                               OMAP3_PRM_LDO_ABB_CTRL_OFFSET) &
+                       OMAP3630_SR2EN);
+
+       /* select OPP */
+       /* FIXME: shouldn't be hardcoded OPP here */
+       if (target_opp_no == ABB_FAST_OPP) {
+               /* program for fast opp - enable fbb */
+               omap2_prm_rmw_mod_reg_bits(OMAP3630_OPP_SEL_MASK,
+                               (ABB_FAST_OPP << OMAP3630_OPP_SEL_SHIFT),
+                               OMAP3430_GR_MOD,
+                               OMAP3_PRM_LDO_ABB_SETUP_OFFSET);
+
+               /* enable the ABB ldo if not done already */
+               if (!sr2en_enabled)
+                       omap2_prm_set_mod_reg_bits(OMAP3630_SR2EN,
+                                       OMAP3430_GR_MOD,
+                                       OMAP3_PRM_LDO_ABB_CTRL_OFFSET);
+	       pr_debug("ABB: ABB LDO Enabled\n");
+       } else if (sr2en_enabled) {
+               /* program for nominal opp - bypass abb ldo */
+               omap2_prm_rmw_mod_reg_bits(OMAP3630_OPP_SEL_MASK,
+                               (ABB_NOMINAL_OPP << OMAP3630_OPP_SEL_SHIFT),
+                               OMAP3430_GR_MOD,
+                               OMAP3_PRM_LDO_ABB_SETUP_OFFSET);
+	       pr_debug("ABB: ABB LDO Bypassed\n");
+       } else {
+               /* nothing to do here */
+               return 0;
+       }
+
+       /* set ACTIVE_FBB_SEL for all 3630 silicon */
+       omap2_prm_set_mod_reg_bits(OMAP3630_ACTIVE_FBB_SEL,
+                       OMAP3430_GR_MOD,
+                       OMAP3_PRM_LDO_ABB_CTRL_OFFSET);
+
+       /* program settling time of 30us for ABB ldo transition */
+       omap2_prm_rmw_mod_reg_bits(OMAP3630_SR2_WTCNT_VALUE_MASK,
+                       (0x62 << OMAP3630_SR2_WTCNT_VALUE_SHIFT),
+                       OMAP3430_GR_MOD,
+                       OMAP3_PRM_LDO_ABB_CTRL_OFFSET);
+
+       /* clear ABB ldo interrupt status */
+       omap2_prm_write_mod_reg(OMAP3630_ABB_LDO_TRANXDONE_ST,
+                       OCP_MOD,
+                       OMAP3_PRM_IRQSTATUS_MPU_OFFSET);
+
+       /* enable ABB LDO OPP change */
+       omap2_prm_set_mod_reg_bits(OMAP3630_OPP_CHANGE,
+                       OMAP3430_GR_MOD,
+                       OMAP3_PRM_LDO_ABB_SETUP_OFFSET);
+
+       timeout = 0;
+
+       /* wait until OPP change completes */
+       while ((timeout < ABB_TRANXDONE_TIMEOUT ) &&
+                       (!(omap2_prm_read_mod_reg(OCP_MOD,
+                                           OMAP3_PRM_IRQSTATUS_MPU_OFFSET) &
+                          OMAP3630_ABB_LDO_TRANXDONE_ST))) {
+               udelay(1);
+               timeout++;
+       }
+
+       if (timeout == ABB_TRANXDONE_TIMEOUT)
+               pr_warning("ABB: TRANXDONE timed out waiting for OPP change\n");
+
+       timeout = 0;
+
+       /* Clear all pending TRANXDONE interrupts/status */
+       while (timeout < ABB_TRANXDONE_TIMEOUT) {
+               omap2_prm_write_mod_reg(OMAP3630_ABB_LDO_TRANXDONE_ST,
+                               OCP_MOD,
+                               OMAP3_PRM_IRQSTATUS_MPU_OFFSET);
+               if (!(omap2_prm_read_mod_reg(OCP_MOD,
+                                       OMAP3_PRM_IRQSTATUS_MPU_OFFSET)
+                                       & OMAP3630_ABB_LDO_TRANXDONE_ST))
+                       break;
+
+               udelay(1);
+               timeout++;
+       }
+
+       if (timeout == ABB_TRANXDONE_TIMEOUT)
+               pr_warning("ABB: TRANXDONE timed out trying to clear status\n");
+
+       return 0;
+}
+
 /* VP force update method of voltage scaling */
 static int vp_forceupdate_scale_voltage(struct omap_vdd_info *vdd,
 		unsigned long target_volt)
@@ -858,6 +970,19 @@ static int vp_forceupdate_scale_voltage(struct omap_vdd_info *vdd,
 	/* Clear force bit */
 	vpconfig &= ~vdd->vp_reg.vpconfig_forceupdate;
 	vdd->write_reg(vpconfig, mod, vdd->vp_offs.vpconfig);
+
+	if (cpu_is_omap3630() && !strcmp(vdd->voltdm.name, "mpu")) {
+		if (vdd->curr_volt == OMAP3630_VDD_MPU_OPP1G_UV) {
+			pr_debug("%s: vdd_%s: Attempting ABB enable\n",
+				   __func__, vdd->voltdm.name);
+			omap3630_abb_change_active_opp(ABB_FAST_OPP);
+		}
+		else {
+			pr_debug("%s: vdd_%s: Attempting ABB disable\n", 
+				   __func__, vdd->voltdm.name);
+			omap3630_abb_change_active_opp(ABB_NOMINAL_OPP);
+		}
+	}
 
 	return 0;
 }

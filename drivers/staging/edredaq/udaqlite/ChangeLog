@@ -1,0 +1,35 @@
+2011-03-16 1.1.8: Jan Zwiegers  <jan@eage.co.za>
+	* Add support for kernel 2.6.30
+
+2009-11-09 1.1.6-7: Jan Zwiegers  <jan@eage.co.za>
+	* Major update to driver to support new kernel USB architecture.
+	* Complete new system for handling streaming. Driver now makes use of
+	  the USB anchor functions and URB list handling.
+
+2009-04-09 1.1.5: Jan Zwiegers  <jan@eage.co.za>
+	* Remove some debugging information
+
+2009-01-22 1.1.4: Jan Zwiegers  <jan@eage.co.za>
+	* Add option to reset the device
+
+2008-11-13 1.1.3: Jan Zwiegers  <jan@eage.co.za>
+	* Change location of EDRE header files
+
+2008-09-30 1.1.2: Jan Zwiegers  <jan@eage.co.za>
+	* New firmware
+	* Add axtra debugging for A/D single read errors.
+
+2008-07-24 1.1.1: Jan Zwiegers  <jan@eage.co.za>
+	* Fix bug to do with counter-timer reads.
+
+2007-02-06 1.1.0: Jan Zwiegers  <jan@eage.co.za>
+	* Update driver to support kernel 2.6.18
+
+2006-05-18 1.0.4: Jan Zwiegers  <jan@eage.co.za>
+	* Fix buf in DAWrite routine when writing to channel 0
+
+2006-06-30 1.1.2: Jan Zwiegers  <jan@eage.co.za>
+	* First full release
+
+2008-09-30 1.1.2: Jan Zwiegers  <jan@eage.co.za>
+	* Origination: 16 November 2005 - V1.0.0

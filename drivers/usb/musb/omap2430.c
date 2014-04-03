@@ -167,16 +167,16 @@ static void omap2430_musb_set_vbus(struct musb *musb, int is_on)
 			 * VBUS
 			 */
 			while (musb_readb(musb->mregs, MUSB_DEVCTL) & 0x80) {
-
 				cpu_relax();
-
 				if (time_after(jiffies, timeout)) {
-					dev_err(musb->controller,
-					"configured as A device timeout");
+					DBG(1,
+					"musb-hdrc: configured as A device timeout");
 					break;
 				}
-			}
 
+				msleep(250);
+			}
+			
 			if (musb->xceiv->set_vbus)
 				otg_set_vbus(musb->xceiv, 1);
 		} else {

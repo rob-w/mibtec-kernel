@@ -1,0 +1,44 @@
+2011-03-16 2.0.2: Jan Zwiegers  <jan@eage.co.za>
+	* Fix small bug in edreclass.c which resulted in the wrong name 
+	  registered under /dev
+	
+2011-03-01 2.0.1: Jan Zwiegers  <jan@eage.co.za>
+	* Update for kernel 2.6.30 and later
+
+2009-10-05 2.0.0: Jan Zwiegers  <jan@eage.co.za>
+	* Resolve last issues w.r.t new class interface.
+
+2009-09-16 1.0.8: Jan Zwiegers  <jan@eage.co.za>
+	* Add support for kernel 2.6.27.
+	* Make major changes to class support structure.
+	* Changes device list to use proper lists.
+	* Add separate files to handle the SYSFS, device filesystem, class functions
+	 and process information.
+
+2009-04-21 1.0.7: Jan Zwiegers  <jan@eage.co.za>
+	* Move driver history to ChangeLog file
+	* Add AUTHORS & COPYING standard release files
+	* Remove LICENSE agreement section from all source files
+
+2009-02-26 1.0.6: Jan Zwiegers  <jan@eage.co.za>
+	* Change EXPORT_SYMBOL to EXPORT_SYMBOL_GPL
+
+2008-02-08 1.0.5: Jan Zwiegers  <jan@eage.co.za>
+	* Fix minor bug on kernel 2.6.23
+
+2008-02-04 1.0.6: Jan Zwiegers  <jan@eage.co.za>
+	* Add support for kernel 2.6.23
+
+2007-01-22 1.0.3: Jan Zwiegers  <jan@eage.co.za>
+	* Change devfs_fs_kernel.h to fs.h.
+	* Change struct file_operations to const struct file_operations in edre_open.
+
+2006-08-31 1.0.2: Jan Zwiegers  <jan@eage.co.za>
+	* Add support for Kernel later than 2.6.9
+	* Fix problem relating to udev by making use of class_device_create.
+
+2005-03-29 1.0.1: Jan Zwiegers  <jan@eage.co.za>
+	* Minor updates
+
+2005-03-04 1.0.0: Jan Zwiegers  <jan@eage.co.za>
+	* Origination Date

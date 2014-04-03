@@ -10,6 +10,9 @@ struct omap2_mcspi_device_config {
 
 	/* Do we want one channel enabled at the same time? */
 	unsigned single_channel:1;
+
+	/* Toggle chip select after every word */
+	unsigned cs_per_word:1;
 };
 
 #endif
