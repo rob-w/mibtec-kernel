@@ -40,6 +40,7 @@
 #include "twl-common.h"
 #include "board-igep00x0.h"
 #include "mux.h"
+#include "pm.h"
 
 /* MIS */
 #define IGEP3_GPIO_5VNOT		10
@@ -564,6 +565,8 @@ void __init mis0010_init(struct twl4030_platform_data *pdata)
 	igep0030_get_revision();
 
 	mis0010_gpio_init();
+
+	omap_enable_smartreflex_on_init();
 
 	platform_device_register(&gpio_led_device);
 	platform_device_register(&twl4030_leds_pwm);
