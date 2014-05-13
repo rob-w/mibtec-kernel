@@ -37,7 +37,7 @@
 
 #include <linux/input/edt-ft5x06.h>
 
-#define DRIVER_VERSION "v0.8.1"
+#define DRIVER_VERSION "v0.8.2"
 
 #define MAX_SUPPORT_POINTS		5
 
@@ -49,7 +49,7 @@
 #define WORK_REGISTER_NUM_Y       0x34
 
 #define M09_REGISTER_THRESHOLD			0x80
-#define M09_REGISTER_REPORT_RATE		0x00
+#define M09_REGISTER_REPORT_RATE		0xFE	///NOOP
 #define M09_REGISTER_GAIN				0x92
 #define M09_REGISTER_OFFSET				0x93
 #define M09_REGISTER_NUM_X				0x94
@@ -766,6 +766,9 @@ static int edt_ft5x06_ts_identify(struct i2c_client *client,
 
 	//if we get less than EDT_NAME_LEN, we dont want  have garbage in there
 	memset(rdbuf, 0, sizeof(rdbuf));
+
+	error = edt_ft5x06_ts_readwrite(client, 1, "\xbb",
+					EDT_NAME_LEN - 1, rdbuf);
 
 	error = edt_ft5x06_ts_readwrite(client, 1, "\xbb",
 					EDT_NAME_LEN - 1, rdbuf);
