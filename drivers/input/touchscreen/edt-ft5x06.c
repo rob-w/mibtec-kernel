@@ -37,7 +37,7 @@
 
 #include <linux/input/edt-ft5x06.h>
 
-#define DRIVER_VERSION "v0.8.2"
+#define DRIVER_VERSION "v0.8.3"
 
 #define MAX_SUPPORT_POINTS		5
 
@@ -402,7 +402,7 @@ static int edt_ft5x06_ts_reset(struct edt_ft5x06_ts_data *tsdata)
 	edt_ft5x06_register_write(tsdata, reg_addr.reg_gain, tsdata->gain);
 	edt_ft5x06_register_write(tsdata, reg_addr.reg_offset, tsdata->offset);
 	edt_ft5x06_register_write(tsdata, reg_addr.reg_threshold, tsdata->threshold);
-	if (reg_addr.reg_report_rate)
+	if (reg_addr.reg_report_rate != M09_REGISTER_REPORT_RATE)
 		edt_ft5x06_register_write(tsdata, reg_addr.reg_report_rate, tsdata->report_rate);
 
 	return 0;
@@ -429,6 +429,22 @@ struct edt_ft5x06_attribute {
 		.addr_m06 = _addr_m06,					\
 		.addr_m09 = _addr_m09,					\
 	}
+
+static void
+edt_ft5x06_ts_get_parameters(struct edt_ft5x06_ts_data *tsdata)
+{
+	struct edt_reg_addr reg_addr = tsdata->reg_addr;
+
+	tsdata->threshold = edt_ft5x06_register_read(tsdata, reg_addr.reg_threshold);
+	tsdata->gain = edt_ft5x06_register_read(tsdata, reg_addr.reg_gain);
+	tsdata->offset = edt_ft5x06_register_read(tsdata, reg_addr.reg_offset);
+	if (reg_addr.reg_report_rate != M09_REGISTER_REPORT_RATE)
+		tsdata->report_rate = edt_ft5x06_register_read(tsdata, reg_addr.reg_report_rate);
+	tsdata->num_x = edt_ft5x06_register_read(tsdata, reg_addr.reg_num_x);
+	tsdata->num_y = edt_ft5x06_register_read(tsdata, reg_addr.reg_num_y);
+	dev_info(&tsdata->client->dev, "Read back %d %d %d\n",
+		tsdata->gain, tsdata->threshold, tsdata->offset);
+}
 
 static ssize_t edt_ft5x06_setting_show(struct device *dev,
 					   struct device_attribute *dattr,
@@ -470,6 +486,7 @@ static ssize_t edt_ft5x06_setting_show(struct device *dev,
 				"report rate on M09 not supported\n");
 		val = 0;
 	} else if (addr != NO_REGISTER) {
+		edt_ft5x06_ts_get_parameters(tsdata);
 		val = edt_ft5x06_register_read(tsdata, addr);
 		if (val < 0) {
 			error = val;
@@ -504,7 +521,9 @@ static ssize_t edt_ft5x06_setting_store(struct device *dev,
 			container_of(dattr, struct edt_ft5x06_attribute, dattr);
 	u8 *field = (u8 *)((char *)tsdata + attr->field_offset);
 	unsigned int val;
+	unsigned int backval = -1;
 	int error;
+	int try = 0;
 	u8 addr = 0;
 
 	mutex_lock(&tsdata->mutex);
@@ -547,13 +566,18 @@ static ssize_t edt_ft5x06_setting_store(struct device *dev,
 		dev_err(&tsdata->client->dev,
 				"report rate on M09 not supported\n");
 	} else if (addr != NO_REGISTER) {
-		error = edt_ft5x06_register_write(tsdata, addr, val);
-		if (error) {
-			dev_err(&tsdata->client->dev,
-				"Failed to update attribute %s, error: %d\n",
-				dattr->attr.name, error);
-			goto out;
-		}
+		do {
+			error = edt_ft5x06_register_write(tsdata, addr, val);
+			if (error) {
+				dev_err(&tsdata->client->dev,
+					"Failed to update attribute %s, error: %d\n",
+					dattr->attr.name, error);
+				goto out;
+			}
+			backval = edt_ft5x06_register_read(tsdata, addr);
+			edt_ft5x06_ts_get_parameters(tsdata);
+			try++;
+		} while (backval != val || try > 5);
 	}
 
 	*field = val;
@@ -812,20 +836,6 @@ static int edt_ft5x06_ts_identify(struct i2c_client *client,
 				rdbuf[0] & 0x0F);
 	}
 	return 0;
-}
-
-static void
-edt_ft5x06_ts_get_parameters(struct edt_ft5x06_ts_data *tsdata)
-{
-	struct edt_reg_addr reg_addr = tsdata->reg_addr;
-
-	tsdata->threshold = edt_ft5x06_register_read(tsdata, reg_addr.reg_threshold);
-	tsdata->gain = edt_ft5x06_register_read(tsdata, reg_addr.reg_gain);
-	tsdata->offset = edt_ft5x06_register_read(tsdata, reg_addr.reg_offset);
-	if (reg_addr.reg_report_rate)
-		tsdata->report_rate = edt_ft5x06_register_read(tsdata, reg_addr.reg_report_rate);
-	tsdata->num_x = edt_ft5x06_register_read(tsdata, reg_addr.reg_num_x);
-	tsdata->num_y = edt_ft5x06_register_read(tsdata, reg_addr.reg_num_y);
 }
 
 static void
