@@ -440,8 +440,6 @@ edt_ft5x06_ts_get_parameters(struct edt_ft5x06_ts_data *tsdata)
 		tsdata->report_rate = edt_ft5x06_register_read(tsdata, reg_addr.reg_report_rate);
 	tsdata->num_x = edt_ft5x06_register_read(tsdata, reg_addr.reg_num_x);
 	tsdata->num_y = edt_ft5x06_register_read(tsdata, reg_addr.reg_num_y);
-	dev_info(&tsdata->client->dev, "Read back %d %d %d\n",
-		tsdata->gain, tsdata->threshold, tsdata->offset);
 }
 
 static ssize_t edt_ft5x06_setting_show(struct device *dev,
@@ -484,7 +482,6 @@ static ssize_t edt_ft5x06_setting_show(struct device *dev,
 				"report rate on M09 not supported\n");
 		val = 0;
 	} else if (addr != NO_REGISTER) {
-		edt_ft5x06_ts_get_parameters(tsdata);
 		val = edt_ft5x06_register_read(tsdata, addr);
 		if (val < 0) {
 			error = val;
