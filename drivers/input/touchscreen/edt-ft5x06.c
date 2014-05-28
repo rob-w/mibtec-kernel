@@ -37,7 +37,7 @@
 
 #include <linux/input/edt-ft5x06.h>
 
-#define DRIVER_VERSION "v0.8.3"
+#define DRIVER_VERSION "v0.8.4"
 
 #define MAX_SUPPORT_POINTS		5
 
