@@ -323,13 +323,11 @@ static int edt_ft5x06_register_write(struct edt_ft5x06_ts_data *tsdata,
 			wrbuf[2] = value;
 			wrbuf[3] = wrbuf[0] ^ wrbuf[1] ^ wrbuf[2];
 			cnt = 4;
-			return edt_ft5x06_ts_readwrite(tsdata->client, 4,
-					 wrbuf, 0, NULL);
 			break;
 		case M09:
 			wrbuf[0] = addr;
 			wrbuf[1] = value;
-			cnt = 3;
+			cnt = 2;
 			break;
 		default:
 			return -EINVAL;
