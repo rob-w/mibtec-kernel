@@ -2124,7 +2124,7 @@ static int __devinit smsc911x_drv_probe(struct platform_device *pdev)
 			if(pdev->id == 0){
 				if(!is_zero_ether_addr(smsc_9xxx_mac_addr))
 					memcpy(dev->dev_addr, smsc_9xxx_mac_addr, 6);
-				else if (memcpy(dev->dev_addr, smsc_9xxx_mac0_addr, 6))
+				else if (!is_zero_ether_addr(smsc_9xxx_mac0_addr))
 					memcpy(dev->dev_addr, smsc_9xxx_mac0_addr, 6);
 				else{
 					random_ether_addr(dev->dev_addr);
