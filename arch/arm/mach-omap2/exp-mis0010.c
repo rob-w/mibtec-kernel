@@ -32,6 +32,8 @@
 #include <linux/spi/ads7846.h>
 #include <linux/spi/pic32io.h>
 
+#include <mach/id.h>
+
 #include <plat/board.h>
 #include <plat/common.h>
 #include <plat/display.h>
@@ -103,6 +105,8 @@ static struct smsc911x_platform_config smsc911x_config = {
 	.irq_type	= SMSC911X_IRQ_TYPE_OPEN_DRAIN,
 	.flags		= SMSC911X_USE_32BIT | SMSC911X_SAVE_MAC_ADDRESS,
 	.phy_interface	= PHY_INTERFACE_MODE_MII,
+	.mac0		= "0000",
+	.mac1		= "0000",
 };
 
 static struct resource smsc911x0_resources[] = {
@@ -151,6 +155,10 @@ static struct platform_device smsc911x1_device = {
 
 static inline void __init mis0010_smsc911x_init(void)
 {
+
+	omap2_die_id_to_ethernet_mac(&smsc911x_config.mac0, 0);
+	omap2_die_id_to_ethernet_mac(&smsc911x_config.mac1, 1);
+
 	/* SMSC911X Ethernet controller */
 	if (igep00x0_buddy_pdata.revision & IGEP00X0_BUDDY_HWREV_A) {
 		/* Configure MUX for hardware rev. A */

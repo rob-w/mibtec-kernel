@@ -56,7 +56,7 @@
 
 #define SMSC_CHIPNAME		"smsc911x"
 #define SMSC_MDIONAME		"smsc911x-mdio"
-#define SMSC_DRV_VERSION	"2008-10-21"
+#define SMSC_DRV_VERSION	"2008-10-21.2"
 
 MODULE_LICENSE("GPL");
 MODULE_VERSION(SMSC_DRV_VERSION);
@@ -2108,8 +2108,11 @@ static int __devinit smsc911x_drv_probe(struct platform_device *pdev)
 	if (is_valid_ether_addr(dev->dev_addr)) {
 		smsc911x_set_hw_mac_address(pdata, dev->dev_addr);
 		SMSC_TRACE(PROBE, "MAC Address is specified by configuration");
-	} else if (is_valid_ether_addr(pdata->config.mac)) {
-		memcpy(dev->dev_addr, pdata->config.mac, 6);
+	} else if (pdev->id == 0 && is_valid_ether_addr(pdata->config.mac0)) {
+		memcpy(dev->dev_addr, pdata->config.mac0, 6);
+		SMSC_TRACE(PROBE, "MAC Address specified by platform data");
+	} else if (pdev->id == 1 && is_valid_ether_addr(pdata->config.mac1)) {
+		memcpy(dev->dev_addr, pdata->config.mac1, 6);
 		SMSC_TRACE(PROBE, "MAC Address specified by platform data");
 	} else {
 		/* Try reading mac address from device. if EEPROM is present

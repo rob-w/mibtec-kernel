@@ -31,6 +31,8 @@
 #include <linux/lis3lv02d.h>
 #include <linux/input/edt-ft5x06.h>
 
+#include <mach/id.h>
+
 #include <plat/board.h>
 #include <plat/common.h>
 #include <plat/display.h>
@@ -97,6 +99,8 @@ static struct smsc911x_platform_config smsc911x_config = {
 	.irq_type	= SMSC911X_IRQ_TYPE_OPEN_DRAIN,
 	.flags		= SMSC911X_USE_32BIT | SMSC911X_SAVE_MAC_ADDRESS,
 	.phy_interface	= PHY_INTERFACE_MODE_MII,
+	.mac0		= "0000",
+	.mac1		= "0000",
 };
 
 static struct resource smsc911x0_resources[] = {
@@ -163,6 +167,9 @@ static inline void __init mis0040_smsc911x_init(void)
 				OMAP_GPIO_IRQ(IGEP3_RA_SMSC911X1_IRQ);
 	smsc911x1_resources[1].end =
 				OMAP_GPIO_IRQ(IGEP3_RA_SMSC911X1_IRQ);
+
+	omap2_die_id_to_ethernet_mac(&smsc911x_config.mac0, 0);
+	omap2_die_id_to_ethernet_mac(&smsc911x_config.mac1, 1);
 
 	/// turned around order on customer demands
 	/* Set up first smsc911x chip */
