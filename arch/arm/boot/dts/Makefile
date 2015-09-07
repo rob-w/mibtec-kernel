@@ -428,6 +428,8 @@ dtb-$(CONFIG_SOC_AM43XX) += \
 	am43x-epos-evm.dtb \
 	am43x-epos-evm-hdmi.dtb \
 	am437x-sk-evm.dtb \
+	am437x-misdimm-evm.dtb \
+	am437x-mispanel070F006.dtb \
 	am437x-idk-evm.dtb \
 	am437x-gp-evm.dtb \
 	am437x-gp-evm-hdmi.dtb

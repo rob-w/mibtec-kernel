@@ -2396,10 +2396,10 @@ static int cpsw_probe_dual_emac(struct platform_device *pdev,
 	if (is_valid_ether_addr(data->slave_data[1].mac_addr)) {
 		memcpy(priv_sl2->mac_addr, data->slave_data[1].mac_addr,
 			ETH_ALEN);
-		dev_info(&pdev->dev, "cpsw: Detected MACID = %pM\n", priv_sl2->mac_addr);
+		dev_info(&pdev->dev, "Detected MACID = %pM\n", priv_sl2->mac_addr);
 	} else {
 		random_ether_addr(priv_sl2->mac_addr);
-		dev_info(&pdev->dev, "cpsw: Random MACID = %pM\n", priv_sl2->mac_addr);
+		dev_info(&pdev->dev, "Random MACID = %pM\n", priv_sl2->mac_addr);
 	}
 	memcpy(ndev->dev_addr, priv_sl2->mac_addr, ETH_ALEN);
 
