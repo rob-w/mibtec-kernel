@@ -476,7 +476,7 @@
 	pinctrl-0 = <&uart1_pins_default>;
 	pinctrl-1 = <&uart1_pins_sleep>;
 	clock-frequency = <48000000>;
-	rts-gpio = <&gpio4 17 0>;
+	rts-gpio = <&gpio4 17 GPIO_ACTIVE_HIGH>;
 	linux,rs485-enabled-at-boot-time;
 	rs485-rts-delay = <0 1>;		// in milliseconds
 };
@@ -487,7 +487,7 @@
 	pinctrl-0 = <&uart2_pins_default>;
 	pinctrl-1 = <&uart2_pins_sleep>;
 	clock-frequency = <48000000>;
-	rts-gpio = <&gpio4 21 0>;
+	rts-gpio = <&gpio4 21 GPIO_ACTIVE_HIGH>;
 	linux,rs485-enabled-at-boot-time;
 	rs485-rts-delay = <0 1>;		// in milliseconds
 };
