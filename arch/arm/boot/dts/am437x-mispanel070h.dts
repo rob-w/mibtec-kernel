@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P070H111 v1.0.6";
+	model = "MIS P070H111 v1.0.7";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -214,15 +214,23 @@
 			0x270 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_124 D24  xdma_event_intr0.gpio0_19 */
 
 			/* ClassName:GPIOS */
+			0x070 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_178 A2 gpmc_wait0.gpio0_30 CAN1_TERMINATION*/
 			0x074 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_150 B3   gpmc_wpn.gpio0_31 UART2_RI */
 			0x078 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_152 A3   gpmc_be1n.gpio1_28 USB0_nOC */
 			0x07c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_146 A8   gpmc_csn0.gpio1_29 UART 1_RI */
+			0x090 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_144 A9 gpmc_advn_ale.gpio2_2 UART1_TE */
 			0x09c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_156 C10  gpmc_be0n_cle.gpio2_5 UV_DETECT */
+			0x150 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_160 P23  spi0_sclk.gpio0_2 INTERFACES_OFF */
 			0x154 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_154 T22  spi0_d0.gpio0_3 USB1_nOC */
+			0x1a0 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_180 L23  mcasp0_aclkr.gpio3_18 EE_WP_BASEBOARD */
+			0x1a4 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_176 K23 mcasp0_fsr.gpio3_19 CAN0_TERMINATION */
 			0x1ac (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_162 L24  mcasp0_ahclkx.gpio3_21 ETH1_INT_N*/
+			0x218 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)/* P600_148 AE19 cam0_data4.gpio4_26 UART2_TE */
 			0x220 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_174 AE20 cam0_data6.gpio4_28 SUMMER */
 			0x240 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_170 G20  gpio5_10.gpio5_10 LCD_DIMO */
 			0x258 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_164 P24  spi4_d1.gpio5_6 ETH2_INT_N */
+			0x264 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_158 P22  spi2_d0.gpio3_22 REGULATORS OFF */
+			0x278 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_166 H20  clkreq.gpio0_24 LCD_OFF */
 		>;
 	};
 
