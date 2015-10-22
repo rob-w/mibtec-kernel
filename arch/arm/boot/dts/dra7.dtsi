@@ -992,6 +992,9 @@
 			dmas = <&sdma_xbar 77>, <&sdma_xbar 78>;
 			dma-names = "tx", "rx";
 			status = "disabled";
+			sd-uhs-sdr12;
+			sd-uhs-sdr25;
+			sd-uhs-sdr50;
 		};
 
 		mmc4: mmc@480d1000 {
@@ -1003,6 +1006,8 @@
 			dmas = <&sdma_xbar 57>, <&sdma_xbar 58>;
 			dma-names = "tx", "rx";
 			status = "disabled";
+			sd-uhs-sdr12;
+			sd-uhs-sdr25;
 		};
 
 		mmu0_dsp1: mmu@40d01000 {
@@ -1506,6 +1511,7 @@
 				     <GIC_SPI 217 IRQ_TYPE_LEVEL_HIGH>;
 			ti,hwmods = "rtcss";
 			clocks = <&sys_32k_ck>;
+			status = "disabled";
 		};
 
 		omap_control_usb2phy1: control-phy@4a002300 {
