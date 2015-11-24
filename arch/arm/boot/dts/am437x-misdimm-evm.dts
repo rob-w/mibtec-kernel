@@ -20,10 +20,11 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MISDIMM AM437x EVM v1.0.4";
+	model = "MISDIMM AM437x EVM v1.0.5";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
+		serial1 = &uart1;
 		serial3 = &uart3;
 	};
 
@@ -42,26 +43,26 @@
 	leds {
 		compatible = "gpio-leds";
 
-		/* 0x274 P600_138 C24 157 xdma_event_intr1.gpio0_20 */
-		led_cpu0 {
+		/* 0x274 P600_138 C24 xdma_event_intr1.gpio0_20 */
+/*		led_cpu0 {
 			label = "misdimm-evm_usr0";
 			gpios = <&gpio0 20 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "cpu0";
-		};
+		};*/
 
-		/*0x238 P600_140 D25 142 gpio5_8.gpio5_8 */
-		led_mmc0 {
+		/*0x238 P600_140 D25 gpio5_8.gpio5_8 */
+/*		led_mmc0 {
 			label = "misdimm-evm_usr1";
 			gpios = <&gpio5 8 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "mmc0";
-		};
+		};*/
 
-		/* 0x23c P600_142 F24 143 gpio5_9.gpio5_9 */
-		led_mmc1 {
+		/* 0x23c P600_142 F24 gpio5_9.gpio5_9 */
+/*		led_mmc1 {
 			label = "misdimm-evm_usr2";
 			gpios = <&gpio5 9 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "mmc1";
-		};
+		};*/
 	};
 };
 
@@ -94,15 +95,15 @@
 
 
 			/* ClassName: UART0123 */
-			0x1e8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_44  AB20 cam1_data0.gpio4_14 */
-			0x1ec (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_46  AC21 cam1_data1.gpio4_15 */
-			0x1f0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_50  AD21 cam1_data2.gpio4_16 */
-			0x1f4 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_48  AE22 cam1_data3.gpio4_17 */
-
 			0x1f8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_43  AD22 cam1_data4.gpio4_18 */
 			0x1fc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_45  AE23 cam1_data5.gpio4_19 */
 			0x200 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_49  AD23 cam1_data6.gpio4_20 */
 			0x204 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_47  AE24 cam1_data7.gpio4_21 */
+
+			0x228 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_55 H25 uart3_rxd.uart3_rxd */
+			0x22c (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_53 H24 uart3_txd.uart3_txd */
+			0x230 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_59 H22 uart3_ctsn.uart3_ctsn */
+			0x234 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_57 K24 uart3_rtsn.uart3_rtsn */
 
 
 			/* ClassName:LCD */
@@ -278,15 +279,6 @@
 		>;
 	};
 
-	uart3_pins: uart3_pins {
-		pinctrl-single,pins = <
-			0x228 (PIN_INPUT | MUX_MODE0) 			/* P600_55 H25 uart3_rxd.uart3_rxd */
-			0x22c (PIN_OUTPUT_PULLDOWN | MUX_MODE0) /* P600_53 H24 uart3_txd.uart3_txd */
-			0x230 (PIN_INPUT_PULLUP | MUX_MODE0) 	/* P600_59 H22 uart3_ctsn.uart3_ctsn */
-			0x234 (PIN_OUTPUT_PULLDOWN | MUX_MODE0) /* P600_57 K24 uart3_rtsn.uart3_rtsn */
-		>;
-	};
-
 	uart0_pins_default: uart0_pins_default {
 		pinctrl-single,pins = <
 			0x168 (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE0) /* P600_60 L25 uart0_ctsn.uart0_ctsn */
@@ -302,6 +294,24 @@
 			0x16C (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE7) /* P600_58 J25 uart0_rtsn.uart0_rtsn */
 			0x170 (PIN_INPUT_PULLUP | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE0) /* P600_56 K25 uart0_rxd.uart0_rxd */
 			0x174 (PIN_INPUT_PULLDOWN | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE0) /* P600_54 J24 uart0_txd.uart0_txd */
+		>;
+	};
+
+	uart1_pins_default: uart1_pins_default {
+		pinctrl-single,pins = <
+			0x1e8 (PIN_INPUT_PULLUP | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE1) /* P600_44 AB20 cam1_data0.uart1_rxd */
+			0x1ec (PIN_INPUT | PULL_DISABLE | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE1) /* P600_46 AC21 cam1_data1.uart1_txd */
+			0x1f0 (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE1) /* P600_50 AD21 cam1_data2.uart1_ctsn */
+			0x1f4 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_48 AE22 cam1_data3.gpio4_17 RS485 Send-enable */
+		>;
+	};
+
+	uart1_pins_sleep: uart1_pins_sleep {
+		pinctrl-single,pins = <
+			0x1e8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_44 AB20 cam1_data0.gpio4_14 */
+			0x1ec (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_46 AC21 cam1_data1.gpio4_15 */
+			0x1f0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_50 AD21 cam1_data2.gpio4_16 */
+			0x1f4 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_48 AE22 cam1_data3.gpio4_17 */
 		>;
 	};
 
@@ -343,12 +353,6 @@
 
 };
 
-&uart3 {
-	status = "okay";
-	pinctrl-names = "default";
-	pinctrl-0 = <&uart3_pins>;
-};
-
 &dwc3_1 {
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&usb2_phy1_default>;
@@ -358,7 +362,7 @@
 
 &usb1 {
 	dr_mode = "otg";
-	status = "okay";
+	status = "disabled";
 };
 
 &dwc3_2 {
@@ -369,22 +373,22 @@
 
 &usb2 {
 	dr_mode = "host";
-	status = "okay";
+	status = "disabled";
 };
 
 &usb2_phy1 {
-	status = "okay";
+	status = "disabled";
 };
 
 &usb2_phy2 {
-	status = "okay";
+	status = "disabled";
 };
 
 &mac {
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&cpsw_default>;
 	pinctrl-1 = <&cpsw_sleep>;
-	status = "okay";
+	status = "disabled";
 	dual_emac = <1>;
 };
 
@@ -392,7 +396,7 @@
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&davinci_mdio_default>;
 	pinctrl-1 = <&davinci_mdio_sleep>;
-	status = "okay";
+	status = "disabled";
 };
 
 &cpsw_emac0 {
@@ -418,16 +422,23 @@
 	pinctrl-1 = <&uart0_pins_sleep>;
 };
 
+&uart1 {
+	status = "okay";
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&uart1_pins_default>;
+	pinctrl-1 = <&uart1_pins_sleep>;
+};
+
 &dcan0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&dcan0_default>;
-	status = "okay";
+	status = "disabled";
 };
 
 &dcan1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&dcan1_default>;
-	status = "okay";
+	status = "disabled";
 };
 
 &tscadc {
@@ -438,7 +449,7 @@
 };
 
 &ecap0 {
-	status = "okay";
+	status = "disabled";
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&ecap0_pins_default>;
 	pinctrl-1 = <&ecap0_pins_sleep>;
