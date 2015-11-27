@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MISDIMM AM437x EVM v1.0.5";
+	model = "MISDIMM AM437x EVM v1.0.6";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -95,10 +95,14 @@
 
 
 			/* ClassName: UART0123 */
-			0x1f8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_43  AD22 cam1_data4.gpio4_18 */
-			0x1fc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_45  AE23 cam1_data5.gpio4_19 */
-			0x200 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_49  AD23 cam1_data6.gpio4_20 */
-			0x204 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_47  AE24 cam1_data7.gpio4_21 */
+			0x168 (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE7) /* P600_60 L25 uart0_ctsn.gpio1_8 */
+			0x16C (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE7) /* P600_58 J25 uart0_rtsn.gpio1_9 */
+			0x1f0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_50 AD21 cam1_data2.gpio4_16 */
+			0x1f4 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_48 AE22 cam1_data3.gpio4_17 */
+			0x1f8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_43 AD22 cam1_data4.gpio4_18 */
+			0x1fc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_45 AE23 cam1_data5.gpio4_19 */
+			0x200 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_49 AD23 cam1_data6.gpio4_20 */
+			0x204 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_47 AE24 cam1_data7.gpio4_21 */
 
 			0x228 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_55 H25 uart3_rxd.uart3_rxd */
 			0x22c (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_53 H24 uart3_txd.uart3_txd */
@@ -129,6 +133,9 @@
 			0x0e8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_76  A22 dss_pclk.gpio2_24 */
 			0x0ec (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_73  A24 dss_acbias.gpio2_25 */
 
+			0x148 (PIN_INPUT | PULL_DISABLE | MUX_MODE7) /* P600_103 + P600_137 A17 mdio_data.gpio0_0 */
+			0x14c (PIN_INPUT | PULL_DISABLE | MUX_MODE7) /* P600_105 + P600_139 B17 mdio_clk.gpio0_1 */
+
 			0x1b0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_100 AE17 cam0_hd.gpio4_0 */
 			0x1b4 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_99  AD18 cam0_vd.gio4_1 */
 			0x1b8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_98  AC18 cam0_field.gpio4_2 */
@@ -137,7 +144,6 @@
 			0x1c4 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_95  AB19 cam0_data8.gpio4_5 */
 			0x1c8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_94  AA19 cam0_data9.gpio4_6 */
 			0x1cc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_93  AC24 cam1_data9.gpio4_7 */
-
 
 			/* ClassName:SPI */
 			0x190 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_106 N24  mcasp0_aclkx.gpio3_14 */
@@ -281,8 +287,6 @@
 
 	uart0_pins_default: uart0_pins_default {
 		pinctrl-single,pins = <
-			0x168 (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE0) /* P600_60 L25 uart0_ctsn.uart0_ctsn */
-			0x16C (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE0) /* P600_58 J25 uart0_rtsn.uart0_rtsn */
 			0x170 (PIN_INPUT_PULLUP | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE0) /* P600_56 K25 uart0_rxd.uart0_rxd */
 			0x174 (PIN_INPUT | PULL_DISABLE | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE0) /* P600_54 J24 uart0_txd.uart0_txd */
 		>;
@@ -290,8 +294,6 @@
 
 	uart0_pins_sleep: uart0_pins_sleep {
 		pinctrl-single,pins = <
-			0x168 (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE7) /* P600_60 L25 uart0_ctsn.uart0_ctsn */
-			0x16C (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE7) /* P600_58 J25 uart0_rtsn.uart0_rtsn */
 			0x170 (PIN_INPUT_PULLUP | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE0) /* P600_56 K25 uart0_rxd.uart0_rxd */
 			0x174 (PIN_INPUT_PULLDOWN | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE0) /* P600_54 J24 uart0_txd.uart0_txd */
 		>;
@@ -301,8 +303,6 @@
 		pinctrl-single,pins = <
 			0x1e8 (PIN_INPUT_PULLUP | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE1) /* P600_44 AB20 cam1_data0.uart1_rxd */
 			0x1ec (PIN_INPUT | PULL_DISABLE | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE1) /* P600_46 AC21 cam1_data1.uart1_txd */
-			0x1f0 (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE1) /* P600_50 AD21 cam1_data2.uart1_ctsn */
-			0x1f4 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_48 AE22 cam1_data3.gpio4_17 RS485 Send-enable */
 		>;
 	};
 
@@ -310,8 +310,6 @@
 		pinctrl-single,pins = <
 			0x1e8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_44 AB20 cam1_data0.gpio4_14 */
 			0x1ec (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_46 AC21 cam1_data1.gpio4_15 */
-			0x1f0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_50 AD21 cam1_data2.gpio4_16 */
-			0x1f4 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_48 AE22 cam1_data3.gpio4_17 */
 		>;
 	};
 
@@ -361,8 +359,8 @@
 };
 
 &usb1 {
-	dr_mode = "otg";
-	status = "disabled";
+	dr_mode = "host";
+	status = "okay";
 };
 
 &dwc3_2 {
@@ -373,15 +371,15 @@
 
 &usb2 {
 	dr_mode = "host";
-	status = "disabled";
+	status = "okay";
 };
 
 &usb2_phy1 {
-	status = "disabled";
+	status = "okay";
 };
 
 &usb2_phy2 {
-	status = "disabled";
+	status = "okay";
 };
 
 &mac {
