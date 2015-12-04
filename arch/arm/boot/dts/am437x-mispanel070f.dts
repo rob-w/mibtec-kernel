@@ -200,10 +200,6 @@
 			/* P600_40 AD16 ADC1_AIN7 */
 
 			/* ClassName:SPI */
-			0x190 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_106 N24  mcasp0_aclkx.gpio3_14 */
-			0x194 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_108 N22  mcasp0_fsx.gpio3_15 */
-			0x198 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_110 H23  mcasp0_axr0.gpio3_16 */
-			0x19c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_112 M24  mcasp0_ahclkr.gpio3_17 */
 			0x1d8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_114 AC23 cam1_vd.gpio4_10 */
 			0x1dc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_116 AE21 cam1_pclk.gpio4_11 */
 
@@ -504,6 +500,24 @@
 			0x224 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_186 AD20 cam0_data7.gpio4_29 */
 		>;
 	};
+
+	spi1_pins_default: spi1_pins_default {
+		pinctrl-single,pins = <
+			0x190 (PIN_OUTPUT_PULLDOWN | MUX_MODE3) /* P600_106 N24  mcasp0_aclkx.spi1_sclk */
+			0x194 (PIN_OUTPUT_PULLDOWN | MUX_MODE3) /* P600_108 N22  mcasp0_fsx.spi1_d0 */
+			0x198 (PIN_OUTPUT_PULLDOWN | MUX_MODE3) /* P600_110 H23  mcasp0_axr0.spi1_d1 */
+			0x19c (PIN_OUTPUT_PULLDOWN | MUX_MODE3) /* P600_112 M24  mcasp0_ahclkr.sp1_cs0 */
+		>;
+	};
+
+	spi1_pins_sleep: spi1_pins_sleep {
+		pinctrl-single,pins = <
+			0x190 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_106 N24  mcasp0_aclkx.gpio3_14 */
+			0x194 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_108 N22  mcasp0_fsx.gpio3_15 */
+			0x198 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_110 H23  mcasp0_axr0.gpio3_16 */
+			0x19c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_112 M24  mcasp0_ahclkr.gpio3_17 */
+		>;
+	};
 };
 
 &i2c0 {
@@ -521,8 +535,8 @@
 		pinctrl-0 = <&edt_ft5x06_pins_default>;
 		interrupt-parent = <&gpio4>;
 		interrupts = <12 0>;
-		reset-gpios = <&gpio4 29 0>;
-		wake-gpios = <&gpio4 13 0>;
+		reset-gpios = <&gpio4 29 GPIO_ACTIVE_LOW>;
+		wake-gpios = <&gpio4 13 GPIO_ACTIVE_HIGH>;
 	};
 };
 
@@ -655,4 +669,17 @@
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&ecap0_pins_default>;
 	pinctrl-1 = <&ecap0_pins_sleep>;
+};
+
+&spi1 {
+	status = "okay";
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&spi1_pins_default>;
+	pinctrl-1 = <&spi1_pins_sleep>;
+
+	spidev0: spidev@1 {
+		compatible = "spidev";
+		reg = <0>;
+		spi-max-frequency = <25000000>;
+	};
 };
