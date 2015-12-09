@@ -21,7 +21,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P070G111 v1.0.2";
+	model = "MIS P070G111 v1.0.3";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -34,8 +34,10 @@
 	lcd_bl: backlight {
 		compatible = "pwm-backlight";
 		pwms = <&ecap0 0 50000 PWM_POLARITY_INVERTED>;
+
 		/* 0x250 P600_172 P25 164 spi4_sclk.gpio5_4 LCD_STANDBY */
 		enable-gpios = <&gpio5 4 GPIO_ACTIVE_HIGH>;
+
 		/* PWM starts at 75 and we make 16 levels */
 		brightness-levels = <0 75 87 99 111 123 135 147 159 171 183 195 207 219 231 243 255>;
 		default-brightness-level = <16>;
@@ -203,6 +205,13 @@
 			gpios = <&gpio4 28 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "off";
 		};
+
+		/* 0x258 P600_164 P24  spi4_d1.gpio5_6 ETH2_INT_N */
+		lcd_sleep {
+			label = "mispanel_lcd_sleep";
+			gpios = <&gpio5 6 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "default-on";
+		};
 	};
 };
 
@@ -263,7 +272,8 @@
 			0x220 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_174 AE20 cam0_data6.gpio4_28 SUMMER */
 			0x230 (PIN_INPUT_PULLDOWN | MUX_MODE7) 	/* P600_59 H22 uart3_ctsn.gpio5_0 */
 			0x240 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_170 G20  gpio5_10.gpio5_10 LCD_DIMO */
-			0x258 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_164 P24  spi4_d1.gpio5_6 ETH2_INT_N */
+			0x250 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_172 P25 spi4_sclk.gpio5_4 LCD_STANDBY */
+			0x258 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_164 P24 spi4_d1.gpio5_6 ETH2_INT_N */
 			0x264 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_158 P22  spi2_d0.gpio3_22 REGULATORS OFF */
 			0x278 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_166 H20  clkreq.gpio0_24 LCD_OFF */
 		>;
