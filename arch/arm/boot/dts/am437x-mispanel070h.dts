@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P070H111 v1.0.8";
+	model = "MIS P070H111 v1.0.9";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -28,6 +28,8 @@
 		serial1 = &uart1;
 		serial2 = &uart2;
 		serial3 = &uart3;
+		rtc0 = &mcp_rtc;
+		rtc1 = &rtc;
 	};
 
 	lcd_bl: backlight {
@@ -534,9 +536,21 @@
 };
 
 &i2c0 {
+	tmp102: tmp102@48 {
+		compatible = "ti,tmp102";
+		reg = <0x48>;
+		#thermal-sensor-cells = <1>;
+	};
+
 	eeprom@51 {
 		compatible = "at,24c256";
 		reg = <0x51>;
+	};
+
+	mcp_rtc: rtc@6f {
+		compatible = "microchip,mcp7941x";
+		reg = <0x6f>;
+		wakeup-source;
 	};
 };
 
