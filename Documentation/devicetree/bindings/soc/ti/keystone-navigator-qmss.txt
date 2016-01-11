@@ -18,6 +18,7 @@ pool management.
 
 Required properties:
 - compatible	: Must be "ti,keystone-navigator-qmss";
+		: Must be "ti,keystone-navigator-qmss-l" for NSS Lite
 - clocks	: phandle to the reference clock for this device.
 - queue-range	: <start number> total range of queue numbers for the device.
 - linkram0	: <address size> for internal link ram, where size is the total
@@ -39,6 +40,12 @@ Required properties:
 			  - Descriptor memory setup region.
 			  - Queue Management/Queue Proxy region for queue Push.
 			  - Queue Management/Queue Proxy region for queue Pop.
+
+For NSS lite, following QMSS reg indexes are used in that order
+			  - Queue Peek region.
+			  - Queue configuration region.
+			  - Queue Management/Queue Proxy region for queue Push/Pop.
+
 - queue-pools	: child node classifying the queue ranges into pools.
 		  Queue ranges are grouped into 3 type of pools:
 		  - qpend	    : pool of qpend(interruptible) queues
@@ -221,7 +228,6 @@ qmss: qmss@2a40000 {
 		#size-cells = <1>;
 		ranges;
 		pdsp0@0x2a10000 {
-			firmware = "keystone/qmss_pdsp_acc48_k2_le_1_0_0_8.fw";
 			reg = <0x2a10000 0x1000>,
 			      <0x2a0f000 0x100>,
 			      <0x2a0c000 0x3c8>,

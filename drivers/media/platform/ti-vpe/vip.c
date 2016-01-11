@@ -127,26 +127,6 @@ static struct vip_srce_info srce_info[5] = {
 
 static struct vip_fmt vip_formats[] = {
 	{
-		.name		= "NV24 YUV 444 co-planar",
-		.fourcc		= V4L2_PIX_FMT_NV24,
-		.code		= MEDIA_BUS_FMT_UYVY8_2X8,
-		.colorspace	= V4L2_COLORSPACE_SMPTE170M,
-		.coplanar	= 1,
-		.vpdma_fmt	= { &vpdma_yuv_fmts[VPDMA_DATA_FMT_Y444],
-				    &vpdma_yuv_fmts[VPDMA_DATA_FMT_C444],
-				  },
-	},
-	{
-		.name		= "NV16 YUV 422 co-planar",
-		.fourcc		= V4L2_PIX_FMT_NV16,
-		.code		= MEDIA_BUS_FMT_UYVY8_2X8,
-		.colorspace	= V4L2_COLORSPACE_SMPTE170M,
-		.coplanar	= 1,
-		.vpdma_fmt	= { &vpdma_yuv_fmts[VPDMA_DATA_FMT_Y422],
-				    &vpdma_yuv_fmts[VPDMA_DATA_FMT_C422],
-				  },
-	},
-	{
 		.name		= "NV12 YUV 420 co-planar",
 		.fourcc		= V4L2_PIX_FMT_NV12,
 		.code		= MEDIA_BUS_FMT_UYVY8_2X8,
@@ -245,7 +225,20 @@ static struct vip_fmt *find_port_format_by_pix(struct vip_port *port,
 	return NULL;
 }
 
-static LIST_HEAD(vip_shared_list);
+static struct vip_fmt *find_port_format_by_code(struct vip_port *port,
+						u32 code)
+{
+	struct vip_fmt *fmt;
+	unsigned int k;
+
+	for (k = 0; k < port->num_active_fmt; k++) {
+		fmt = port->active_fmt[k];
+		if (fmt->code == code)
+			return fmt;
+	}
+
+	return NULL;
+}
 
 inline struct vip_port *notifier_to_vip_port(struct v4l2_async_notifier *n)
 {
@@ -1094,6 +1087,11 @@ static int vip_calc_format_size(struct vip_port *port,
 	return 0;
 }
 
+static inline bool vip_is_size_dma_aligned(uint32_t bpp, uint32_t width)
+{
+	return ((width * bpp) == ALIGN(width * bpp, VPDMA_STRIDE_ALIGN));
+}
+
 static int vip_try_fmt_vid_cap(struct file *file, void *priv,
 			       struct v4l2_format *f)
 {
@@ -1102,6 +1100,7 @@ static int vip_try_fmt_vid_cap(struct file *file, void *priv,
 	struct vip_dev *dev = port->dev;
 	struct v4l2_subdev_frame_size_enum fse;
 	struct vip_fmt *fmt;
+	uint32_t best_width, best_height;
 	int ret, found;
 
 	vip_dbg(3, dev, "try_fmt fourcc:%s size: %dx%d\n",
@@ -1122,6 +1121,8 @@ static int vip_try_fmt_vid_cap(struct file *file, void *priv,
 	/* check for/find a valid width/height */
 	ret = 0;
 	found = false;
+	best_width = 0;
+	best_height = 0;
 	fse.pad = 0;
 	fse.code = fmt->code;
 	fse.which = V4L2_SUBDEV_FORMAT_ACTIVE;
@@ -1131,23 +1132,36 @@ static int vip_try_fmt_vid_cap(struct file *file, void *priv,
 		if (ret)
 			break;
 
-		if ((f->fmt.pix.width == fse.max_width) &&
-		    (f->fmt.pix.height == fse.max_height)) {
-			found = true;
-			break;
-		} else if ((f->fmt.pix.width >= fse.min_width) &&
-			 (f->fmt.pix.width <= fse.max_width) &&
-			 (f->fmt.pix.height >= fse.min_height) &&
-			 (f->fmt.pix.height <= fse.max_height)) {
-			found = true;
-			break;
+		if (vip_is_size_dma_aligned(fmt->vpdma_fmt[0]->depth >> 3,
+					    fse.max_width)) {
+			if (abs(best_width - f->fmt.pix.width) >
+			    abs(fse.max_width - f->fmt.pix.width)) {
+				best_width = fse.max_width;
+				best_height = fse.max_height;
+			}
+			if ((f->fmt.pix.width == fse.max_width) &&
+			    (f->fmt.pix.height == fse.max_height)) {
+				found = true;
+				break;
+			} else if ((f->fmt.pix.width >= fse.min_width) &&
+				 (f->fmt.pix.width <= fse.max_width) &&
+				 (f->fmt.pix.height >= fse.min_height) &&
+				 (f->fmt.pix.height <= fse.max_height)) {
+				found = true;
+				break;
+			}
 		}
 	}
 
 	if (!found) {
-		/* use existing values as default */
-		f->fmt.pix.width = port->mbus_framefmt.width;
-		f->fmt.pix.height =  port->mbus_framefmt.height;
+		if (best_width) {
+			f->fmt.pix.width = best_width;
+			f->fmt.pix.height =  best_height;
+		} else {
+			/* use existing values as default */
+			f->fmt.pix.width = port->mbus_framefmt.width;
+			f->fmt.pix.height =  port->mbus_framefmt.height;
+		}
 	}
 
 	/* That we have a fmt calculate imagesize and bytesperline */
@@ -1620,7 +1634,7 @@ static int vip_init_port(struct vip_port *port)
 		vip_dbg(1, dev, "init_port get_fmt failed in subdev\n");
 
 	/* try to find one that matches */
-	fmt = find_port_format_by_pix(port, mbus_fmt->code);
+	fmt = find_port_format_by_code(port, mbus_fmt->code);
 	if (!fmt) {
 		vip_dbg(1, dev, "subdev default mbus_fmt %04x is not matched.\n",
 			mbus_fmt->code);
@@ -2015,11 +2029,10 @@ static int alloc_stream(struct vip_port *port, int stream_id, int vfl_type)
 		goto do_free_stream;
 	}
 
-	snprintf(vfd->name, sizeof(vfd->name), "%s", vip_videodev.name);
 	stream->vfd = vfd;
 
-	vip_info(dev, VIP_MODULE_NAME
-		 " Device registered as /dev/video%d\n", vfd->num);
+	vip_info(dev, "device registered as %s\n",
+		 video_device_node_name(vfd));
 	return 0;
 
 do_free_stream:
@@ -2039,7 +2052,7 @@ static void free_stream(struct vip_stream *stream)
 	dev = stream->port->dev;
 	/* Free up the Drop queue */
 	list_for_each_safe(pos, q, &stream->dropq) {
-		buf = list_entry(stream->dropq.next,
+		buf = list_entry(pos,
 				 struct vip_buffer, list);
 		vip_dbg(1, dev, "dropq buffer\n");
 		list_del(pos);
@@ -2047,7 +2060,6 @@ static void free_stream(struct vip_stream *stream)
 	}
 
 	video_unregister_device(stream->vfd);
-	video_device_release(stream->vfd);
 	vpdma_hwlist_release(dev->shared->vpdma, stream->list_num);
 	stream->port->cap_streams[stream->stream_id] = NULL;
 	kfree(stream);
@@ -2137,13 +2149,6 @@ static void vip_vpdma_fw_cb(struct platform_device *pdev)
 	if (pdev->dev.of_node) {
 		vip_of_probe(pdev);
 	}
-}
-
-static void remove_shared(struct vip_shared *shared)
-{
-	iounmap(shared->base);
-	release_mem_region(shared->res->start, resource_size(shared->res));
-	kfree(shared);
 }
 
 static int vip_create_streams(struct vip_port *port,
@@ -2418,28 +2423,14 @@ static int vip_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	shared->res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "vip");
-	if (!shared->res) {
-		dev_err(&pdev->dev, "Missing platform resources data\n");
-		ret = -ENODEV;
+	shared->base = devm_ioremap_resource(&pdev->dev, shared->res);
+	if (IS_ERR(shared->base)) {
+		dev_err(&pdev->dev, "failed to ioremap\n");
+		ret = PTR_ERR(shared->base);
 		goto free_shared;
 	}
 
 	pinctrl = devm_pinctrl_get_select_default(&pdev->dev);
-
-	if (devm_request_mem_region(&pdev->dev, shared->res->start,
-				    resource_size(shared->res),
-				    VIP_MODULE_NAME) == NULL) {
-		ret = -ENOMEM;
-		goto free_shared;
-	}
-
-	shared->base = devm_ioremap(&pdev->dev, shared->res->start,
-				    resource_size(shared->res));
-	if (!shared->base) {
-		dev_err(&pdev->dev, "failed to ioremap\n");
-		ret = -ENOMEM;
-		goto rel_mem_region;
-	}
 
 	/* Make sure H/W module has the right functionality */
 	pid = read_sreg(shared, VIP_PID);
@@ -2449,14 +2440,13 @@ static int vip_probe(struct platform_device *pdev)
 		dev_info(&pdev->dev, "vip: unexpected PID function: 0x%x\n",
 			 tmp);
 		ret = -ENODEV;
-		goto do_iounmap;
+		goto free_shared;
 	}
 
 	/* enable clocks, so the firmware will load properly */
 	vip_shared_set_clock_enable(shared, 1);
 	vip_top_vpdma_reset(shared);
 
-	list_add_tail(&shared->list, &vip_shared_list);
 	platform_set_drvdata(pdev, shared);
 
 	for (slice = VIP_SLICE1; slice < VIP_NUM_SLICES; slice++) {
@@ -2523,10 +2513,6 @@ static int vip_probe(struct platform_device *pdev)
 
 dev_unreg:
 	v4l2_device_unregister(&dev->v4l2_dev);
-do_iounmap:
-	iounmap(shared->base);
-rel_mem_region:
-	release_mem_region(shared->res->start, resource_size(shared->res));
 free_shared:
 	kfree(shared);
 err_runtime_get:
@@ -2548,13 +2534,15 @@ static int vip_remove(struct platform_device *pdev)
 		dev = shared->devs[slice];
 		if (!dev)
 			continue;
-		vip_info(dev, "Removing " VIP_MODULE_NAME);
-		free_port(dev->ports[0]);
+
+		free_port(dev->ports[VIP_PORTA]);
+		free_port(dev->ports[VIP_PORTB]);
 		vb2_dma_contig_cleanup_ctx(dev->alloc_ctx);
-		free_irq(dev->irq, dev);
 		kfree(dev);
 	}
-	remove_shared(shared);
+	kfree(shared);
+	pm_runtime_put_sync(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
 
 	return 0;
 }

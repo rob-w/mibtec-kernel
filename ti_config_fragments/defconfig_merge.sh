@@ -145,7 +145,7 @@ build_the_dtbs()
 		return 1
 	fi
 
-	NUM_OF_WARNINGS=`cat $BUILD_OUT | grep -wc warnings`
+	NUM_OF_WARNINGS=`cat $BUILD_OUT | grep -wc "warning:"`
 	echo "#########################################################" >> $OUT_LOG
 	echo "# Device Tree Warnings" >> $OUT_LOG
 	echo "#########################################################" >> $OUT_LOG
@@ -173,7 +173,7 @@ build_the_modules()
 		return 1
 	fi
 
-	NUM_OF_WARNINGS=`cat $BUILD_OUT | grep -wc warnings`
+	NUM_OF_WARNINGS=`cat $BUILD_OUT | grep -wc "warning:"`
 	echo "#########################################################" >> $OUT_LOG
 	echo "# Module Build Warnings" >> $OUT_LOG
 	echo "#########################################################" >> $OUT_LOG
@@ -442,7 +442,7 @@ fi
 
 # There is only one file passed in via command line
 if [ -z "$DEFCONFIG_EXTRAS_FILE" ]; then
-	echo "Only appending $DEFCONFIG_EXTRAS_FILE"
+	echo "Only appending $APPENDED_CONFIG"
 	$KERNEL_DIR/scripts/kconfig/merge_config.sh -m -r -O $LOGGING_DIRECTORY $LOGGING_DIRECTORY/base_config $APPENDED_CONFIG
 	if [ $? -ne 0 ]; then
 		echo "Failed to merge config $APPENDED_CONFIG"

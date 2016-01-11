@@ -135,9 +135,10 @@ struct knav_pdsp_info {
 	};
 	void __iomem					*intd;
 	u32 __iomem					*iram;
-	const char					*firmware;
 	u32						id;
 	struct list_head				list;
+	bool						loaded;
+	bool						started;
 };
 
 struct knav_qmgr_info {
@@ -291,6 +292,11 @@ struct knav_queue {
 	struct list_head		list;
 };
 
+enum qmss_version {
+	QMSS,
+	QMSS_LITE,
+};
+
 struct knav_device {
 	struct device				*dev;
 	unsigned				base_id;
@@ -304,6 +310,7 @@ struct knav_device {
 	struct list_head			pools;
 	struct list_head			pdsps;
 	struct list_head			qmgrs;
+	enum qmss_version			version;
 };
 
 struct knav_range_ops {

@@ -51,6 +51,15 @@ static DEFINE_MUTEX(knav_dev_lock);
 #define KNAV_QUEUE_PUSH_REG_INDEX	4
 #define KNAV_QUEUE_POP_REG_INDEX	5
 
+/* Queue manager register indices in DTS for QMSS in NSS lite.
+ * There are no status and vbusm push registers on this version
+ * QMSS. Push registers are same as pop, So all indices above 1
+ * are to be re-defined
+ */
+#define KNAV_L_QUEUE_CONFIG_REG_INDEX	1
+#define KNAV_L_QUEUE_REGION_REG_INDEX	2
+#define KNAV_L_QUEUE_PUSH_REG_INDEX	3
+
 /* PDSP register indices in DTS */
 #define KNAV_QUEUE_PDSP_IRAM_REG_INDEX	0
 #define KNAV_QUEUE_PDSP_REGS_REG_INDEX	1
@@ -67,6 +76,19 @@ static DEFINE_MUTEX(knav_dev_lock);
 	for (idx = 0, inst = kdev->instances;		\
 	     idx < (kdev)->num_queues_in_use;			\
 	     idx++, inst = knav_queue_idx_to_inst(kdev, idx))
+
+/* All firmware file names end up here. List the firmware file names below.
+ * Newest followed by older ones. Search is done from start of the array
+ * until a firmware file is found.
+ */
+const char *knav_acc_firmwares[] = {"ks2_qmss_pdsp_acc48.bin"};
+
+static bool device_ready;
+
+bool knav_qmss_device_ready(void)
+{
+	return device_ready;
+}
 
 /**
  * knav_queue_notify: qmss queue notfier call
@@ -1387,41 +1409,64 @@ static int knav_queue_init_qmgrs(struct knav_device *kdev,
 		qmgr->reg_peek =
 			knav_queue_map_reg(kdev, child,
 					   KNAV_QUEUE_PEEK_REG_INDEX);
-		qmgr->reg_status =
-			knav_queue_map_reg(kdev, child,
+
+		if (kdev->version == QMSS) {
+			qmgr->reg_status =
+				knav_queue_map_reg(kdev, child,
 					   KNAV_QUEUE_STATUS_REG_INDEX);
+		}
+
 		qmgr->reg_config =
 			knav_queue_map_reg(kdev, child,
-					   KNAV_QUEUE_CONFIG_REG_INDEX);
+			   (kdev->version == QMSS_LITE) ?
+				 KNAV_L_QUEUE_CONFIG_REG_INDEX :
+				 KNAV_QUEUE_CONFIG_REG_INDEX);
 		qmgr->reg_region =
 			knav_queue_map_reg(kdev, child,
-					   KNAV_QUEUE_REGION_REG_INDEX);
+			   (kdev->version == QMSS_LITE) ?
+				   KNAV_L_QUEUE_REGION_REG_INDEX :
+				   KNAV_QUEUE_REGION_REG_INDEX);
+
 		qmgr->reg_push =
 			knav_queue_map_reg(kdev, child,
-					   KNAV_QUEUE_PUSH_REG_INDEX);
-		qmgr->reg_pop =
-			knav_queue_map_reg(kdev, child,
+			   (kdev->version == QMSS_LITE) ?
+				   KNAV_L_QUEUE_PUSH_REG_INDEX :
+				   KNAV_QUEUE_PUSH_REG_INDEX);
+
+		if (kdev->version == QMSS) {
+			qmgr->reg_pop =
+				knav_queue_map_reg(kdev, child,
 					   KNAV_QUEUE_POP_REG_INDEX);
 
-		if (IS_ERR(qmgr->reg_peek) || IS_ERR(qmgr->reg_status) ||
-		    IS_ERR(qmgr->reg_config) || IS_ERR(qmgr->reg_region) ||
-		    IS_ERR(qmgr->reg_push) || IS_ERR(qmgr->reg_pop)) {
+		}
+
+		if (IS_ERR(qmgr->reg_peek) ||
+		   ((kdev->version == QMSS) &&
+		   (IS_ERR(qmgr->reg_status) || IS_ERR(qmgr->reg_pop))) ||
+		   IS_ERR(qmgr->reg_config) || IS_ERR(qmgr->reg_region) ||
+		   IS_ERR(qmgr->reg_push)) {
 			dev_err(dev, "failed to map qmgr regs\n");
+			if (kdev->version == QMSS) {
+				if (!IS_ERR(qmgr->reg_status))
+					devm_iounmap(dev, qmgr->reg_status);
+				if (!IS_ERR(qmgr->reg_pop))
+					devm_iounmap(dev, qmgr->reg_pop);
+			}
 			if (!IS_ERR(qmgr->reg_peek))
 				devm_iounmap(dev, qmgr->reg_peek);
-			if (!IS_ERR(qmgr->reg_status))
-				devm_iounmap(dev, qmgr->reg_status);
 			if (!IS_ERR(qmgr->reg_config))
 				devm_iounmap(dev, qmgr->reg_config);
 			if (!IS_ERR(qmgr->reg_region))
 				devm_iounmap(dev, qmgr->reg_region);
 			if (!IS_ERR(qmgr->reg_push))
 				devm_iounmap(dev, qmgr->reg_push);
-			if (!IS_ERR(qmgr->reg_pop))
-				devm_iounmap(dev, qmgr->reg_pop);
 			devm_kfree(dev, qmgr);
 			continue;
 		}
+
+		/* Use same push register for pop as well */
+		if (kdev->version == QMSS_LITE)
+			qmgr->reg_pop = qmgr->reg_push;
 
 		list_add_tail(&qmgr->list, &kdev->qmgrs);
 		dev_info(dev, "added qmgr start queue %d, num of queues %d, reg_peek %p, reg_status %p, reg_config %p, reg_region %p, reg_push %p, reg_pop %p\n",
@@ -1439,7 +1484,6 @@ static int knav_queue_init_pdsps(struct knav_device *kdev,
 	struct device *dev = kdev->dev;
 	struct knav_pdsp_info *pdsp;
 	struct device_node *child;
-	int ret;
 
 	for_each_child_of_node(pdsps, child) {
 		pdsp = devm_kzalloc(dev, sizeof(*pdsp), GFP_KERNEL);
@@ -1448,17 +1492,6 @@ static int knav_queue_init_pdsps(struct knav_device *kdev,
 			return -ENOMEM;
 		}
 		pdsp->name = knav_queue_find_name(child);
-		ret = of_property_read_string(child, "firmware",
-					      &pdsp->firmware);
-		if (ret < 0 || !pdsp->firmware) {
-			dev_err(dev, "unknown firmware for pdsp %s\n",
-				pdsp->name);
-			devm_kfree(dev, pdsp);
-			continue;
-		}
-		dev_dbg(dev, "pdsp name %s fw name :%s\n", pdsp->name,
-			pdsp->firmware);
-
 		pdsp->iram =
 			knav_queue_map_reg(kdev, child,
 					   KNAV_QUEUE_PDSP_IRAM_REG_INDEX);
@@ -1489,9 +1522,9 @@ static int knav_queue_init_pdsps(struct knav_device *kdev,
 		}
 		of_property_read_u32(child, "id", &pdsp->id);
 		list_add_tail(&pdsp->list, &kdev->pdsps);
-		dev_dbg(dev, "added pdsp %s: command %p, iram %p, regs %p, intd %p, firmware %s\n",
+		dev_dbg(dev, "added pdsp %s: command %p, iram %p, regs %p, intd %p\n",
 			pdsp->name, pdsp->command, pdsp->iram, pdsp->regs,
-			pdsp->intd, pdsp->firmware);
+			pdsp->intd);
 	}
 	return 0;
 }
@@ -1510,6 +1543,8 @@ static int knav_queue_stop_pdsp(struct knav_device *kdev,
 		dev_err(kdev->dev, "timed out on pdsp %s stop\n", pdsp->name);
 		return ret;
 	}
+	pdsp->loaded = false;
+	pdsp->started = false;
 	return 0;
 }
 
@@ -1518,14 +1553,29 @@ static int knav_queue_load_pdsp(struct knav_device *kdev,
 {
 	int i, ret, fwlen;
 	const struct firmware *fw;
+	bool found = false;
 	u32 *fwdata;
 
-	ret = request_firmware(&fw, pdsp->firmware, kdev->dev);
-	if (ret) {
-		dev_err(kdev->dev, "failed to get firmware %s for pdsp %s\n",
-			pdsp->firmware, pdsp->name);
-		return ret;
+	for (i = 0; i < ARRAY_SIZE(knav_acc_firmwares); i++) {
+		if (knav_acc_firmwares[i]) {
+			ret = request_firmware_direct(&fw,
+						      knav_acc_firmwares[i],
+						      kdev->dev);
+			if (!ret) {
+				found = true;
+				break;
+			}
+		}
 	}
+
+	if (!found) {
+		dev_err(kdev->dev, "failed to get firmware for pdsp\n");
+		return -ENODEV;
+	}
+
+	dev_info(kdev->dev, "firmware file %s downloaded for PDSP\n",
+		 knav_acc_firmwares[i]);
+
 	writel_relaxed(pdsp->id + 1, pdsp->command + 0x18);
 	/* download the firmware */
 	fwdata = (u32 *)fw->data;
@@ -1583,16 +1633,24 @@ static int knav_queue_start_pdsps(struct knav_device *kdev)
 	int ret;
 
 	knav_queue_stop_pdsps(kdev);
-	/* now load them all */
+	/* now load them all. We return success even if pdsp
+	 * is not loaded as acc channels are optional on having
+	 * firmware availability in the system. We set the loaded
+	 * and stated flag and when initialize the acc range, check
+	 * it and init the range only if pdsp is started.
+	 */
 	for_each_pdsp(kdev, pdsp) {
 		ret = knav_queue_load_pdsp(kdev, pdsp);
-		if (ret < 0)
-			return ret;
+		if (!ret)
+			pdsp->loaded = true;
 	}
 
 	for_each_pdsp(kdev, pdsp) {
-		ret = knav_queue_start_pdsp(kdev, pdsp);
-		WARN_ON(ret);
+		if (pdsp->loaded) {
+			ret = knav_queue_start_pdsp(kdev, pdsp);
+			if (!ret)
+				pdsp->started = true;
+		}
 	}
 	return 0;
 }
@@ -1668,10 +1726,24 @@ static int knav_queue_init_queues(struct knav_device *kdev)
 	return 0;
 }
 
+/* Match table for of_platform binding */
+static const struct of_device_id keystone_qmss_of_match[] = {
+	{
+		.compatible = "ti,keystone-navigator-qmss",
+	},
+	{
+		.compatible = "ti,keystone-navigator-qmss-l",
+		.data	= (void *)QMSS_LITE,
+	},
+	{},
+};
+MODULE_DEVICE_TABLE(of, keystone_qmss_of_match);
+
 static int knav_queue_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
 	struct device_node *qmgrs, *queue_pools, *regions, *pdsps;
+	const struct of_device_id *match;
 	struct device *dev = &pdev->dev;
 	u32 temp[2];
 	int ret;
@@ -1686,6 +1758,10 @@ static int knav_queue_probe(struct platform_device *pdev)
 		dev_err(dev, "memory allocation failed\n");
 		return -ENOMEM;
 	}
+
+	match = of_match_device(of_match_ptr(keystone_qmss_of_match), dev);
+	if (match && match->data)
+		kdev->version = QMSS_LITE;
 
 	platform_set_drvdata(pdev, kdev);
 	kdev->dev = dev;
@@ -1783,6 +1859,7 @@ static int knav_queue_probe(struct platform_device *pdev)
 
 	debugfs_create_file("qmss", S_IFREG | S_IRUGO, NULL, NULL,
 			    &knav_queue_debug_ops);
+	device_ready = true;
 	return 0;
 
 err:
@@ -1801,13 +1878,6 @@ static int knav_queue_remove(struct platform_device *pdev)
 	pm_runtime_disable(&pdev->dev);
 	return 0;
 }
-
-/* Match table for of_platform binding */
-static struct of_device_id keystone_qmss_of_match[] = {
-	{ .compatible = "ti,keystone-navigator-qmss", },
-	{},
-};
-MODULE_DEVICE_TABLE(of, keystone_qmss_of_match);
 
 static struct platform_driver keystone_qmss_driver = {
 	.probe		= knav_queue_probe,

@@ -72,7 +72,16 @@ qmss: qmss@2a40000 {
 				qalloc-by-id;
 			};
 		};
+		accumulator {
+			acc-low-0 {
+				qrange = <480 32>;
+				accumulator = <0 47 16 2 50>;
+				interrupts = <0 226 0xf01>;
+				multi-queue;
+			};
+		};
 	};
+
 	descriptor-regions {
 		#address-cells = <1>;
 		#size-cells = <1>;
@@ -83,6 +92,20 @@ qmss: qmss@2a40000 {
 			link-index = <0x4000>;
 		};
 	};
+
+	pdsps {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+		pdsp0@0x2a10000 {
+			reg = <0x2a10000 0x1000    /*iram */
+			       0x2a0f000 0x100     /*reg*/
+			       0x2a0c000 0x3c8	   /*intd */
+			       0x2a20000 0x4000>;  /*cmd*/
+			id = <0>;
+		};
+	};
+
 }; /* qmss */
 
 knav_dmas: knav_dmas@0 {
@@ -101,6 +124,75 @@ knav_dmas: knav_dmas@0 {
 			  <0x26189000 0x1000>;
 		reg-names = "global", "txchan", "rxchan",
 				"txsched", "rxflow";
+	};
+};
+
+gbe_subsys: subsys@26200000 {
+	compatible = "syscon";
+	reg = <0x26200000 0x100>;
+};
+
+gbe_serdes0: phy@232a000 {
+	status			= "disabled";
+	#phy-cells		= <0>;
+	compatible		= "ti,keystone-serdes-gbe";
+	reg			= <0x0232a000 0x2000>;
+	link-rate-kbps		= <1250000>;
+	num-lanes		= <2>;
+	/*rx-force-enable;*/
+	lanes {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		lane@0 {
+			/*loopback;*/
+			reg		= <0>;
+			control-rate	= <2>; /* quart */
+			rx-start	= <7 5>;
+			rx-force	= <1 1>;
+			tx-coeff	= <0 0 0 12 4>;
+			       /* c1 c2 cm att vreg */
+		};
+		lane@1 {
+			/*loopback;*/
+			reg		= <1>;
+			control-rate	= <2>; /* quart */
+			rx-start	= <7 5>;
+			rx-force	= <1 1>;
+			tx-coeff	= <0 0 0 12 4>;
+			       /* c1 c2 cm att vreg */
+		};
+	};
+};
+
+gbe_serdes1: phy@2320000 {
+	status			= "disabled";
+	#phy-cells		= <0>;
+	compatible		= "ti,keystone-serdes-gbe";
+	reg			= <0x02320000 0x2000>;
+	link-rate-kbps		= <1250000>;
+	num-lanes		= <2>;
+	/*rx-force-enable;*/
+	lanes {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		lane@0 {
+			/*loopback;*/
+			reg		= <0>;
+			control-rate	= <2>; /* quart */
+			rx-start	= <7 5>;
+			rx-force	= <1 1>;
+			tx-coeff	= <0 0 0 12 4>;
+			       /* c1 c2 cm att vreg */
+		};
+		lane@1 {
+			/*loopback;*/
+			reg		= <1>;
+			control-rate	= <2>; /* quart */
+			rx-start	= <7 5>;
+			rx-force	= <1 1>;
+			tx-coeff	= <0 0 0 12 4>;
+			       /* c1 c2 cm att vreg */
+		};
 	};
 };
 
@@ -130,10 +222,12 @@ netcp: netcp@26000000 {
 		gbe@200000 { /* ETHSS */
 			label = "netcp-gbe";
 			compatible = "ti,netcp-gbe-5";
-			reg = <0x200000 0x900>, <0x220000 0x20000>;
+			syscon-subsys = <&gbe_subsys>;
+			reg = <0x200100 0x400>, <0x220000 0x20000>;
 			/* enable-ale; */
 			tx-queue = <896>;
 			tx-channel = "nettx";
+			phys = <&gbe_serdes0>, <&gbe_serdes1>;
 
 			interfaces {
 				gbe0: interface-0 {

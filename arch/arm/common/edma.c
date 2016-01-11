@@ -406,7 +406,8 @@ static irqreturn_t dma_irq_handler(int irq, void *data)
 					BIT(slot));
 			if (edma_cc[ctlr]->intr_data[channel].callback)
 				edma_cc[ctlr]->intr_data[channel].callback(
-					channel, EDMA_DMA_COMPLETE,
+					EDMA_CTLR_CHAN(ctlr, channel),
+					EDMA_DMA_COMPLETE,
 					edma_cc[ctlr]->intr_data[channel].data);
 		}
 	} while (sh_ipr);
@@ -463,7 +464,8 @@ static irqreturn_t dma_ccerr_handler(int irq, void *data)
 					if (edma_cc[ctlr]->intr_data[k].
 								callback) {
 						edma_cc[ctlr]->intr_data[k].
-						callback(k,
+						callback(
+						EDMA_CTLR_CHAN(ctlr, k),
 						EDMA_DMA_CC_ERROR,
 						edma_cc[ctlr]->intr_data
 						[k].data);
@@ -997,6 +999,23 @@ void edma_set_dest(unsigned slot, dma_addr_t dest_port,
 	}
 }
 EXPORT_SYMBOL(edma_set_dest);
+
+#define EDMA_CCSTAT_ACTV	BIT(4)
+
+/**
+ * edma_is_active - report if any transfer requests are active
+ * @slot: parameter RAM slot being examined
+ *
+ * Returns true if any transfer requests are active on the slot
+ */
+bool edma_is_active(unsigned slot)
+{
+	u32 ctlr = EDMA_CTLR(slot);
+	unsigned int ccstat;
+
+	ccstat = edma_read(ctlr, EDMA_CCSTAT);
+	return (ccstat & EDMA_CCSTAT_ACTV);
+}
 
 /**
  * edma_get_position - returns the current transfer point
@@ -1889,7 +1908,7 @@ static struct platform_driver edma_driver = {
 
 static int __init edma_init(void)
 {
-	return platform_driver_probe(&edma_driver, edma_probe);
+	return platform_driver_register(&edma_driver);
 }
 arch_initcall(edma_init);
 

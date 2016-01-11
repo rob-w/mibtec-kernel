@@ -43,6 +43,10 @@
 		};
 	};
 
+	aliases {
+		rproc0 = &dsp0;
+	};
+
 	soc {
 		/include/ "k2e-clocks.dtsi"
 
@@ -89,12 +93,28 @@
 			gpio,syscon-dev = <&devctrl 0x240>;
 		};
 
-		pcie1_phy: pciephy@2326000 {
+		pcie1_phy: phy@2326000 {
 			#phy-cells = <0>;
-			compatible = "ti,keystone-serdes-phy";
+			compatible = "ti,keystone-serdes-pcie";
 			reg = <0x02326000 0x4000>;
-			reg-names = "reg_serdes";
+			link-rate-kbps = <5000000>;
+			num-lanes = <2>;
 			status = "disabled";
+		};
+
+		dsp0: dsp0 {
+			compatible = "ti,k2e-dsp";
+			reg = <0x10800000 0x00080000>,
+			      <0x10e00000 0x00008000>,
+			      <0x10f00000 0x00008000>;
+			reg-names = "l2sram", "l1pram", "l1dram";
+			clocks = <&clkgem0>;
+			ti,syscon-dev = <&devctrl 0x844>;
+			resets = <&pscrst 0xa3c 8 0 0x83c 8 0>;
+			interrupt-parent = <&kirq0>;
+			interrupts = <0 8>;
+			interrupt-names = "vring", "exception";
+			kick-gpio = <&dspgpio0 27 0>;
 		};
 
 		pcie1: pcie@21020000 {
@@ -110,10 +130,7 @@
 			status = "disabled";
 			device_type = "pci";
 			num-lanes = <2>;
-
-			/* PCIE phy */
 			phys = <&pcie1_phy>;
-			phy-names = "pcie-phy";
 
 			#interrupt-cells = <1>;
 			interrupt-map-mask = <0 0 0 7>;
