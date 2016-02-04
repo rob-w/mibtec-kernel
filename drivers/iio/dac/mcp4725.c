@@ -20,6 +20,8 @@
 #include <linux/delay.h>
 
 #include <linux/iio/iio.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/iio/sysfs.h>
 
 #include <linux/iio/dac/mcp4725.h>
@@ -29,7 +31,7 @@
 struct mcp4725_data {
 	struct i2c_client *client;
 	u16 vref_mv;
-	u16 dac_value;
+	u16 dac_value[4];
 	bool powerdown;
 	unsigned powerdown_mode;
 };
@@ -51,14 +53,20 @@ static int mcp4725_resume(struct device *dev)
 {
 	struct mcp4725_data *data = iio_priv(i2c_get_clientdata(
 		to_i2c_client(dev)));
-	u8 outbuf[2];
+	u8 outbuf[8];
 
 	/* restore previous DAC value */
-	outbuf[0] = (data->dac_value >> 8) & 0xf;
-	outbuf[1] = data->dac_value & 0xff;
+	outbuf[0] = (data->dac_value[0] >> 8) & 0xf;
+	outbuf[1] = data->dac_value[0] & 0xff;
+	outbuf[2] = (data->dac_value[1] >> 8) & 0xf;
+	outbuf[3] = data->dac_value[1] & 0xff;
+	outbuf[4] = (data->dac_value[2] >> 8) & 0xf;
+	outbuf[5] = data->dac_value[2] & 0xff;
+	outbuf[6] = (data->dac_value[3] >> 8) & 0xf;
+	outbuf[7] = data->dac_value[3] & 0xff;
 	data->powerdown = false;
 
-	return i2c_master_send(data->client, outbuf, 2);
+	return i2c_master_send(data->client, outbuf, 8);
 }
 
 #ifdef CONFIG_PM_SLEEP
@@ -86,8 +94,8 @@ static ssize_t mcp4725_store_eeprom(struct device *dev,
 		return 0;
 
 	inoutbuf[0] = 0x60; /* write EEPROM */
-	inoutbuf[1] = data->dac_value >> 4;
-	inoutbuf[2] = (data->dac_value & 0xf) << 4;
+	inoutbuf[1] = data->dac_value[0] >> 4;
+	inoutbuf[2] = (data->dac_value[0] & 0xf) << 4;
 
 	ret = i2c_master_send(data->client, inoutbuf, 3);
 	if (ret < 0)
@@ -201,14 +209,40 @@ static const struct iio_chan_spec_ext_info mcp4725_ext_info[] = {
 	{ },
 };
 
-static const struct iio_chan_spec mcp4725_channel = {
-	.type		= IIO_VOLTAGE,
-	.indexed	= 1,
-	.output		= 1,
-	.channel	= 0,
-	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
-	.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
-	.ext_info	= mcp4725_ext_info,
+static const struct iio_chan_spec mcp4725_channel[4] = {
+	{
+		.type		= IIO_VOLTAGE,
+		.indexed	= 1,
+		.output		= 1,
+		.channel	= 0,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
+		.ext_info	= mcp4725_ext_info,
+	},
+	{	.type		= IIO_VOLTAGE,
+		.indexed	= 1,
+		.output		= 1,
+		.channel	= 1,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
+		.ext_info	= mcp4725_ext_info,
+	},
+	{	.type		= IIO_VOLTAGE,
+		.indexed	= 1,
+		.output		= 1,
+		.channel	= 2,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
+		.ext_info	= mcp4725_ext_info,
+	},
+	{	.type		= IIO_VOLTAGE,
+		.indexed	= 1,
+		.output		= 1,
+		.channel	= 3,
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
+		.ext_info	= mcp4725_ext_info,
+	},
 };
 
 static int mcp4725_set_value(struct iio_dev *indio_dev, int val)
@@ -232,6 +266,33 @@ static int mcp4725_set_value(struct iio_dev *indio_dev, int val)
 		return 0;
 }
 
+static int mcp4725_set_all(struct iio_dev *indio_dev)
+{
+	struct mcp4725_data *data = iio_priv(indio_dev);
+	u8 outbuf[8];
+	int ret;
+
+	outbuf[0] = (data->dac_value[0] >> 8) & 0xf;
+	outbuf[1] = data->dac_value[0] & 0xff;
+
+	outbuf[2] = (data->dac_value[1] >> 8) & 0xf;
+	outbuf[3] = data->dac_value[1] & 0xff;
+
+	outbuf[4] = (data->dac_value[2] >> 8) & 0xf;
+	outbuf[5] = data->dac_value[2] & 0xff;
+
+	outbuf[6] = (data->dac_value[3] >> 8) & 0xf;
+	outbuf[7] = data->dac_value[3] & 0xff;
+
+	ret = i2c_master_send(data->client, outbuf, 8);
+	if (ret < 0)
+		return ret;
+	else if (ret != 8)
+		return -EIO;
+	else
+		return 0;
+}
+
 static int mcp4725_read_raw(struct iio_dev *indio_dev,
 			   struct iio_chan_spec const *chan,
 			   int *val, int *val2, long mask)
@@ -240,7 +301,7 @@ static int mcp4725_read_raw(struct iio_dev *indio_dev,
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
-		*val = data->dac_value;
+		*val = data->dac_value[chan->channel];
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_SCALE:
 		*val = data->vref_mv;
@@ -257,10 +318,13 @@ static int mcp4725_write_raw(struct iio_dev *indio_dev,
 	struct mcp4725_data *data = iio_priv(indio_dev);
 	int ret;
 
+	if (val >= (1 << 12) || val < 0)
+		return -EINVAL;
+
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
-		ret = mcp4725_set_value(indio_dev, val);
-		data->dac_value = val;
+		data->dac_value[chan->channel] = val;
+		ret = mcp4725_set_all(indio_dev);
 		break;
 	default:
 		ret = -EINVAL;
@@ -289,7 +353,7 @@ static int mcp4725_probe(struct i2c_client *client,
 
 	if (!platform_data || !platform_data->vref_mv) {
 		dev_err(&client->dev, "invalid platform data");
-		return -EINVAL;
+//		return -EINVAL;
 	}
 
 	indio_dev = devm_iio_device_alloc(&client->dev, sizeof(*data));
@@ -301,11 +365,12 @@ static int mcp4725_probe(struct i2c_client *client,
 
 	indio_dev->dev.parent = &client->dev;
 	indio_dev->info = &mcp4725_info;
-	indio_dev->channels = &mcp4725_channel;
-	indio_dev->num_channels = 1;
+	indio_dev->channels = mcp4725_channel;
+	indio_dev->num_channels = 4;
 	indio_dev->modes = INDIO_DIRECT_MODE;
 
 	data->vref_mv = platform_data->vref_mv;
+	data->vref_mv = 2500;
 
 	/* read current DAC value */
 	err = i2c_master_recv(client, inbuf, 3);
@@ -316,7 +381,7 @@ static int mcp4725_probe(struct i2c_client *client,
 	pd = (inbuf[0] >> 1) & 0x3;
 	data->powerdown = pd > 0 ? true : false;
 	data->powerdown_mode = pd ? pd-1 : 2; /* 500kohm_to_gnd */
-	data->dac_value = (inbuf[1] << 4) | (inbuf[2] >> 4);
+	data->dac_value[0] = (inbuf[1] << 4) | (inbuf[2] >> 4);
 
 	return iio_device_register(indio_dev);
 }
@@ -327,8 +392,21 @@ static int mcp4725_remove(struct i2c_client *client)
 	return 0;
 }
 
+#if defined(CONFIG_OF)
+static const struct of_device_id mcp4725_dt_ids[] = {
+	{
+		.compatible = "mcp4725",
+	}, {
+		.compatible = "mcp4728",
+	},{
+	}
+};
+MODULE_DEVICE_TABLE(of, mcp4725_dt_ids);
+#endif
+
 static const struct i2c_device_id mcp4725_id[] = {
 	{ "mcp4725", 0 },
+	{ "mcp4728", 0 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, mcp4725_id);
