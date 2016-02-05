@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P120B110 v0.0.1";
+	model = "MIS P120B110 v0.1.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -28,7 +28,7 @@
 		serial1 = &uart1;
 		serial2 = &uart2;
 		serial3 = &uart3;
-		rtc0 = &mcp_rtc;
+		rtc0 = &mcp79412;
 		rtc1 = &rtc;
 	};
 
@@ -37,7 +37,7 @@
 		pwms = <&ecap0 0 50000 PWM_POLARITY_INVERTED>;
 
 		/* 0x250 P600_172 P25 164 spi4_sclk.gpio5_4 LCD_STANDBY */
-		enable-gpios = <&gpio5 4 GPIO_ACTIVE_HIGH>;
+		enable-gpios = <&gpio5 4 GPIO_ACTIVE_LOW>;
 
 		/* PWM starts at 75 and we make 16 levels */
 		brightness-levels = <0 75 87 99 111 123 135 147 159 171 183 195 207 219 231 243 255>;
@@ -49,13 +49,13 @@
 		label = "lcd";
 		panel-timing {
 			/* 1024x600 if needed */
-			clock-frequency = <51200000>;
+			clock-frequency = <65000000>;
 			hactive = <1024>;
-			vactive = <600>;
-			hfront-porch = <3>;
-			hback-porch = <2>;
+			vactive = <768>;
+			hfront-porch = <48>;
+			hback-porch = <320>;
 			hsync-len = <128>;
-			vback-porch = <2>;
+			vback-porch = <38>;
 			vfront-porch = <2>;
 			vsync-len = <2>;
 			hsync-active = <0>;
@@ -213,6 +213,8 @@
 			0x108 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_122 D16  mii1_col.gpio3_0 */
 			0x10c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_126 B14  mii1_crs.gpio3_1 */
 			0x110 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_128 B13  mii1_rx_er.gpio3_2 */
+			0x1e4 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_182 AB25 cam1_wen.gpio4_13 */
+			0x224 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_186 AD20 cam0_data7.gpio4_29 */
 			0x270 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_124 D24  xdma_event_intr0.gpio0_19 */
 
 			/* ClassName:GPIOS */
@@ -509,11 +511,9 @@
 		>;
 	};
 
-	edt_ft5x06_pins_default: edt_ft5x06_pins_default {
+	sx8651_pins_default: sx8651_pins_default {
 		pinctrl-single,pins = <
 			0x1e0 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_184 AC25 cam1_field.gpio4_12 */
-			0x1e4 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_182 AB25 cam1_wen.gpio4_13 */
-			0x224 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_186 AD20 cam0_data7.gpio4_29 */
 		>;
 	};
 };
@@ -530,33 +530,33 @@
 		reg = <0x51>;
 	};
 
-	mcp_rtc: rtc@6f {
+	mcp79412: rtc@6f {
 		compatible = "microchip,mcp7941x";
 		reg = <0x6f>;
 		wakeup-source;
 	};
 
-	gpio_out: pca9555@20 {
+	pca9555_0: gpio_out@20 {
 		compatible = "nxp,pca9555";
 		reg = <0x20>;
 		gpio-controller;
 		#gpio-cells = <2>;
 	};
 
-	gpio_in: pca9555@21 {
+	pca9555_1: gpio_in@21 {
 		compatible = "nxp,pca9555";
 		reg = <0x21>;
 		gpio-controller;
 		#gpio-cells = <2>;
 	};
 
-	ltc249x: ltc249x@14 {
-		compatible = "ltc,ltc249x";
+	ltc2499: adc@14 {
+		compatible = "ltc,ltc2499";
 		reg = <0x14>;
 		status = "okay";
 	};
 
-	mcp4728: mcp4728x@60 {
+	mcp4728: dac@60 {
 		compatible = "mcp,mcp4725";
 		reg = <0x60>;
 		status = "okay";
@@ -565,15 +565,11 @@
 };
 
 &i2c1 {
-	edt-ft5x06@38 {
-		compatible = "edt,edt-ft5406", "edt,edt-ft5x06";
-		reg = <0x38>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&edt_ft5x06_pins_default>;
+	sx8654@48 {
+		compatible = "semtech,sx8654";
+		reg = <0x48>;
 		interrupt-parent = <&gpio4>;
-		interrupts = <12 0>;
-		reset-gpios = <&gpio4 29 GPIO_ACTIVE_LOW>;
-		wake-gpios = <&gpio4 13 GPIO_ACTIVE_HIGH>;
+		interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
 	};
 };
 
