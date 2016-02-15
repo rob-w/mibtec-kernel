@@ -513,7 +513,7 @@
 
 	sx8651_pins_default: sx8651_pins_default {
 		pinctrl-single,pins = <
-			0x1e0 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_184 AC25 cam1_field.gpio4_12 */
+			0x1e0 (PIN_INPUT_PULLUP | MUX_MODE7)	/* P600_184 AC25 cam1_field.gpio4_12 */
 		>;
 	};
 };
@@ -565,9 +565,11 @@
 };
 
 &i2c1 {
-	sx8654@48 {
-		compatible = "semtech,sx8654";
+	sx8651@48 {
+		compatible = "semtech,sx8651";
 		reg = <0x48>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sx8651_pins_default>;
 		interrupt-parent = <&gpio4>;
 		interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
 	};
