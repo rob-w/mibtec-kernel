@@ -378,6 +378,8 @@ struct omap_video_timings {
 	enum omap_dss_signal_level de_level;
 	/* Pixel clock edges to drive HSYNC and VSYNC signals */
 	enum omap_dss_signal_edge sync_pclk_edge;
+
+	bool double_pixel;
 };
 
 #ifdef CONFIG_OMAP2_DSS_VENC
@@ -1003,11 +1005,6 @@ struct dispc_ops {
 	void (*mgr_setup)(enum omap_channel channel,
 			const struct omap_overlay_manager_info *info);
 	enum omap_dss_output_id (*mgr_get_supported_outputs)(enum omap_channel channel);
-
-	int (*ovl_check)(enum omap_plane plane, enum omap_channel channel,
-			const struct omap_overlay_info *oi,
-			const struct omap_video_timings *timings,
-			int *x_predecim, int *y_predecim);
 
 	int (*ovl_enable)(enum omap_plane plane, bool enable);
 	bool (*ovl_enabled)(enum omap_plane plane);

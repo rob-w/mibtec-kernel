@@ -202,6 +202,8 @@
 
 		sound0_master: simple-audio-card,codec {
 			sound-dai = <&tlv320aic3104>;
+			assigned-clocks = <&clkoutmux2_clk_mux>;
+			assigned-clock-parents = <&sys_clk2_dclk_div>;
 			clocks = <&clkout2_clk>;
 		};
 	};
@@ -267,7 +269,6 @@
 
 	mmc1_pins_default: mmc1_pins_default {
 		pinctrl-single,pins = <
-			0x36c (PIN_INPUT | MUX_MODE14)	/* mmc1sdcd.gpio219 */
 			0x354 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc1_clk.clk */
 			0x358 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc1_cmd.cmd */
 			0x35c (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc1_dat0.dat0 */
@@ -384,6 +385,7 @@
 		interrupt-controller;
 
 		ti,system-power-controller;
+		ti,mux-pad1 = <8>;
 
 		tps659038_pmic {
 			compatible = "ti,tps659038-pmic";
@@ -411,7 +413,7 @@
 					/* VDD_DSPEVE, VDD_IVA, VDD_GPU */
 					regulator-name = "smps45";
 					regulator-min-microvolt = < 850000>;
-					regulator-max-microvolt = <1150000>;
+					regulator-max-microvolt = <1250000>;
 					regulator-always-on;
 					regulator-boot-on;
 				};
@@ -420,7 +422,7 @@
 					/* VDD_CORE */
 					regulator-name = "smps6";
 					regulator-min-microvolt = <850000>;
-					regulator-max-microvolt = <1030000>;
+					regulator-max-microvolt = <1150000>;
 					regulator-always-on;
 					regulator-boot-on;
 				};
@@ -533,8 +535,7 @@
 		extcon_usb2: tps659038_usb {
 			compatible = "ti,palmas-usb-vid";
 			ti,enable-vbus-detection;
-			ti,enable-id-detection;
-			id-gpios = <&gpio7 24 GPIO_ACTIVE_HIGH>;
+			interrupts-extended = <&gpio4 21 IRQ_TYPE_EDGE_RISING>;
 		};
 
 	};
@@ -768,6 +769,8 @@
 
 &mcasp3 {
 	#sound-dai-cells = <0>;
+	assigned-clocks = <&mcasp3_ahclkx_mux>;
+	assigned-clock-parents = <&sys_clkin2>;
 	status = "okay";
 
 	op-mode = <0>;	/* MCASP_IIS_MODE */
@@ -782,7 +785,30 @@
 
 &rtc {
 	status = "okay";
-	ext-clk-src;
+};
+
+&cpu_alert0 {
+	temperature = <90000>; /* milliCelsius */
+};
+
+&cpu_crit {
+	temperature = <105000>; /* milliCelsius */
+};
+
+&gpu_crit {
+	temperature = <105000>; /* milliCelsius */
+};
+
+&core_crit {
+	temperature = <105000>; /* milliCelsius */
+};
+
+&dspeve_crit {
+	temperature = <105000>; /* milliCelsius */
+};
+
+&iva_crit {
+	temperature = <105000>; /* milliCelsius */
 };
 
 &mailbox3 {
@@ -880,12 +906,12 @@
 
 &pruss1 {
 	status = "okay";
-	pru1_0: pru@4b234000 {
+	pru1_0: pru0@4b234000 {
 		mboxes = <&mailbox3 &mbox_pru1_0>;
 		status = "okay";
 	};
 
-	pru1_1: pru@4b238000 {
+	pru1_1: pru1@4b238000 {
 		mboxes = <&mailbox3 &mbox_pru1_1>;
 		status = "okay";
 	};
@@ -893,12 +919,12 @@
 
 &pruss2 {
 	status = "okay";
-	pru2_0: pru@4b2b4000 {
+	pru2_0: pru0@4b2b4000 {
 		mboxes = <&mailbox4 &mbox_pru2_0>;
 		status = "okay";
 	};
 
-	pru2_1: pru@4b2b8000 {
+	pru2_1: pru1@4b2b8000 {
 		mboxes = <&mailbox4 &mbox_pru2_1>;
 		status = "okay";
 	};
