@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P120B110 v0.1.0";
+	model = "MIS P120B110 v0.1.1";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -560,7 +560,8 @@
 		compatible = "mcp,mcp4725";
 		reg = <0x60>;
 		status = "okay";
-		vref_mv = "2500";
+		vref_mv = <2500>;
+		channel_type = <1>;
 	};
 };
 

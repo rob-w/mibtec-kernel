@@ -28,11 +28,16 @@
 
 #define MCP4725_DRV_NAME "mcp4725"
 
+#define TYPE_VOLTAGE	0
+#define TYPE_CURRENT	1
+
+
 struct mcp4725_data {
 	struct i2c_client *client;
 	u16 vref_mv;
 	u16 dac_value[4];
 	bool powerdown;
+	u16 channel_type;
 	unsigned powerdown_mode;
 };
 
@@ -209,39 +214,38 @@ static const struct iio_chan_spec_ext_info mcp4725_ext_info[] = {
 	{ },
 };
 
-static const struct iio_chan_spec mcp4725_channel[4] = {
-	{
-		.type		= IIO_VOLTAGE,
-		.indexed	= 1,
-		.output		= 1,
-		.channel	= 0,
-		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
-		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
-		.ext_info	= mcp4725_ext_info,
+#define MCP472x_CHAN_VOLTAGE(chan) {	\
+	.type = IIO_VOLTAGE,			\
+	.output = 1,					\
+	.indexed = 1,					\
+	.channel = chan,				\
+	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW), \
+	.ext_info = mcp4725_ext_info,	\
+}
+
+#define MCP472x_CHAN_CURRENT(chan) {	\
+	.type = IIO_CURRENT,			\
+	.output = 1,					\
+	.indexed = 1,					\
+	.channel = chan,				\
+	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |\
+		BIT(IIO_CHAN_INFO_CALIBSCALE) |\
+		BIT(IIO_CHAN_INFO_SCALE), \
+	.ext_info = mcp4725_ext_info,	\
+}
+
+static const struct iio_chan_spec mcp4725_channel[2][4] = {
+	[TYPE_VOLTAGE] = {
+		MCP472x_CHAN_VOLTAGE(0),
+		MCP472x_CHAN_VOLTAGE(1),
+		MCP472x_CHAN_VOLTAGE(2),
+		MCP472x_CHAN_VOLTAGE(3),
 	},
-	{	.type		= IIO_VOLTAGE,
-		.indexed	= 1,
-		.output		= 1,
-		.channel	= 1,
-		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
-		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
-		.ext_info	= mcp4725_ext_info,
-	},
-	{	.type		= IIO_VOLTAGE,
-		.indexed	= 1,
-		.output		= 1,
-		.channel	= 2,
-		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
-		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
-		.ext_info	= mcp4725_ext_info,
-	},
-	{	.type		= IIO_VOLTAGE,
-		.indexed	= 1,
-		.output		= 1,
-		.channel	= 3,
-		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
-		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),
-		.ext_info	= mcp4725_ext_info,
+	[TYPE_CURRENT] = {
+		MCP472x_CHAN_CURRENT(0),
+		MCP472x_CHAN_CURRENT(1),
+		MCP472x_CHAN_CURRENT(2),
+		MCP472x_CHAN_CURRENT(3),
 	},
 };
 
@@ -271,6 +275,15 @@ static int mcp4725_set_all(struct iio_dev *indio_dev)
 	struct mcp4725_data *data = iio_priv(indio_dev);
 	u8 outbuf[8];
 	int ret;
+
+	/// setting internal Vref to 2.0v
+	outbuf[0] = 0xC0;
+
+	ret = i2c_master_send(data->client, outbuf, 1);
+	if (ret < 0)
+		return ret;
+	else if (ret != 1)
+		return -EIO;
 
 	outbuf[0] = (data->dac_value[0] >> 8) & 0xf;
 	outbuf[1] = data->dac_value[0] & 0xff;
@@ -341,6 +354,51 @@ static const struct iio_info mcp4725_info = {
 	.driver_module = THIS_MODULE,
 };
 
+#if defined(CONFIG_OF)
+static int mcp4725_of_probe(struct i2c_client *client,
+		struct mcp4725_data *pdata)
+{
+	struct device *dev = &client->dev;
+	u32 val;
+	int err;
+
+	pdata->vref_mv = 2500;
+	pdata->channel_type = 0;
+
+	err = of_property_read_u32(dev->of_node, "vref_mv", &val);
+	if (err)
+		dev_info(&client->dev, "missing vref_mv in dt table, assuming 2500mV\n");
+
+	if (val >= 0 && val < 5000)
+		pdata->vref_mv = val;
+
+	err = of_property_read_u32(dev->of_node, "channel_type", &val);
+	if (err)
+		dev_err(&client->dev, "missing channel_type in dt table, assuming 0\n");
+
+	if (val == 0 || val == 1)
+		pdata->channel_type = val;
+
+	return 0;
+}
+
+static const struct of_device_id mcp4725_dt_ids[] = {
+	{
+		.compatible = "mcp4725",
+	}, {
+		.compatible = "mcp4728",
+	},{
+	}
+};
+MODULE_DEVICE_TABLE(of, mcp4725_dt_ids);
+#else
+static inline int mcp4725_of_probe(struct i2c_client *client,
+		struct mcp4725_data *pdata)
+{
+	return -ENODEV;
+}
+#endif
+
 static int mcp4725_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
@@ -351,11 +409,6 @@ static int mcp4725_probe(struct i2c_client *client,
 	u8 pd;
 	int err;
 
-	if (!platform_data || !platform_data->vref_mv) {
-		dev_err(&client->dev, "invalid platform data");
-//		return -EINVAL;
-	}
-
 	indio_dev = devm_iio_device_alloc(&client->dev, sizeof(*data));
 	if (indio_dev == NULL)
 		return -ENOMEM;
@@ -363,14 +416,24 @@ static int mcp4725_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, indio_dev);
 	data->client = client;
 
+	if (client->dev.of_node) {
+		err = mcp4725_of_probe(client, data);
+		if (err)
+			dev_err(&client->dev, "invalid devicetree data");
+	} else {
+		if (!platform_data || !platform_data->vref_mv) {
+			dev_err(&client->dev, "invalid platform data");
+			return -EINVAL;
+		}
+		data->vref_mv = platform_data->vref_mv;
+		data->channel_type = 0;
+	}
+
 	indio_dev->dev.parent = &client->dev;
 	indio_dev->info = &mcp4725_info;
-	indio_dev->channels = mcp4725_channel;
+	indio_dev->channels = mcp4725_channel[data->channel_type];
 	indio_dev->num_channels = 4;
 	indio_dev->modes = INDIO_DIRECT_MODE;
-
-	data->vref_mv = platform_data->vref_mv;
-	data->vref_mv = 2500;
 
 	/* read current DAC value */
 	err = i2c_master_recv(client, inbuf, 3);
@@ -391,18 +454,6 @@ static int mcp4725_remove(struct i2c_client *client)
 	iio_device_unregister(i2c_get_clientdata(client));
 	return 0;
 }
-
-#if defined(CONFIG_OF)
-static const struct of_device_id mcp4725_dt_ids[] = {
-	{
-		.compatible = "mcp4725",
-	}, {
-		.compatible = "mcp4728",
-	},{
-	}
-};
-MODULE_DEVICE_TABLE(of, mcp4725_dt_ids);
-#endif
 
 static const struct i2c_device_id mcp4725_id[] = {
 	{ "mcp4725", 0 },
