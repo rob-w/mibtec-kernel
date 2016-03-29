@@ -18,24 +18,29 @@
 #include <linux/i2c.h>
 #include <linux/err.h>
 #include <linux/delay.h>
-
-#include <linux/iio/iio.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+
+#include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
 
 #include <linux/iio/dac/mcp4725.h>
+
+#define DRIVER_VERSION "v1.1"
 
 #define MCP4725_DRV_NAME "mcp4725"
 
 #define TYPE_VOLTAGE	0
 #define TYPE_CURRENT	1
 
+#define	MAX_12BIT			((1 << 12) - 1)
+
 
 struct mcp4725_data {
 	struct i2c_client *client;
 	u16 vref_mv;
 	u16 dac_value[4];
+	u32 dac_scale[4];
 	bool powerdown;
 	u16 channel_type;
 	unsigned powerdown_mode;
@@ -214,8 +219,8 @@ static const struct iio_chan_spec_ext_info mcp4725_ext_info[] = {
 	{ },
 };
 
-#define MCP472x_CHAN_VOLTAGE(chan) {	\
-	.type = IIO_VOLTAGE,			\
+#define MCP472x_CHAN(chan, _type) {	\
+	.type = (_type),			\
 	.output = 1,					\
 	.indexed = 1,					\
 	.channel = chan,				\
@@ -223,29 +228,18 @@ static const struct iio_chan_spec_ext_info mcp4725_ext_info[] = {
 	.ext_info = mcp4725_ext_info,	\
 }
 
-#define MCP472x_CHAN_CURRENT(chan) {	\
-	.type = IIO_CURRENT,			\
-	.output = 1,					\
-	.indexed = 1,					\
-	.channel = chan,				\
-	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |\
-		BIT(IIO_CHAN_INFO_CALIBSCALE) |\
-		BIT(IIO_CHAN_INFO_SCALE), \
-	.ext_info = mcp4725_ext_info,	\
-}
-
 static const struct iio_chan_spec mcp4725_channel[2][4] = {
 	[TYPE_VOLTAGE] = {
-		MCP472x_CHAN_VOLTAGE(0),
-		MCP472x_CHAN_VOLTAGE(1),
-		MCP472x_CHAN_VOLTAGE(2),
-		MCP472x_CHAN_VOLTAGE(3),
+		MCP472x_CHAN(0, IIO_VOLTAGE),
+		MCP472x_CHAN(1, IIO_VOLTAGE),
+		MCP472x_CHAN(2, IIO_VOLTAGE),
+		MCP472x_CHAN(3, IIO_VOLTAGE),
 	},
 	[TYPE_CURRENT] = {
-		MCP472x_CHAN_CURRENT(0),
-		MCP472x_CHAN_CURRENT(1),
-		MCP472x_CHAN_CURRENT(2),
-		MCP472x_CHAN_CURRENT(3),
+		MCP472x_CHAN(0, IIO_CURRENT),
+		MCP472x_CHAN(1, IIO_CURRENT),
+		MCP472x_CHAN(2, IIO_CURRENT),
+		MCP472x_CHAN(3, IIO_CURRENT),
 	},
 };
 
@@ -311,15 +305,21 @@ static int mcp4725_read_raw(struct iio_dev *indio_dev,
 			   int *val, int *val2, long mask)
 {
 	struct mcp4725_data *data = iio_priv(indio_dev);
+	unsigned long long tmp;
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
 		*val = data->dac_value[chan->channel];
 		return IIO_VAL_INT;
+
 	case IIO_CHAN_INFO_SCALE:
-		*val = data->vref_mv;
-		*val2 = 12;
-		return IIO_VAL_FRACTIONAL_LOG2;
+		*val = data->dac_scale[chan->channel];
+		return IIO_VAL_INT;
+
+	case IIO_CHAN_INFO_CALIBSCALE:
+		tmp = div_s64(((s64)data->dac_scale[chan->channel] * 1000LL), MAX_12BIT);
+		*val = div_s64((s64)(data->dac_value[chan->channel] * tmp), 1000LL);
+		return IIO_VAL_INT;
 	}
 	return -EINVAL;
 }
@@ -330,15 +330,31 @@ static int mcp4725_write_raw(struct iio_dev *indio_dev,
 {
 	struct mcp4725_data *data = iio_priv(indio_dev);
 	int ret;
-
-	if (val >= (1 << 12) || val < 0)
-		return -EINVAL;
+	unsigned long long tmp;
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
+		if (val > MAX_12BIT || val < 0)
+			return -EINVAL;
 		data->dac_value[chan->channel] = val;
 		ret = mcp4725_set_all(indio_dev);
 		break;
+
+	case IIO_CHAN_INFO_SCALE:
+		data->dac_scale[chan->channel] = val;
+
+	case IIO_CHAN_INFO_CALIBSCALE:
+		if (val >= data->dac_scale[chan->channel])
+			val = data->dac_scale[chan->channel];
+
+		tmp = div_s64(((s64)data->dac_scale[chan->channel] * 1000LL), MAX_12BIT);
+
+		if (tmp > 0)
+			data->dac_value[chan->channel] =  div_s64((s64)(val * 1000LL), tmp );
+
+		ret = mcp4725_set_all(indio_dev);
+		break;
+
 	default:
 		ret = -EINVAL;
 		break;
@@ -361,6 +377,7 @@ static int mcp4725_of_probe(struct i2c_client *client,
 	struct device *dev = &client->dev;
 	u32 val;
 	int err;
+	int scale = 23000;
 
 	pdata->vref_mv = 2500;
 	pdata->channel_type = 0;
@@ -368,16 +385,29 @@ static int mcp4725_of_probe(struct i2c_client *client,
 	err = of_property_read_u32(dev->of_node, "vref_mv", &val);
 	if (err)
 		dev_info(&client->dev, "missing vref_mv in dt table, assuming 2500mV\n");
-
 	if (val >= 0 && val < 5000)
 		pdata->vref_mv = val;
 
 	err = of_property_read_u32(dev->of_node, "channel_type", &val);
-	if (err)
+	if (err) {
 		dev_err(&client->dev, "missing channel_type in dt table, assuming 0\n");
+	} else {
+		if (val == 0 || val == 1)
+			pdata->channel_type = val;
+	}
 
-	if (val == 0 || val == 1)
-		pdata->channel_type = val;
+	err = of_property_read_u32(dev->of_node, "scale", &val);
+	if (err) {
+		dev_err(&client->dev, "missing scale in dt table, assuming 23000\n");
+	} else {
+		if (val >= 0)
+			scale = val;
+	}
+
+	pdata->dac_scale[0] = scale;
+	pdata->dac_scale[1] = scale;
+	pdata->dac_scale[2] = scale;
+	pdata->dac_scale[3] = scale;
 
 	return 0;
 }
@@ -408,6 +438,8 @@ static int mcp4725_probe(struct i2c_client *client,
 	u8 inbuf[3];
 	u8 pd;
 	int err;
+
+	dev_info(&client->dev, "DAC 12bit - %s\n", DRIVER_VERSION);
 
 	indio_dev = devm_iio_device_alloc(&client->dev, sizeof(*data));
 	if (indio_dev == NULL)
