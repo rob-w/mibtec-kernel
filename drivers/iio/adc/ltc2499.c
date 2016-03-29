@@ -41,6 +41,8 @@
 #define LTC2499_SLEEP_M0		164
 #define LTC2499_SLEEP_M1		82
 
+#define SCALED_TO_20mA			20000
+
 #define LTC2499_CHAN(index, _type)			\
 	{										\
 		.type = (_type),					\
@@ -48,6 +50,7 @@
 		.channel = index,					\
 		.channel2 = index,					\
 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW)|\
+			BIT(IIO_CHAN_INFO_SCALE)|\
 			BIT(IIO_CHAN_INFO_PROCESSED),\
 		.scan_index = index + 1,			\
 		.scan_type = {						\
@@ -66,6 +69,7 @@ struct ltc2499 {
 	u8 id;
 	u8 config;
 	u8 speedmode;
+	u32 scale[9];
 	u8 pga[4];
 	struct mutex lock;
 };
@@ -126,6 +130,7 @@ static int ltc2499_read_raw(struct iio_dev *iio,
 			int *val2, long mask)
 {
 	struct ltc2499 *adc = iio_priv(iio);
+	unsigned long long tmp;
 	int err;
 
 	switch (mask) {
@@ -140,19 +145,50 @@ static int ltc2499_read_raw(struct iio_dev *iio,
 		if (err < 0)
 			return (err);
 
-		*val1 = ((*val1 * 125) / 15700) - 2730;
+		if (channel->type == IIO_TEMP)
+			*val1 = ((*val1 * 125) / 15700) - 2730;
+
+		if (channel->type == IIO_CURRENT) {
+			tmp = div_s64((s64)adc->scale[channel->channel], SCALED_TO_20mA);
+			*val1 = div_s64((s64)*val1,  tmp);
+		}
+
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_SCALE:
-		*val1 = 0;
+		if (channel->type == IIO_CURRENT)
+			*val1 = adc->scale[channel->channel];
+		if (channel->type == IIO_TEMP)
+			*val1 = adc->scale[channel->channel + 8];
+
 		*val2 = 0;
-		return IIO_VAL_INT_PLUS_NANO;
+		return IIO_VAL_INT;
 
 	default:
 		break;
 	}
 
 	return -EINVAL;
+}
+
+static int ltc2499_write_raw(struct iio_dev *iio,
+			       struct iio_chan_spec const *channel,
+			       int val, int val2, long mask)
+{
+	struct ltc2499 *adc = iio_priv(iio);
+
+	switch (mask) {
+	case IIO_CHAN_INFO_SCALE:
+		if (channel->type == IIO_CURRENT)
+			adc->scale[channel->channel] = val;
+		if (channel->type == IIO_TEMP)
+			adc->scale[channel->channel + 8] = val;
+		break;
+	default:
+		break;
+	}
+
+	return 0;
 }
 
 static ssize_t ltc2499_set_speedmode(struct device *dev,
@@ -211,6 +247,7 @@ static const struct iio_chan_spec ltc2499_channels[] = {
 
 static const struct iio_info ltc2499_info = {
 	.read_raw = ltc2499_read_raw,
+	.write_raw = ltc2499_write_raw,
 	.attrs = &ltc2499_attribute_group,
 	.driver_module = THIS_MODULE,
 };
