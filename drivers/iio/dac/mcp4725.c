@@ -224,7 +224,9 @@ static const struct iio_chan_spec_ext_info mcp4725_ext_info[] = {
 	.output = 1,					\
 	.indexed = 1,					\
 	.channel = chan,				\
-	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW), \
+	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW)|\
+				BIT(IIO_CHAN_INFO_CALIBSCALE) |\
+				BIT(IIO_CHAN_INFO_SCALE),\
 	.ext_info = mcp4725_ext_info,	\
 }
 
