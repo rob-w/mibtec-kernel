@@ -554,6 +554,7 @@
 		compatible = "ltc,ltc2499";
 		reg = <0x14>;
 		status = "okay";
+		speedmode = <1>;
 	};
 
 	mcp4728: dac@60 {
@@ -561,6 +562,7 @@
 		reg = <0x60>;
 		status = "okay";
 		vref_mv = <2500>;
+		scale = <22567>;
 		channel_type = <1>;
 	};
 };
