@@ -1,0 +1,17 @@
+Linear Technology LTC 2499 ADC device driver
+
+Required properties:
+	- compatible: Must be "ltc,ltc2499";
+
+Optional properties:
+	- speedmode: either 0(default) or 1
+	- chanID_type: 0 = current(default), 1 = temperature
+
+Example:
+		ltc2499@16 {
+			compatible = "ltc,ltc2499";
+			reg = <0x14>;
+			status = "okay";
+			speedmode = <1>;
+			chan1_type = <1>;
+		};

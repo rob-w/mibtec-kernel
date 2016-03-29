@@ -41,14 +41,14 @@
 #define LTC2499_SLEEP_M0		164
 #define LTC2499_SLEEP_M1		82
 
-
-#define LTC2499_CHAN(index)					\
+#define LTC2499_CHAN(index, _type)			\
 	{										\
-		.type = IIO_VOLTAGE,				\
+		.type = (_type),					\
 		.indexed = 1,						\
 		.channel = index,					\
 		.channel2 = index,					\
-		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),		\
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW)|\
+			BIT(IIO_CHAN_INFO_PROCESSED),\
 		.scan_index = index + 1,			\
 		.scan_type = {						\
 			.sign = 's',					\
@@ -198,27 +198,15 @@ static const struct attribute_group ltc2499_attribute_group = {
 };
 
 static const struct iio_chan_spec ltc2499_channels[] = {
-	LTC2499_CHAN(0),
-	LTC2499_CHAN(1),
-	LTC2499_CHAN(2),
-	LTC2499_CHAN(3),
-	LTC2499_CHAN(4),
-	LTC2499_CHAN(5),
-	LTC2499_CHAN(6),
-	LTC2499_CHAN(7),
-	{
-		.type = IIO_TEMP,
-		.indexed = 0,
-		.channel = 0,
-		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) | BIT(IIO_CHAN_INFO_PROCESSED),
-		.scan_type = {						\
-			.sign = 's',					\
-			.realbits = 24,					\
-			.storagebits = 32,				\
-			.shift = 6,						\
-			.endianness = IIO_BE,			\
-		},									\
-	}
+	LTC2499_CHAN(0, IIO_CURRENT),
+	LTC2499_CHAN(1, IIO_CURRENT),
+	LTC2499_CHAN(2, IIO_CURRENT),
+	LTC2499_CHAN(3, IIO_CURRENT),
+	LTC2499_CHAN(4, IIO_CURRENT),
+	LTC2499_CHAN(5, IIO_CURRENT),
+	LTC2499_CHAN(6, IIO_CURRENT),
+	LTC2499_CHAN(7, IIO_CURRENT),
+	LTC2499_CHAN(0, IIO_TEMP),
 };
 
 static const struct iio_info ltc2499_info = {
@@ -226,6 +214,33 @@ static const struct iio_info ltc2499_info = {
 	.attrs = &ltc2499_attribute_group,
 	.driver_module = THIS_MODULE,
 };
+
+#ifdef CONFIG_OF
+static const struct of_device_id ltc2499_of_match[] = {
+	{ .compatible = "ltc,ltc2499" },
+	{ }
+};
+
+static int ltc2499_of_probe(struct i2c_client *client,
+		struct ltc2499 *adc)
+{
+	struct device *dev = &client->dev;
+	u32 val;
+
+	if(of_property_read_u32(dev->of_node, "speedmode", &val) >= 0)
+		if (val == 0 || val == 1)
+			adc->speedmode = val;
+
+	return 0;
+}
+MODULE_DEVICE_TABLE(of, ltc2499_of_match);
+#else
+static inline int ltc2499_of_probe(struct i2c_client *client,
+		struct ltc2499 *pdata)
+{
+	return -ENODEV;
+}
+#endif
 
 static int ltc2499_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
@@ -247,6 +262,13 @@ static int ltc2499_probe(struct i2c_client *client,
 	adc->i2c = client;
 	adc->id = (u8)(id->driver_data);
 
+
+	if (client->dev.of_node) {
+		err = ltc2499_of_probe(client, adc);
+		if (err)
+			dev_err(&client->dev, "invalid devicetree data");
+	}
+
 	adc->speedmode = 1;
 
 	mutex_init(&adc->lock);
@@ -257,6 +279,8 @@ static int ltc2499_probe(struct i2c_client *client,
 	indio_dev->info = &ltc2499_info;
 
 	indio_dev->channels = ltc2499_channels;
+
+
 	indio_dev->num_channels = ARRAY_SIZE(ltc2499_channels);
 
 	err = devm_iio_device_register(&client->dev, indio_dev);
@@ -273,14 +297,6 @@ static const struct i2c_device_id ltc2499_id[] = {
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, ltc2499_id);
-
-#ifdef CONFIG_OF
-static const struct of_device_id ltc2499_of_match[] = {
-	{ .compatible = "ltc,ltc2499" },
-	{ }
-};
-MODULE_DEVICE_TABLE(of, ltc2499_of_match);
-#endif
 
 static struct i2c_driver ltc2499_driver = {
 	.driver = {
