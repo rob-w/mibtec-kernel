@@ -261,7 +261,7 @@ static int ltc2499_probe(struct i2c_client *client,
 	adc = iio_priv(indio_dev);
 	adc->i2c = client;
 	adc->id = (u8)(id->driver_data);
-
+	adc->speedmode = 0;
 
 	if (client->dev.of_node) {
 		err = ltc2499_of_probe(client, adc);
@@ -269,18 +269,13 @@ static int ltc2499_probe(struct i2c_client *client,
 			dev_err(&client->dev, "invalid devicetree data");
 	}
 
-	adc->speedmode = 1;
-
 	mutex_init(&adc->lock);
 
 	indio_dev->dev.parent = &client->dev;
 	indio_dev->name = dev_name(&client->dev);
 	indio_dev->modes = INDIO_DIRECT_MODE;
 	indio_dev->info = &ltc2499_info;
-
 	indio_dev->channels = ltc2499_channels;
-
-
 	indio_dev->num_channels = ARRAY_SIZE(ltc2499_channels);
 
 	err = devm_iio_device_register(&client->dev, indio_dev);
