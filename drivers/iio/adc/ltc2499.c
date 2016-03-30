@@ -150,7 +150,8 @@ static int ltc2499_read_raw(struct iio_dev *iio,
 
 		if (channel->type == IIO_CURRENT) {
 			tmp = div_s64((s64)adc->scale[channel->channel], SCALED_TO_20mA);
-			*val1 = div_s64((s64)*val1,  tmp);
+			if (tmp > 0)
+				*val1 = div_s64((s64)*val1,  tmp);
 		}
 
 		return IIO_VAL_INT;
