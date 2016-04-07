@@ -22,6 +22,9 @@
 #include <linux/delay.h>
 #include <linux/sysfs.h>
 #include <linux/of.h>
+#include <linux/sched.h>
+#include <linux/slab.h>
+#include <linux/workqueue.h>
 #include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
 
@@ -63,13 +66,16 @@
 		.differential = 1,					\
 	}
 
-/* Client data (each client gets its own) */
 struct ltc2499 {
 	struct i2c_client *i2c;
 	u8 id;
 	u8 config;
 	u8 speedmode;
+	u16 channels;
+	u32 prefetch;
 	u32 scale[9];
+	u32 fetched[9];
+	struct work_struct fetch_work;
 	u8 pga[4];
 	struct mutex lock;
 };
@@ -135,13 +141,22 @@ static int ltc2499_read_raw(struct iio_dev *iio,
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
-		err = ltc2499_read_channel(adc, channel, val1);
+		if (adc->prefetch) {
+			*val1 = adc->fetched[channel->channel];
+			err = 0;
+		} else
+			err = ltc2499_read_channel(adc, channel, val1);
+
 		if (err < 0)
 			return (err);
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_PROCESSED:
-		err = ltc2499_read_channel(adc, channel, val1);
+		if (adc->prefetch) {
+			*val1 = adc->fetched[channel->channel];
+			err = 0;
+		} else
+			err = ltc2499_read_channel(adc, channel, val1);
 		if (err < 0)
 			return (err);
 
@@ -192,6 +207,42 @@ static int ltc2499_write_raw(struct iio_dev *iio,
 	return 0;
 }
 
+static void fetch_thread(struct work_struct *work_arg)
+{
+	struct ltc2499 *adc = container_of(work_arg, struct ltc2499, fetch_work);
+	struct i2c_client *client = adc->i2c;
+	struct iio_dev *indio_dev = i2c_get_clientdata(adc->i2c);
+	struct iio_chan_spec const *chan;
+	int i, err, val1, sleeper;
+
+	dev_info(&client->dev, "Starting prefetching on PID: [%d]\n",  current->pid);
+
+	set_current_state(TASK_INTERRUPTIBLE);
+
+	while (adc->prefetch) {
+		chan = indio_dev->channels;
+		for (i = 0; i < 9 && adc->prefetch; i++) {
+			if (adc->channels & (1 << i)) {
+				if (chan->type == IIO_TEMP)
+					sleeper = LTC2499_SLEEP_M0;
+				else
+					sleeper = adc->speedmode ? LTC2499_SLEEP_M1 : LTC2499_SLEEP_M0;
+
+				err = ltc2499_read_channel(adc, chan, &val1);
+				if (!err)
+					adc->fetched[i] = val1;
+
+				/* as we cycle through channels, we need to wait one more conversion
+				*  before we reconfigure a new channel */
+				msleep(sleeper);
+			}
+			chan++;
+		}
+		msleep(adc->prefetch);
+	}
+	return;
+}
+
 static ssize_t ltc2499_set_speedmode(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
@@ -222,11 +273,84 @@ static ssize_t ltc2499_show_speedmode(struct device *dev,
 	return sprintf(buf, "%d\n", adc->speedmode);
 }
 
+static ssize_t ltc2499_set_channels(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	struct ltc2499 *adc = iio_priv(dev_to_iio_dev(dev));
+	unsigned int val;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &val);
+	if (ret)
+		goto error_ret;
+
+	if (val < 0)
+		return -EINVAL;
+
+	adc->channels = val;
+
+error_ret:
+	return ret ? ret : len;
+}
+
+static ssize_t ltc2499_show_channels(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ltc2499 *adc = iio_priv(dev_to_iio_dev(dev));
+
+	return sprintf(buf, "%d\n", adc->channels);
+}
+
+static ssize_t ltc2499_set_prefetch(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	struct ltc2499 *adc = iio_priv(dev_to_iio_dev(dev));
+	unsigned int val;
+	int ret;
+	int on = 0;
+
+	ret = kstrtouint(buf, 0, &val);
+	if (ret)
+		goto error_ret;
+
+	if (val < 0)
+		return -EINVAL;
+
+	if (!adc->prefetch && val)
+		on = 1;
+	adc->prefetch = val;
+	if (on)
+		schedule_work(&adc->fetch_work);
+
+error_ret:
+	return ret ? ret : len;
+}
+
+static ssize_t ltc2499_show_prefetch(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ltc2499 *adc = iio_priv(dev_to_iio_dev(dev));
+
+	return sprintf(buf, "%d\n", adc->prefetch);
+}
+
 static IIO_DEVICE_ATTR(speedmode, (S_IWUSR | S_IRUGO),
 		ltc2499_show_speedmode, ltc2499_set_speedmode, 0);
 
+static IIO_DEVICE_ATTR(channels, (S_IWUSR | S_IRUGO),
+		ltc2499_show_channels, ltc2499_set_channels, 0);
+
+static IIO_DEVICE_ATTR(prefetchpause, (S_IWUSR | S_IRUGO),
+		ltc2499_show_prefetch, ltc2499_set_prefetch, 0);
+
 static struct attribute *ltc2499_attributes[] = {
 	&iio_dev_attr_speedmode.dev_attr.attr,
+	&iio_dev_attr_channels.dev_attr.attr,
+	&iio_dev_attr_prefetchpause.dev_attr.attr,
 	NULL,
 };
 
@@ -269,6 +393,17 @@ static int ltc2499_of_probe(struct i2c_client *client,
 		if (val == 0 || val == 1)
 			adc->speedmode = val;
 
+	if(of_property_read_u32(dev->of_node, "channels", &val) >= 0)
+		if (val >= 0)
+			adc->channels = val;
+
+	if(of_property_read_u32(dev->of_node, "prefetchpause", &val) >= 0) {
+		if (val >= 0)
+			adc->prefetch = val;
+		else
+			adc->prefetch = 0;
+	}
+
 	return 0;
 }
 MODULE_DEVICE_TABLE(of, ltc2499_of_match);
@@ -300,6 +435,8 @@ static int ltc2499_probe(struct i2c_client *client,
 	adc->i2c = client;
 	adc->id = (u8)(id->driver_data);
 	adc->speedmode = 0;
+	adc->prefetch = 0;
+	adc->channels = 0x1FF;
 
 	if (client->dev.of_node) {
 		err = ltc2499_of_probe(client, adc);
@@ -322,6 +459,21 @@ static int ltc2499_probe(struct i2c_client *client,
 
 	i2c_set_clientdata(client, indio_dev);
 
+	INIT_WORK(&adc->fetch_work, fetch_thread);
+	if (adc->prefetch)
+		schedule_work(&adc->fetch_work);
+
+	return 0;
+}
+
+static int ltc2499_remove(struct i2c_client *client)
+{
+	struct iio_dev *indio_dev = i2c_get_clientdata(client);
+	struct ltc2499 *adc = iio_priv(indio_dev);
+
+	adc->prefetch = 0;
+	flush_work(&adc->fetch_work);
+
 	return 0;
 }
 
@@ -338,6 +490,7 @@ static struct i2c_driver ltc2499_driver = {
 		.of_match_table = of_match_ptr(ltc2499_of_match),
 	},
 	.probe = ltc2499_probe,
+	.remove = ltc2499_remove,
 	.id_table = ltc2499_id,
 };
 module_i2c_driver(ltc2499_driver);
