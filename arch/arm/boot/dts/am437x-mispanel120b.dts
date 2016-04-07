@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P120B110 v0.1.1";
+	model = "MIS P120B110 v0.2.1";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -555,6 +555,8 @@
 		reg = <0x14>;
 		status = "okay";
 		speedmode = <1>;
+		channels = <0x1FF>;
+		prefetchpause = <200>;
 	};
 
 	mcp4728: dac@60 {
