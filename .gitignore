@@ -40,6 +40,13 @@ Module.symvers
 #
 # Top-level generic files
 #
+android.diff
+angstrom-patches/
+attic/
+pack_am437
+pack_mibtec-kernel
+pack_ti-omap-psp
+
 /tags
 /TAGS
 /linux
