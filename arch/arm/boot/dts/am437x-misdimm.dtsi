@@ -232,8 +232,8 @@
 			compatible = "ti,tps65218-dcdc3";
 			regulator-name = "vdcdc3";
 			regulator-suspend-enable;
-			regulator-min-microvolt = <1500000>;
-			regulator-max-microvolt = <1500000>;
+			regulator-min-microvolt = <1350000>;
+			regulator-max-microvolt = <1350000>;
 			regulator-boot-on;
 			regulator-always-on;
 		};
@@ -332,6 +332,7 @@
 
 &cpu {
 	cpu0-supply = <&dcdc2>;
+	ti,opp-disable-exception = <300000>;
 };
 
 &rtc {
