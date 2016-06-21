@@ -34,7 +34,7 @@
 
 	lcd_bl: backlight {
 		compatible = "pwm-backlight";
-		pwms = <&ecap0 0 50000 PWM_POLARITY_INVERTED>;
+		pwms = <&ecap0 0 125000 PWM_POLARITY_INVERTED>;
 
 		/* 0x250 P600_172 P25 164 spi4_sclk.gpio5_4 LCD_STANDBY */
 		enable-gpios = <&gpio5 4 GPIO_ACTIVE_LOW>;
