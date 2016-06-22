@@ -154,7 +154,7 @@
 		lcd_off {
 			label = "mispanel_lcd_off";
 			gpios = <&gpio0 24 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "off";
+			linux,default-trigger = "oneshot";
 		};
 
 		/* 0x258 P600_164 P24  spi4_d1.gpio5_6 ETH2_INT_N */
