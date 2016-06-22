@@ -151,6 +151,10 @@ static void oneshot_trig_activate(struct led_classdev *led_cdev)
 
 	led_cdev->activated = true;
 
+	led_blink_set_oneshot(led_cdev,
+		&led_cdev->blink_delay_on, &led_cdev->blink_delay_off,
+		oneshot_data->invert);
+
 	return;
 
 err_out_invert:
