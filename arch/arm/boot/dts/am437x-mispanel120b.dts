@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P120B110 v0.2.1";
+	model = "MIS P120B110 v0.3.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
