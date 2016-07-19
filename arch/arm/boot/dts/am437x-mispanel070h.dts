@@ -565,6 +565,11 @@
 		reset-gpios = <&gpio4 29 GPIO_ACTIVE_LOW>;
 		wake-gpios = <&gpio4 13 GPIO_ACTIVE_HIGH>;
 	};
+
+	ambient@10 {
+		compatible = "vishay,veml7700";
+		reg = <0x10>;
+	};
 };
 
 &uart0 {
