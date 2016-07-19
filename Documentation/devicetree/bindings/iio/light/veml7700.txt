@@ -1,0 +1,12 @@
+* Vishay Ambient light sensor VEML7700
+
+Required properties:
+ - compatible: Should be
+	"vishay,veml7700"
+ - reg: I2C address for the device
+
+Example:
+ambient@0 {
+	compatible = "vishay,veml7700";
+	reg = <0x10>;
+};
