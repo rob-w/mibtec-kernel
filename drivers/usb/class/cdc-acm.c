@@ -1876,6 +1876,10 @@ static const struct usb_device_id acm_ids[] = {
 	.driver_info = SEND_ZERO_PACKET,
 	},
 
+	{ USB_DEVICE(0x09d8, 0x0320), 			/* TWN3 LEGIC NFC USB */
+		.driver_info = NO_UNION_NORMAL,		/* has no union descriptor */
+	},
+
 	{ }
 };
 
