@@ -58,18 +58,6 @@
 			vback-porch = <2>;
 			vfront-porch = <2>;
 			vsync-len = <2>;
-
-			/* 800x480 */
-/*			clock-frequency = <33000000>;
-			hactive = <800>;
-			vactive = <480>;
-			hfront-porch = <210>;
-			hback-porch = <16>;
-			hsync-len = <30>;
-			vback-porch = <10>;
-			vfront-porch = <22>;
-			vsync-len = <13>;
-*/
 			hsync-active = <0>;
 			vsync-active = <0>;
 			de-active = <1>;
@@ -87,12 +75,13 @@
 		status = "disabled";
 		compatible = "btwilink";
 	};
-/*
+
+	/* 0x220 P600_174 AE20 cam0_data6.gpio4_28 SUMMER */
 	beeper: beeper {
 		compatible = "gpio-beeper";
 		gpios = <&gpio4 28 GPIO_ACTIVE_HIGH>;
 	};
-*/
+
 	leds {
 		compatible = "gpio-leds";
 
@@ -179,13 +168,6 @@
 			label = "mispanel_lcd_sleep";
 			gpios = <&gpio5 6 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "default-on";
-		};
-
-		/* 0x220 P600_174 AE20 cam0_data6.gpio4_28 SUMMER */
-		buzzer {
-			label = "mispanel_buzzer";
-			gpios = <&gpio4 28 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "off";
 		};
 	};
 };
