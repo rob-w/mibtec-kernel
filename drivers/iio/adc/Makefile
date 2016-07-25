@@ -21,6 +21,7 @@ obj-$(CONFIG_DA9150_GPADC) += da9150-gpadc.o
 obj-$(CONFIG_EXYNOS_ADC) += exynos_adc.o
 obj-$(CONFIG_HI8435) += hi8435.o
 obj-$(CONFIG_LP8788_ADC) += lp8788_adc.o
+obj-$(CONFIG_LTC2499) += ltc2499.o
 obj-$(CONFIG_MAX1027) += max1027.o
 obj-$(CONFIG_MAX1363) += max1363.o
 obj-$(CONFIG_MCP320X) += mcp320x.o

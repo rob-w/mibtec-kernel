@@ -1,0 +1,20 @@
+Linear Technology LTC 2499 ADC device driver
+
+Required properties:
+	- compatible: Must be "ltc,ltc2499";
+	- channels: bitmask to enable each channel;
+Optional properties:
+	- speedmode: either 0(default) or 1
+	- prefetchpause: 0 = off(default) no prefetching at all
+					[INT] = milliseconds
+						the timeout between sampling all channels
+	- channels: bitmask to enable which channel in prefetcher
+
+Example:
+		ltc2499@16 {
+			compatible = "ltc,ltc2499";
+			reg = <0x14>;
+			status = "okay";
+			speedmode = <1>;
+			prefetch = <200>;
+		};
