@@ -20,7 +20,7 @@
 #include <linux/leds.h>
 #include "../leds.h"
 
-#define DEFAULT_DELAY 100
+#define DEFAULT_DELAY 10
 
 struct oneshot_trig_data {
 	unsigned int invert;
