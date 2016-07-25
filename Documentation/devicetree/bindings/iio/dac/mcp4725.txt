@@ -1,0 +1,17 @@
+Microchip mcp4725 / mcp4728 DAC device driver
+
+Required properties:
+	- compatible: Must be "mcp,mcp4725"
+	- vref_mv: either 0 for internal ref, or 2000 or 2500 mV
+	- scale: global value to scale all channels initially
+	- channel_type: 0 = voltage, 1 = current
+
+Example:
+		mcp4725@60 {
+			compatible = "mcp,mcp4725";
+			reg = <0x60>;
+			status = "okay";
+			vref_mv = <2500>;
+			scale = <22567>;
+			channel_type = <0>;
+		};
