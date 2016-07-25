@@ -320,4 +320,14 @@ config VCNL4000
 	 To compile this driver as a module, choose M here: the
 	 module will be called vcnl4000.
 
+config VEML7700
+	tristate "VEML7700 Ambient Light sensor"
+	depends on I2C
+	help
+	Say Y here if you want to build a driver for the Vishay VEML7700
+	combined ambient light and proximity sensor.
+
+	To compile this driver as a module, choose M here: the
+	module will be called veml7700.
+
 endmenu
