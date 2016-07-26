@@ -40,6 +40,8 @@
 #include <linux/input/touchscreen.h>
 #include <linux/of_device.h>
 
+#define DRIVER_VERSION "v1.0.1"
+
 #define WORK_REGISTER_THRESHOLD		0x00
 #define WORK_REGISTER_REPORT_RATE	0x08
 #define WORK_REGISTER_GAIN		0x30
@@ -106,6 +108,15 @@ struct edt_ft5x06_ts_data {
 	int report_rate;
 	int max_support_points;
 
+	unsigned char rdbuf[20][63];
+
+	int queue_size;
+	int queue_ptn;
+	int invalidate_queue;
+	struct timer_list queue_up_timer;
+	bool events_valid;
+	int filter_cnt;
+
 	char name[EDT_NAME_LEN];
 
 	struct edt_reg_addr reg_addr;
@@ -167,63 +178,26 @@ static bool edt_ft5x06_ts_check_crc(struct edt_ft5x06_ts_data *tsdata,
 	return true;
 }
 
-static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
+static void edt_ft5x06_report_event( void *dev_id)
 {
 	struct edt_ft5x06_ts_data *tsdata = dev_id;
-	struct device *dev = &tsdata->client->dev;
-	u8 cmd;
-	u8 rdbuf[63];
-	int i, type, x, y, id;
-	int offset, tplen, datalen, crclen;
-	int error;
+	int i, type, x, y, id, tplen, offset;
 
-	switch (tsdata->version) {
+	switch (tsdata->version){
 	case M06:
-		cmd = 0xf9; /* tell the controller to send touch data */
-		offset = 5; /* where the actual touch data starts */
-		tplen = 4;  /* data comes in so called frames */
-		crclen = 1; /* length of the crc data */
+		offset = 5;
+		tplen = 4;
 		break;
-
 	case M09:
-		cmd = 0x0;
 		offset = 3;
 		tplen = 6;
-		crclen = 0;
 		break;
-
 	default:
 		goto out;
 	}
 
-	memset(rdbuf, 0, sizeof(rdbuf));
-	datalen = tplen * tsdata->max_support_points + offset + crclen;
-
-	error = edt_ft5x06_ts_readwrite(tsdata->client,
-					sizeof(cmd), &cmd,
-					datalen, rdbuf);
-	if (error) {
-		dev_err_ratelimited(dev, "Unable to fetch data, error: %d\n",
-				    error);
-		goto out;
-	}
-
-	/* M09 does not send header or CRC */
-	if (tsdata->version == M06) {
-		if (rdbuf[0] != 0xaa || rdbuf[1] != 0xaa ||
-			rdbuf[2] != datalen) {
-			dev_err_ratelimited(dev,
-					"Unexpected header: %02x%02x%02x!\n",
-					rdbuf[0], rdbuf[1], rdbuf[2]);
-			goto out;
-		}
-
-		if (!edt_ft5x06_ts_check_crc(tsdata, rdbuf, datalen))
-			goto out;
-	}
-
 	for (i = 0; i < tsdata->max_support_points; i++) {
-		u8 *buf = &rdbuf[i * tplen + offset];
+		u8 *buf = &tsdata->rdbuf[tsdata->queue_ptn][i * tplen + offset];
 		bool down;
 
 		type = buf[0] >> 6;
@@ -254,7 +228,97 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 	input_sync(tsdata->input);
 
 out:
+	return;
+}
+
+static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
+{
+	struct edt_ft5x06_ts_data *tsdata = dev_id;
+	struct device *dev = &tsdata->client->dev;
+	u8 cmd;
+	int offset, tplen, datalen, crclen;
+	int error;
+
+	switch (tsdata->version) {
+	case M06:
+		cmd = 0xf9; /* tell the controller to send touch data */
+		offset = 5; /* where the actual touch data starts */
+		tplen = 4;  /* data comes in so called frames */
+		crclen = 1; /* length of the crc data */
+		break;
+
+	case M09:
+		cmd = 0x0;
+		offset = 3;
+		tplen = 6;
+		crclen = 0;
+		break;
+
+	default:
+		goto out;
+	}
+
+	memset(tsdata->rdbuf[tsdata->queue_ptn], 0, sizeof(tsdata->rdbuf[tsdata->queue_ptn]));
+	datalen = tplen * tsdata->max_support_points + offset + crclen;
+
+	error = edt_ft5x06_ts_readwrite(tsdata->client,
+					sizeof(cmd), &cmd,
+					datalen, tsdata->rdbuf[tsdata->queue_ptn]);
+	if (error) {
+		dev_err_ratelimited(dev, "Unable to fetch data, error: %d\n",
+				    error);
+		goto out;
+	}
+
+	/* M09 does not send header or CRC */
+	if (tsdata->version == M06) {
+		if (tsdata->rdbuf[tsdata->queue_ptn][0] != 0xaa
+			|| tsdata->rdbuf[tsdata->queue_ptn][1] != 0xaa
+			|| tsdata->rdbuf[tsdata->queue_ptn][2] != datalen) {
+			dev_err_ratelimited(dev,
+					"Unexpected header: %02x%02x%02x!\n",
+					tsdata->rdbuf[tsdata->queue_ptn][0],
+					tsdata->rdbuf[tsdata->queue_ptn][1],
+					tsdata->rdbuf[tsdata->queue_ptn][2]);
+			goto out;
+		}
+
+		if (!edt_ft5x06_ts_check_crc(tsdata, tsdata->rdbuf[tsdata->queue_ptn], datalen))
+			goto out;
+	}
+
+	if (!tsdata->events_valid)
+		tsdata->queue_ptn++;
+	else
+		edt_ft5x06_report_event(dev_id);
+
+	if (tsdata->queue_ptn >= tsdata->queue_size) {
+		for (tsdata->queue_ptn = 0; tsdata->queue_ptn < tsdata->queue_size; tsdata->queue_ptn++) {
+			mod_timer(&tsdata->queue_up_timer, jiffies + msecs_to_jiffies(tsdata->invalidate_queue));
+			edt_ft5x06_report_event(dev_id);
+		}
+		tsdata->events_valid = 1;
+		tsdata->queue_ptn = 0;
+	}
+
+	mod_timer(&tsdata->queue_up_timer, jiffies + msecs_to_jiffies(tsdata->invalidate_queue));
+
+out:
 	return IRQ_HANDLED;
+}
+
+static void edt_ft5x06_queue_up_timer(unsigned long data)
+{
+	struct edt_ft5x06_ts_data		*tsdata = (void *)data;
+
+	/* count up if filter timeout came but had no valid amount */
+	if (!tsdata->events_valid)
+		tsdata->filter_cnt++;
+
+	tsdata->events_valid = 0;
+	tsdata->queue_ptn = 0;
+	/* clear queue again */
+	memset(tsdata->rdbuf, 0, sizeof(tsdata->rdbuf));
 }
 
 static int edt_ft5x06_register_write(struct edt_ft5x06_ts_data *tsdata,
@@ -473,12 +537,21 @@ static EDT_ATTR(threshold, S_IWUSR | S_IRUGO, WORK_REGISTER_THRESHOLD,
 		M09_REGISTER_THRESHOLD, 20, 80);
 static EDT_ATTR(report_rate, S_IWUSR | S_IRUGO, WORK_REGISTER_REPORT_RATE,
 		NO_REGISTER, 3, 14);
+static EDT_ATTR(queue_size, S_IWUSR | S_IRUGO,
+		NO_REGISTER, NO_REGISTER, 0, 20);
+static EDT_ATTR(invalidate_queue, S_IWUSR | S_IRUGO,
+		NO_REGISTER, NO_REGISTER, 28, 100);
+static EDT_ATTR(filter_cnt, S_IWUSR | S_IRUGO,
+		NO_REGISTER, NO_REGISTER, 0, 255);
 
 static struct attribute *edt_ft5x06_attrs[] = {
 	&edt_ft5x06_attr_gain.dattr.attr,
 	&edt_ft5x06_attr_offset.dattr.attr,
 	&edt_ft5x06_attr_threshold.dattr.attr,
 	&edt_ft5x06_attr_report_rate.dattr.attr,
+	&edt_ft5x06_attr_queue_size.dattr.attr,
+	&edt_ft5x06_attr_invalidate_queue.dattr.attr,
+	&edt_ft5x06_attr_filter_cnt.dattr.attr,
 	NULL
 };
 
@@ -882,10 +955,10 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 	struct edt_ft5x06_ts_data *tsdata;
 	struct input_dev *input;
 	unsigned long irq_flags;
-	int error;
+	int error, i;
 	char fw_version[EDT_NAME_LEN];
 
-	dev_dbg(&client->dev, "probing for EDT FT5x06 I2C\n");
+	dev_info(&client->dev, "%s probing for EDT FT5x06 I2C\n", DRIVER_VERSION);
 
 	tsdata = devm_kzalloc(&client->dev, sizeof(*tsdata), GFP_KERNEL);
 	if (!tsdata) {
@@ -949,11 +1022,17 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 		return error;
 	}
 
+	/* default queue size to 5 */
+	tsdata->queue_size = 5;
+
+	/* default queue timeout to 35ms */
+	tsdata->invalidate_queue = 35;
+
 	edt_ft5x06_ts_set_regs(tsdata);
 	edt_ft5x06_ts_get_defaults(&client->dev, tsdata);
 	edt_ft5x06_ts_get_parameters(tsdata);
 
-	dev_dbg(&client->dev,
+	dev_info(&client->dev,
 		"Model \"%s\", Rev. \"%s\", %dx%d sensors\n",
 		tsdata->name, fw_version, tsdata->num_x, tsdata->num_y);
 
@@ -977,6 +1056,15 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 
 	input_set_drvdata(input, tsdata);
 	i2c_set_clientdata(client, tsdata);
+
+	for (i = 0; i < tsdata->queue_size; i++)
+		memset(tsdata->rdbuf[i], 0, sizeof(tsdata->rdbuf[i]));
+
+	setup_timer(&tsdata->queue_up_timer, edt_ft5x06_queue_up_timer,
+		    (unsigned long)tsdata);
+
+	tsdata->events_valid = 0;
+	tsdata->queue_ptn = 0;
 
 	irq_flags = irq_get_trigger_type(client->irq);
 	if (irq_flags == IRQF_TRIGGER_NONE)
@@ -1020,6 +1108,7 @@ static int edt_ft5x06_ts_remove(struct i2c_client *client)
 	struct edt_ft5x06_ts_data *tsdata = i2c_get_clientdata(client);
 
 	edt_ft5x06_ts_teardown_debugfs(tsdata);
+	del_timer_sync(&tsdata->queue_up_timer);
 	sysfs_remove_group(&client->dev.kobj, &edt_ft5x06_attr_group);
 
 	return 0;
