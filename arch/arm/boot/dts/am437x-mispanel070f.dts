@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P070F111 v1.2.0";
+	model = "MIS P070F111 v1.3.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -237,6 +237,29 @@
 			0x258 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_164 P24 spi4_d1.gpio5_6 ETH2_INT_N */
 			0x264 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_158 P22 spi2_d0.gpio3_22 REGULATORS OFF */
 			0x278 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_166 H20   clkreq.gpio0_24 LCD_OFF */
+		>;
+	};
+
+	mmc1_pins: pinmux_mmc1_pins {
+		pinctrl-single,pins = <
+			0x100 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_clk.mmc0_clk */
+			0x104 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_cmd.mmc0_cmd */
+			0x0f0 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat0.mmc0_dat0 */
+			0x0f4 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat1.mmc0_dat1 */
+			0x0f8 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat2.mmc0_dat2 */
+			0x0fc (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat3.mmc0_dat3 */
+			0x160 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* spi0_cs1.mmc0_sdcd HACK to card detec both */
+		>;
+	};
+
+	mmc1_sleep_pins: pinmux_mmc1_sleep_pins {
+		pinctrl-single,pins = <
+			0x100 (PIN_INPUT_PULLDOWN | MUX_MODE7)
+			0x104 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0f0 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0f4 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0f8 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0fc (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
 		>;
 	};
 
@@ -571,6 +594,16 @@
 		reset-gpios = <&gpio4 29 GPIO_ACTIVE_LOW>;
 		wake-gpios = <&gpio4 13 GPIO_ACTIVE_HIGH>;
 	};
+};
+
+&mmc1 {
+	status = "okay";
+	vmmc-supply = <&evm_v3_3d>;
+	bus-width = <4>;
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&mmc1_pins>;
+	pinctrl-1 = <&mmc1_sleep_pins>;
+	cd-gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
 };
 
 &uart0 {

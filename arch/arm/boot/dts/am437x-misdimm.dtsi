@@ -80,30 +80,6 @@
 		>;
 	};
 
-	mmc1_pins: pinmux_mmc1_pins {
-		pinctrl-single,pins = <
-			0x100 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_clk.mmc0_clk */
-			0x104 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_cmd.mmc0_cmd */
-			0x0f0 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat0.mmc0_dat0 */
-			0x0f4 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat1.mmc0_dat1 */
-			0x0f8 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat2.mmc0_dat2 */
-			0x0fc (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat3.mmc0_dat3 */
-			0x160 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* spi0_cs1.mmc0_sdcd HACK to card detec both */
-		>;
-	};
-
-	mmc1_sleep_pins: pinmux_mmc1_sleep_pins {
-		pinctrl-single,pins = <
-			0x100 (PIN_INPUT_PULLDOWN | MUX_MODE7)
-			0x104 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
-			0x0f0 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
-			0x0f4 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
-			0x0f8 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
-			0x0fc (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
-			
-		>;
-	};
-
 	emmc_pins_default: emmc_pins_default {
 		pinctrl-single,pins = <
 			0x020 (PIN_INPUT_PULLUP | MUX_MODE2) /* gpmc_ad8.mmc1_dat0 */
@@ -306,16 +282,6 @@
 &gpio5 {
 	status = "okay";
 	ti,no-reset-on-init;
-};
-
-&mmc1 {
-	status = "okay";
-	vmmc-supply = <&evm_v3_3d>;
-	bus-width = <4>;
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&mmc1_pins>;
-	pinctrl-1 = <&mmc1_sleep_pins>;
-	cd-gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
 };
 
 /* eMMC sits on mmc2 */
