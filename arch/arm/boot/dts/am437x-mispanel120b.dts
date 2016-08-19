@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P120B110 v0.4.0";
+	model = "MIS P120B110 v1.0.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -155,6 +155,20 @@
 			gpios = <&gpio5 6 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "default-on";
 		};
+
+		/* 0x16C P600_58 J25 uart0_rtsn.gpio1_9 ETH1_OFF */
+		eth0_reset {
+			label = "mispanel_eth0_reset";
+			gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "oneshot";
+		};
+
+		/* 0x168 P600_60 L25 uart0_ctsn.gpio1_8 ETH2_OFF */
+		eth1_reset {
+			label = "mispanel_eth1_reset";
+			gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "oneshot";
+		};
 	};
 };
 
@@ -261,6 +275,7 @@
 			0x138 (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_115 E16 mii1_rxd2.rgmii1_rxd2 */
 			0x13c (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_113 B16 mii1_rxd1.rgmii1_rxd1 */
 			0x140 (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_111 F17 mii1_rxd0.rgmii1_rd0 */
+			0x16C (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_58 J25 uart0_rtsn.gpio1_9 ETH1_OFF */
 
 			/* ClassName:ETH2 Slave 2 */
 			0x040 (PIN_OUTPUT_PULLDOWN | MUX_MODE2)	/* P600_153 C3 gpmc_a0.rgmii2_tctl */
@@ -275,6 +290,7 @@
 			0x064 (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_149 B4 gpmc_a9.rgmii2_rd2 */
 			0x068 (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_147 G8 gpmc_a10.rgmii2_rd1 */
 			0x06c (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_145 D8 gpmc_a11.rgmii2_rd0 */
+			0x168 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_60 L25 uart0_ctsn.gpio1_8 ETH2_OFF */
 		>;
 	};
 
@@ -293,6 +309,7 @@
 			0x138 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_115 E16 mii1_rxd2.gpio2_19 */
 			0x13c (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_113 B16 mii1_rxd1.gpio2_20 */
 			0x140 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_111 F17 mii1_rxd0.gpio2_21 */
+			0x16C (PIN_INPUT_PULLDOWN | MUX_MODE7)			/* P600_58 J25 uart0_rtsn.gpio1_9 */
 
 			/* ClassName:ETH2 Slave 2 reset value */
 			0x040 (PIN_INPUT_PULLDOWN | MUX_MODE7)			/* P600_153 C3 gpmc_a0.gpio1_16 */
@@ -307,6 +324,7 @@
 			0x064 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_149 B4 gpmc_a9.gpio1_25 */
 			0x068 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_147 G8 gpmc_a10.gpio1_26 */
 			0x06c (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_145 D8 gpmc_a11.gpio1_27 */
+			0x168 (PIN_INPUT_PULLDOWN | MUX_MODE7)			/* P600_60 L25 uart0_ctsn.gpio1_8 */
 		>;
 	};
 
@@ -412,8 +430,6 @@
 
 	uart0_pins_default: uart0_pins_default {
 		pinctrl-single,pins = <
-			0x168 (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE0) /* P600_60 L25 uart0_ctsn.uart0_ctsn */
-			0x16C (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE0) /* P600_58 J25 uart0_rtsn.uart0_rtsn */
 			0x170 (PIN_INPUT_PULLUP | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE0) /* P600_56 K25 uart0_rxd.uart0_rxd */
 			0x174 (PIN_INPUT | PULL_DISABLE | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE0) /* P600_54 J24 uart0_txd.uart0_txd */
 		>;
@@ -421,8 +437,6 @@
 
 	uart0_pins_sleep: uart0_pins_sleep {
 		pinctrl-single,pins = <
-			0x168 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_60 L25 uart0_ctsn.gpio1_8 */
-			0x16C (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_58 J25 uart0_rtsn.gpio1_9 */
 			0x170 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_56 K25 uart0_rxd.gpio1_10 */
 			0x174 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_54 J24 uart0_txd.uart1_11 */
 		>;
