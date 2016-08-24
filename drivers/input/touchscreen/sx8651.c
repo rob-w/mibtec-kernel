@@ -116,7 +116,7 @@ static irqreturn_t sx8651_irq(int irq, void *handle)
 
 	dev_dbg(&sx8651->client->dev, "x %d y %d z1 %d z2 %d\n", x, y, z1, z2);
 
-	if (likely(x && z1)) {
+	if (likely(x && z1 > 50)) {
 		input_report_abs(sx8651->input, ABS_X, x);
 		input_report_abs(sx8651->input, ABS_Y, y);
 		input_report_key(sx8651->input, BTN_TOUCH, 1);
