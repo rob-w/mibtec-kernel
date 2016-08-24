@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P120B110 v1.0.0";
+	model = "MIS P120B110 v1.0.1";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -159,14 +159,14 @@
 		/* 0x16C P600_58 J25 uart0_rtsn.gpio1_9 ETH1_OFF */
 		eth0_reset {
 			label = "mispanel_eth0_reset";
-			gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio1 9 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "oneshot";
 		};
 
 		/* 0x168 P600_60 L25 uart0_ctsn.gpio1_8 ETH2_OFF */
 		eth1_reset {
 			label = "mispanel_eth1_reset";
-			gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio1 8 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "oneshot";
 		};
 	};
