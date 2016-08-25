@@ -464,6 +464,7 @@ static int mcp4725_probe(struct i2c_client *client,
 	}
 
 	indio_dev->dev.parent = &client->dev;
+	indio_dev->name = MCP4725_DRV_NAME;
 	indio_dev->info = &mcp4725_info;
 	indio_dev->channels = mcp4725_channel[data->channel_type];
 	indio_dev->num_channels = 4;
