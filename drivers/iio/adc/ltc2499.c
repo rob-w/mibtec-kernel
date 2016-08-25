@@ -29,6 +29,7 @@
 #include <linux/iio/sysfs.h>
 
 #define DRIVER_VERSION "v1.1"
+#define DRIVER_NAME "ltc2499"
 
 #define LTC2499_SPEED_MODE		1<<3
 #define LTC2499_REJECT_FB		1<<4
@@ -447,7 +448,7 @@ static int ltc2499_probe(struct i2c_client *client,
 	mutex_init(&adc->lock);
 
 	indio_dev->dev.parent = &client->dev;
-	indio_dev->name = dev_name(&client->dev);
+	indio_dev->name = DRIVER_NAME;
 	indio_dev->modes = INDIO_DIRECT_MODE;
 	indio_dev->info = &ltc2499_info;
 	indio_dev->channels = ltc2499_channels;
@@ -485,7 +486,7 @@ MODULE_DEVICE_TABLE(i2c, ltc2499_id);
 
 static struct i2c_driver ltc2499_driver = {
 	.driver = {
-		.name = "ltc2499",
+		.name = DRIVER_NAME,
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(ltc2499_of_match),
 	},
