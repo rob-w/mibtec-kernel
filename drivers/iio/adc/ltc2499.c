@@ -138,13 +138,15 @@ static int ltc2499_read_raw(struct iio_dev *iio,
 {
 	struct ltc2499 *adc = iio_priv(iio);
 	unsigned long long tmp;
-	int err;
+	int err = 0;
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
 		if (adc->prefetch) {
-			*val1 = adc->fetched[channel->channel];
-			err = 0;
+			if (channel->type == IIO_TEMP)
+				*val1 = adc->fetched[channel->channel + 8];
+			else
+				*val1 = adc->fetched[channel->channel];
 		} else
 			err = ltc2499_read_channel(adc, channel, val1);
 
@@ -153,23 +155,27 @@ static int ltc2499_read_raw(struct iio_dev *iio,
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_PROCESSED:
-		if (adc->prefetch) {
-			*val1 = adc->fetched[channel->channel];
-			err = 0;
-		} else
-			err = ltc2499_read_channel(adc, channel, val1);
-		if (err < 0)
-			return (err);
+		if (channel->type == IIO_TEMP) {
+			if (adc->prefetch)
+				*val1 = adc->fetched[channel->channel + 8];
+			else
+				err = ltc2499_read_channel(adc, channel, val1);
 
-		if (channel->type == IIO_TEMP)
 			*val1 = ((*val1 * 125) / 15700) - 2730;
 
-		if (channel->type == IIO_CURRENT) {
+		} else if (channel->type == IIO_CURRENT) {
+			if (adc->prefetch)
+				*val1 = adc->fetched[channel->channel];
+			else
+				err = ltc2499_read_channel(adc, channel, val1);
+
 			tmp = div_s64((s64)adc->scale[channel->channel], SCALED_TO_20mA);
 			if (tmp > 0)
 				*val1 = div_s64((s64)*val1,  tmp);
 		}
 
+		if (err < 0)
+			return (err);
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_SCALE:
