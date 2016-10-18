@@ -2756,7 +2756,7 @@ CONFIG_SND_SOC_TWL4030=m
 #
 CONFIG_HID=y
 # CONFIG_HID_BATTERY_STRENGTH is not set
-# CONFIG_HIDRAW is not set
+CONFIG_HIDRAW=y
 # CONFIG_UHID is not set
 CONFIG_HID_GENERIC=y
 
@@ -2830,8 +2830,8 @@ CONFIG_HID_GENERIC=y
 # USB HID support
 #
 CONFIG_USB_HID=y
-# CONFIG_HID_PID is not set
-# CONFIG_USB_HIDDEV is not set
+CONFIG_HID_PID=y
+CONFIG_USB_HIDDEV=y
 
 #
 # I2C HID support
@@ -3546,6 +3546,7 @@ CONFIG_MCP4725=m
 # CONFIG_SENSORS_TSL2563 is not set
 # CONFIG_TSL4531 is not set
 # CONFIG_VCNL4000 is not set
+# CONFIG_VEML7700 is not set
 
 #
 # Magnetometer sensors
