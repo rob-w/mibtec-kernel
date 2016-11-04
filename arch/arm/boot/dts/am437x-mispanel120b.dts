@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P120B110 v1.0.1";
+	model = "MIS P120B110 v1.0.2";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -79,8 +79,8 @@
 		compatible = "gpio-leds";
 
 		/* 0x274 P600_138 C24 157 xdma_event_intr1.gpio0_20 */
-		led_blue {
-			label = "mispanel_blue";
+		led_green {
+			label = "mispanel_green";
 			gpios = <&gpio0 20 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "cpu0";
 		};
