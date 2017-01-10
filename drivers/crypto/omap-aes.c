@@ -39,9 +39,13 @@
 #include <crypto/internal/aead.h>
 #include "omap-aes.h"
 
+#define DEFAULT_AUTOSUSPEND_DELAY	1000
+
 /* keep registered devices data here */
 static LIST_HEAD(dev_list);
 static DEFINE_SPINLOCK(list_lock);
+
+static int aes_fallback_sz = 200;
 
 #ifdef DEBUG
 #define omap_aes_read(dd, offset)				\
@@ -94,9 +98,17 @@ static void omap_aes_write_n(struct omap_aes_dev *dd, u32 offset,
 
 static int omap_aes_hw_init(struct omap_aes_dev *dd)
 {
+	int err;
+
 	if (!(dd->flags & FLAGS_INIT)) {
 		dd->flags |= FLAGS_INIT;
 		dd->err = 0;
+	}
+
+	err = pm_runtime_get_sync(dd->dev);
+	if (err < 0) {
+		dev_err(dd->dev, "failed to get sync: %d\n", err);
+		return err;
 	}
 
 	return 0;
@@ -189,14 +201,14 @@ static void omap_aes_dma_stop(struct omap_aes_dev *dd)
 	omap_aes_write_mask(dd, AES_REG_MASK(dd), 0, mask);
 }
 
-struct omap_aes_dev *omap_aes_find_dev(struct omap_aes_ctx *ctx)
+struct omap_aes_dev *omap_aes_find_dev(struct omap_aes_reqctx *rctx)
 {
 	struct omap_aes_dev *dd;
 
 	spin_lock_bh(&list_lock);
 	dd = list_first_entry(&dev_list, struct omap_aes_dev, list);
 	list_move_tail(&dd->list, &dev_list);
-	ctx->dd = dd;
+	rctx->dd = dd;
 	spin_unlock_bh(&list_lock);
 
 	return dd;
@@ -386,6 +398,9 @@ static void omap_aes_finish_req(struct omap_aes_dev *dd, int err)
 	dd->flags &= ~FLAGS_BUSY;
 
 	req->base.complete(&req->base, err);
+
+	pm_runtime_mark_last_busy(dd->dev);
+	pm_runtime_put_autosuspend(dd->dev);
 }
 
 int omap_aes_crypt_dma_stop(struct omap_aes_dev *dd)
@@ -398,18 +413,22 @@ int omap_aes_crypt_dma_stop(struct omap_aes_dev *dd)
 	return 0;
 }
 
-int omap_aes_check_aligned(struct scatterlist *sg, int total)
+bool omap_aes_copy_needed(struct scatterlist *sg, int total)
 {
 	int len = 0;
 
 	if (!IS_ALIGNED(total, AES_BLOCK_SIZE))
-		return -EINVAL;
+		return true;
 
 	while (sg) {
 		if (!IS_ALIGNED(sg->offset, 4))
-			return -1;
+			return true;
 		if (!IS_ALIGNED(sg->length, AES_BLOCK_SIZE))
-			return -1;
+			return true;
+#ifdef CONFIG_ZONE_DMA
+		if (page_zonenum(sg_page(sg)) != ZONE_DMA)
+			return true;
+#endif
 
 		len += sg->length;
 		sg = sg_next(sg);
@@ -419,9 +438,9 @@ int omap_aes_check_aligned(struct scatterlist *sg, int total)
 	}
 
 	if (len != total)
-		return -1;
+		return true;
 
-	return 0;
+	return false;
 }
 
 static int omap_aes_copy_sgs(struct omap_aes_dev *dd)
@@ -492,8 +511,8 @@ static int omap_aes_handle_queue(struct omap_aes_dev *dd,
 	dd->in_sg = req->src;
 	dd->out_sg = req->dst;
 
-	if (omap_aes_check_aligned(dd->in_sg, dd->total) ||
-	    omap_aes_check_aligned(dd->out_sg, dd->total)) {
+	if (omap_aes_copy_needed(dd->in_sg, dd->total) ||
+	    omap_aes_copy_needed(dd->out_sg, dd->total)) {
 		if (omap_aes_copy_sgs(dd))
 			pr_err("Failed to copy SGs for unaligned cases\n");
 		dd->sgs_copied = 1;
@@ -512,7 +531,7 @@ static int omap_aes_handle_queue(struct omap_aes_dev *dd,
 	dd->flags = (dd->flags & ~FLAGS_MODE_MASK) | rctx->mode;
 
 	dd->ctx = ctx;
-	ctx->dd = dd;
+	rctx->dd = dd;
 
 	err = omap_aes_write_ctrl(dd);
 
@@ -583,7 +602,7 @@ static int omap_aes_crypt(struct ablkcipher_request *req, unsigned long mode)
 		  !!(mode & FLAGS_ENCRYPT),
 		  !!(mode & FLAGS_CBC));
 
-	if (req->nbytes < 200) {
+	if (req->nbytes < aes_fallback_sz) {
 		ablkcipher_request_set_tfm(req, ctx->fallback);
 
 		if (mode & FLAGS_ENCRYPT)
@@ -593,7 +612,7 @@ static int omap_aes_crypt(struct ablkcipher_request *req, unsigned long mode)
 		ablkcipher_request_set_tfm(req, __crypto_ablkcipher_cast(tfm));
 		return ret;
 	}
-	dd = omap_aes_find_dev(ctx);
+	dd = omap_aes_find_dev(rctx);
 	if (!dd)
 		return -ENODEV;
 
@@ -662,22 +681,10 @@ static int omap_aes_ctr_decrypt(struct ablkcipher_request *req)
 
 static int omap_aes_cra_init(struct crypto_tfm *tfm)
 {
-	struct omap_aes_dev *dd = NULL;
-	int err;
 	const char *name = crypto_tfm_alg_name(tfm);
 	const u32 flags = CRYPTO_ALG_ASYNC | CRYPTO_ALG_NEED_FALLBACK;
 	struct omap_aes_ctx *ctx = crypto_tfm_ctx(tfm);
 	struct crypto_ablkcipher *blk;
-
-
-	list_for_each_entry(dd, &dev_list, list) {
-		err = pm_runtime_get_sync(dd->dev);
-		if (err < 0) {
-			dev_err(dd->dev, "%s: failed to get_sync(%d)\n",
-				__func__, err);
-			return err;
-		}
-	}
 
 	blk = crypto_alloc_ablkcipher(name, 0, flags);
 	if (IS_ERR(blk))
@@ -692,18 +699,7 @@ static int omap_aes_cra_init(struct crypto_tfm *tfm)
 
 static int omap_aes_gcm_cra_init(struct crypto_aead *tfm)
 {
-	struct omap_aes_dev *dd = NULL;
 	struct omap_aes_ctx *ctx = crypto_aead_ctx(tfm);
-	int err;
-
-	list_for_each_entry(dd, &dev_list, list) {
-		err = pm_runtime_get_sync(dd->dev);
-		if (err < 0) {
-			dev_err(dd->dev, "%s: failed to get_sync(%d)\n",
-				__func__, err);
-			return err;
-		}
-	}
 
 	tfm->reqsize = sizeof(struct omap_aes_reqctx);
 	ctx->ctr = crypto_alloc_skcipher("ecb(aes)", 0, 0);
@@ -717,12 +713,7 @@ static int omap_aes_gcm_cra_init(struct crypto_aead *tfm)
 
 static void omap_aes_cra_exit(struct crypto_tfm *tfm)
 {
-	struct omap_aes_dev *dd = NULL;
 	struct omap_aes_ctx *ctx = crypto_tfm_ctx(tfm);
-
-	list_for_each_entry(dd, &dev_list, list) {
-		pm_runtime_put_sync(dd->dev);
-	}
 
 	if (ctx->fallback)
 		crypto_free_ablkcipher(ctx->fallback);
@@ -1103,6 +1094,89 @@ err:
 	return err;
 }
 
+static ssize_t fallback_show(struct device *dev, struct device_attribute *attr,
+			     char *buf)
+{
+	return sprintf(buf, "%d\n", aes_fallback_sz);
+}
+
+static ssize_t fallback_store(struct device *dev, struct device_attribute *attr,
+			      const char *buf, size_t size)
+{
+	ssize_t status;
+	long value;
+
+	status = kstrtol(buf, 0, &value);
+	if (status)
+		return status;
+
+	/* HW accelerator only works with buffers > 9 */
+	if (value < 9) {
+		dev_err(dev, "minimum fallback size 9\n");
+		return -EINVAL;
+	}
+
+	aes_fallback_sz = value;
+
+	return size;
+}
+
+static ssize_t queue_len_show(struct device *dev, struct device_attribute *attr,
+			      char *buf)
+{
+	struct omap_aes_dev *dd = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d\n", dd->queue.max_qlen);
+}
+
+static ssize_t queue_len_store(struct device *dev,
+			       struct device_attribute *attr, const char *buf,
+			       size_t size)
+{
+	struct omap_aes_dev *dd;
+	ssize_t status;
+	long value;
+	unsigned long flags;
+
+	status = kstrtol(buf, 0, &value);
+	if (status)
+		return status;
+
+	if (value < 0)
+		return -EINVAL;
+
+	/*
+	 * Changing the queue size in fly is safe, if size becomes smaller
+	 * than current size, it will just not accept new entries until
+	 * it has shrank enough.
+	 */
+	spin_lock_bh(&list_lock);
+	list_for_each_entry(dd, &dev_list, list) {
+		spin_lock_irqsave(&dd->lock, flags);
+		dd->queue.max_qlen = value;
+		dd->aead_queue.base.max_qlen = value;
+		spin_unlock_irqrestore(&dd->lock, flags);
+	}
+	spin_unlock_bh(&list_lock);
+
+	return size;
+}
+
+static DEVICE_ATTR_RW(queue_len);
+static DEVICE_ATTR_RW(fallback);
+
+static struct attribute *omap_aes_attrs[] = {
+	&dev_attr_queue_len.attr,
+	&dev_attr_fallback.attr,
+	NULL,
+};
+
+static struct attribute_group omap_aes_attr_group = {
+	.attrs = omap_aes_attrs,
+};
+
+static DEFINE_MUTEX(probe_lock);
+
 static int omap_aes_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1136,6 +1210,9 @@ static int omap_aes_probe(struct platform_device *pdev)
 		goto err_res;
 	}
 	dd->phys_base = res.start;
+
+	pm_runtime_use_autosuspend(dev);
+	pm_runtime_set_autosuspend_delay(dev, DEFAULT_AUTOSUSPEND_DELAY);
 
 	pm_runtime_enable(dev);
 	err = pm_runtime_get_sync(dev);
@@ -1184,6 +1261,8 @@ static int omap_aes_probe(struct platform_device *pdev)
 	list_add_tail(&dd->list, &dev_list);
 	spin_unlock(&list_lock);
 
+	mutex_lock(&probe_lock);
+
 	for (i = 0; i < dd->pdata->algs_info_size; i++) {
 		if (!dd->pdata->algs_info[i].registered) {
 			for (j = 0; j < dd->pdata->algs_info[i].size; j++) {
@@ -1193,8 +1272,10 @@ static int omap_aes_probe(struct platform_device *pdev)
 				INIT_LIST_HEAD(&algp->cra_list);
 
 				err = crypto_register_alg(algp);
-				if (err)
+				if (err) {
+					mutex_unlock(&probe_lock);
 					goto err_algs;
+				}
 
 				dd->pdata->algs_info[i].registered++;
 			}
@@ -1210,11 +1291,21 @@ static int omap_aes_probe(struct platform_device *pdev)
 			INIT_LIST_HEAD(&algp->cra_list);
 
 			err = crypto_register_aead(aalg);
-			if (err)
+			if (err) {
+				mutex_unlock(&probe_lock);
 				goto err_aead_algs;
+			}
 
 			dd->pdata->aead_algs_info->registered++;
 		}
+	}
+
+	mutex_unlock(&probe_lock);
+
+	err = sysfs_create_group(&dev->kobj, &omap_aes_attr_group);
+	if (err) {
+		dev_err(dev, "could not create sysfs device attrs\n");
+		goto err_aead_algs;
 	}
 
 	return 0;

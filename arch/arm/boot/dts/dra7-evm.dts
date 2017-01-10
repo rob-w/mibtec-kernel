@@ -57,6 +57,9 @@
 
 	aliases {
 		display0 = &hdmi0;
+
+		sound0 = &sound0;
+		sound1 = &hdmi;
 	};
 
 	evm_3v3_sd: fixedregulator-sd {
@@ -1081,13 +1084,17 @@
 	vdd-supply = <&smps7_reg>;
 };
 
+&pcie1_rc {
+	status = "okay";
+};
+
 &qspi {
 	status = "okay";
 
-	spi-max-frequency = <64000000>;
+	spi-max-frequency = <76800000>;
 	m25p80@0 {
 		compatible = "s25fl256s1";
-		spi-max-frequency = <64000000>;
+		spi-max-frequency = <76800000>;
 		reg = <0>;
 		spi-tx-bus-width = <1>;
 		spi-rx-bus-width = <4>;
@@ -1389,6 +1396,10 @@
 	status = "ok";
 
 	vdda_video-supply = <&ldoln_reg>;
+};
+
+&bb2d {
+	status = "okay";
 };
 
 &hdmi {

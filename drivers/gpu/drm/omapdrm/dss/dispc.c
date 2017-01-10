@@ -2805,12 +2805,13 @@ static int dispc_ovl_setup_common(enum omap_plane plane,
 }
 
 static int dispc_ovl_setup(enum omap_plane plane, const struct omap_overlay_info *oi,
-		bool replication, const struct omap_video_timings *mgr_timings,
+		const struct omap_video_timings *mgr_timings,
 		bool mem_to_mem)
 {
 	int r;
 	enum omap_overlay_caps caps = dss_feat_get_overlay_caps(plane);
 	enum omap_channel channel;
+	const bool replication = true;
 
 	channel = dispc_ovl_get_channel_out(plane);
 
@@ -2838,7 +2839,7 @@ static int dispc_wb_setup(const struct omap_dss_writeback_info *wi,
 	enum omap_plane plane = OMAP_DSS_WB;
 	const int pos_x = 0, pos_y = 0;
 	const u8 zorder = 0, global_alpha = 0;
-	const bool replication = false;
+	const bool replication = true;
 	bool truncation;
 	int in_width = mgr_timings->x_res;
 	int in_height = mgr_timings->y_res;
@@ -4206,6 +4207,14 @@ static void dispc_free_irq(void *dev_id)
 	dispc.user_data = NULL;
 }
 
+static void dispc_get_min_max_size(u32 *min_w, u32 *min_h, u32 *max_w, u32 *max_h)
+{
+	*min_w = 8;
+	*min_h = 2;
+	*max_w = dispc.feat->mgr_width_max;
+	*max_h = dispc.feat->mgr_height_max;
+}
+
 static const struct dispc_ops dispc_ops = {
 	.read_irqstatus = dispc_read_irqstatus,
 	.clear_irqstatus = dispc_clear_irqstatus,
@@ -4220,6 +4229,7 @@ static const struct dispc_ops dispc_ops = {
 
 	.get_num_ovls = dispc_get_num_ovls,
 	.get_num_mgrs = dispc_get_num_mgrs,
+	.get_min_max_size = dispc_get_min_max_size,
 
 	.mgr_enable = dispc_mgr_enable,
 	.mgr_is_enabled = dispc_mgr_is_enabled,
@@ -4373,7 +4383,7 @@ static void dispc_errata_i734_wa(void)
 
 	/* Setup and enable GFX plane */
 	dispc_ovl_set_channel_out(OMAP_DSS_GFX, OMAP_DSS_CHANNEL_LCD);
-	dispc_ovl_setup(OMAP_DSS_GFX, &ovli, false, &i734.timings, false);
+	dispc_ovl_setup(OMAP_DSS_GFX, &ovli, &i734.timings, false);
 	dispc_ovl_enable(OMAP_DSS_GFX, true);
 
 	/* Set up and enable display manager for LCD1 */

@@ -26,6 +26,7 @@
 
 #include <video/videomode.h>
 #include <uapi/drm/drm_mode.h>
+#include <drm/drm_crtc.h>
 
 #define DISPC_IRQ_FRAMEDONE		(1 << 0)
 #define DISPC_IRQ_VSYNC			(1 << 1)
@@ -572,6 +573,12 @@ struct omapdss_hdmi_ops {
 	int (*read_edid)(struct omap_dss_device *dssdev, u8 *buf, int len);
 	bool (*detect)(struct omap_dss_device *dssdev);
 
+	int (*enable_hpd)(struct omap_dss_device *dssdev,
+			   void (*cb)(void *cb_data,
+				      enum drm_connector_status status),
+			   void *cb_data);
+	void (*disable_hpd)(struct omap_dss_device *dssdev);
+
 	int (*set_hdmi_mode)(struct omap_dss_device *dssdev, bool hdmi_mode);
 	int (*set_infoframe)(struct omap_dss_device *dssdev,
 		const struct hdmi_avi_infoframe *avi);
@@ -778,6 +785,12 @@ struct omap_dss_driver {
 	int (*read_edid)(struct omap_dss_device *dssdev, u8 *buf, int len);
 	bool (*detect)(struct omap_dss_device *dssdev);
 
+	int (*enable_hpd)(struct omap_dss_device *dssdev,
+			   void (*cb)(void *cb_data,
+				      enum drm_connector_status status),
+			   void *cb_data);
+	void (*disable_hpd)(struct omap_dss_device *dssdev);
+
 	int (*set_hdmi_mode)(struct omap_dss_device *dssdev, bool hdmi_mode);
 	int (*set_hdmi_infoframe)(struct omap_dss_device *dssdev,
 		const struct hdmi_avi_infoframe *avi);
@@ -971,6 +984,7 @@ struct dispc_ops {
 
 	int (*get_num_ovls)(void);
 	int (*get_num_mgrs)(void);
+	void (*get_min_max_size)(u32 *min_w, u32 *min_h, u32 *max_w, u32 *max_h);
 
 	void (*mgr_enable)(enum omap_channel channel, bool enable);
 	bool (*mgr_is_enabled)(enum omap_channel channel);
@@ -996,7 +1010,7 @@ struct dispc_ops {
 	void (*ovl_set_channel_out)(enum omap_plane plane,
 			enum omap_channel channel);
 	int (*ovl_setup)(enum omap_plane plane, const struct omap_overlay_info *oi,
-			bool replication, const struct omap_video_timings *mgr_timings,
+			const struct omap_video_timings *mgr_timings,
 			bool mem_to_mem);
 
 	enum omap_color_mode (*ovl_get_color_modes)(enum omap_plane plane);

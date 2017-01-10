@@ -71,6 +71,7 @@ struct netcp_device {
 	struct list_head	interface_head;
 	struct list_head	modpriv_head;
 	struct device		*device;
+	struct notifier_block	nb;
 };
 
 struct netcp_inst_modpriv {
@@ -85,6 +86,11 @@ struct netcp_intf_modpriv {
 	struct netcp_module	*netcp_module;
 	struct list_head	intf_list;
 	void			*module_priv;
+};
+
+struct netcp_tx_cb {
+	void	*ts_context;
+	void	(*txtstamp)(void *context, struct sk_buff *skb);
 };
 
 static LIST_HEAD(netcp_devices);
@@ -630,6 +636,7 @@ static int netcp_process_one_rx_packet(struct netcp_intf *netcp)
 
 	/* Call each of the RX hooks */
 	p_info.skb = skb;
+	skb->dev = netcp->ndev;
 	p_info.rxtstamp_complete = false;
 	knav_dma_get_desc_info(&tmp, &p_info.eflags, desc);
 	p_info.epib = desc->epib;
@@ -891,6 +898,7 @@ static int netcp_process_tx_compl_packets(struct netcp_intf *netcp,
 {
 	struct netcp_stats *tx_stats = &netcp->stats;
 	struct knav_dma_desc *desc;
+	struct netcp_tx_cb *tx_cb;
 	struct sk_buff *skb;
 	unsigned int dma_sz;
 	dma_addr_t dma;
@@ -915,6 +923,10 @@ static int netcp_process_tx_compl_packets(struct netcp_intf *netcp,
 			tx_stats->tx_errors++;
 			continue;
 		}
+
+		tx_cb = (struct netcp_tx_cb *)skb->cb;
+		if (tx_cb->txtstamp)
+			tx_cb->txtstamp(tx_cb->ts_context, skb);
 
 		if (netif_subqueue_stopped(netcp->ndev, skb) &&
 		    netif_running(netcp->ndev) &&
@@ -1057,6 +1069,7 @@ static int netcp_tx_submit_skb(struct netcp_intf *netcp,
 	struct netcp_tx_pipe *tx_pipe = NULL;
 	struct netcp_hook_list *tx_hook;
 	struct netcp_packet p_info;
+	struct netcp_tx_cb *tx_cb;
 	unsigned int dma_sz;
 	dma_addr_t dma;
 	u32 tmp = 0;
@@ -1067,7 +1080,7 @@ static int netcp_tx_submit_skb(struct netcp_intf *netcp,
 	p_info.tx_pipe = NULL;
 	p_info.psdata_len = 0;
 	p_info.ts_context = NULL;
-	p_info.txtstamp_complete = NULL;
+	p_info.txtstamp = NULL;
 	p_info.epib = desc->epib;
 	p_info.psdata = desc->psdata;
 	memset(p_info.epib, 0, KNAV_DMA_NUM_EPIB_WORDS * sizeof(u32));
@@ -1076,12 +1089,8 @@ static int netcp_tx_submit_skb(struct netcp_intf *netcp,
 	list_for_each_entry(tx_hook, &netcp->txhook_list_head, list) {
 		ret = tx_hook->hook_rtn(tx_hook->order, tx_hook->hook_data,
 					&p_info);
-		if (unlikely(ret != 0)) {
-			dev_err(netcp->ndev_dev, "TX hook %d rejected the packet with reason(%d)\n",
-				tx_hook->order, ret);
-			ret = (ret < 0) ? ret : NETDEV_TX_OK;
+		if (unlikely(ret != 0))
 			goto out;
-		}
 	}
 
 	/* Make sure some TX hook claimed the packet */
@@ -1091,6 +1100,10 @@ static int netcp_tx_submit_skb(struct netcp_intf *netcp,
 		ret = -ENXIO;
 		goto out;
 	}
+
+	tx_cb = (struct netcp_tx_cb *)skb->cb;
+	tx_cb->ts_context = p_info.ts_context;
+	tx_cb->txtstamp = p_info.txtstamp;
 
 	/* update descriptor */
 	if (p_info.psdata_len) {
@@ -1169,8 +1182,10 @@ static int netcp_ndo_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	}
 
 	ret = netcp_tx_submit_skb(netcp, skb, desc);
-	if (ret)
+	if (ret) {
+		ret = (ret < 0) ? ret : NETDEV_TX_OK;
 		goto drop;
+	}
 
 	ndev->trans_start = jiffies;
 
@@ -1183,7 +1198,8 @@ static int netcp_ndo_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	return NETDEV_TX_OK;
 
 drop:
-	tx_stats->tx_dropped++;
+	if (ret != NETDEV_TX_OK)
+		tx_stats->tx_dropped++;
 	if (desc)
 		netcp_free_tx_desc_chain(netcp, desc, sizeof(*desc));
 	dev_kfree_skb(skb);
@@ -1370,6 +1386,24 @@ static void netcp_addr_sweep_add(struct netcp_intf *netcp)
 	}
 }
 
+static int netcp_set_promiscuous(struct netcp_intf *netcp, bool promisc)
+{
+	struct netcp_intf_modpriv *priv;
+	struct netcp_module *module;
+	int error;
+
+	for_each_module(netcp, priv) {
+		module = priv->netcp_module;
+		if (!module->set_rx_mode)
+			continue;
+
+		error = module->set_rx_mode(priv->module_priv, promisc);
+		if (error)
+			return error;
+	}
+	return 0;
+}
+
 static void netcp_set_rx_mode(struct net_device *ndev)
 {
 	struct netcp_intf *netcp = netdev_priv(ndev);
@@ -1399,6 +1433,7 @@ static void netcp_set_rx_mode(struct net_device *ndev)
 	/* finally sweep and callout into modules */
 	netcp_addr_sweep_del(netcp);
 	netcp_addr_sweep_add(netcp);
+	netcp_set_promiscuous(netcp, promisc);
 	spin_unlock(&netcp->lock);
 }
 
@@ -2015,6 +2050,34 @@ static void netcp_delete_interface(struct netcp_device *netcp_device,
 	free_netdev(ndev);
 }
 
+static int netcp_netdevice_event(struct notifier_block *unused,
+				 unsigned long event, void *ptr)
+{
+	struct net_device *dev = netdev_notifier_info_to_dev(ptr);
+	struct netdev_notifier_changeupper_info *info;
+	struct netcp_intf *netcp = netdev_priv(dev);
+	struct net_device *upper_dev;
+	int ret = NOTIFY_DONE;
+
+	if (dev->netdev_ops != &netcp_netdev_ops)
+		return ret;
+
+	switch (event) {
+	case NETDEV_CHANGEUPPER:
+		info = ptr;
+		upper_dev = info->upper_dev;
+		if (info->master &&
+		    netif_is_bridge_master(upper_dev)) {
+			if (info->linking)
+				netcp->bridged = true;
+			else
+				netcp->bridged = false;
+		}
+		break;
+	}
+	return ret;
+}
+
 static int netcp_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
@@ -2081,6 +2144,11 @@ static int netcp_probe(struct platform_device *pdev)
 			dev_err(dev, "module(%s) probe failed\n", module->name);
 	}
 	mutex_unlock(&netcp_modules_lock);
+	netcp_device->nb.notifier_call = netcp_netdevice_event;
+	if (register_netdevice_notifier(&netcp_device->nb)) {
+		netcp_device->nb.notifier_call = NULL;
+		dev_err(dev, "Failed to create notifier\n");
+	}
 	return 0;
 
 probe_quit_interface:
@@ -2123,6 +2191,8 @@ static int netcp_remove(struct platform_device *pdev)
 	WARN(!list_empty(&netcp_device->interface_head),
 	     "%s interface list not empty!\n", pdev->name);
 
+	if (netcp_device->nb.notifier_call)
+		unregister_netdevice_notifier(&netcp_device->nb);
 	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 	platform_set_drvdata(pdev, NULL);
