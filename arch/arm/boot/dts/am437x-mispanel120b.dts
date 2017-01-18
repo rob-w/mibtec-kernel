@@ -18,9 +18,11 @@
 #include <dt-bindings/pinctrl/am43xx.h>
 #include <dt-bindings/pwm/pwm.h>
 #include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
 
 / {
-	model = "MIS P120B110 v1.0.2";
+	model = "MIS P120B110 v1.1.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -580,6 +582,8 @@
 		compatible = "nxp,pca9555";
 		reg = <0x21>;
 		gpio-controller;
+		interrupt-parent = <&gpio3>;
+		interrupts = <21 IRQ_TYPE_LEVEL_LOW>;
 		#gpio-cells = <2>;
 	};
 
