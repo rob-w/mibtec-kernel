@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MISDIMM AM437x EVM v1.0.7";
+	model = "MISDIMM AM437x EVM v1.2.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -95,8 +95,6 @@
 
 
 			/* ClassName: UART0123 */
-			0x168 (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE7) /* P600_60 L25 uart0_ctsn.gpio1_8 */
-			0x16C (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE7) /* P600_58 J25 uart0_rtsn.gpio1_9 */
 			0x1f0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_50 AD21 cam1_data2.gpio4_16 */
 			0x1f4 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_48 AE22 cam1_data3.gpio4_17 */
 			0x1f8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_43 AD22 cam1_data4.gpio4_18 */
@@ -198,6 +196,7 @@
 			0x138 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_115 E16 mii1_rxd2.gpio2_19 */
 			0x13c (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_113 B16 mii1_rxd1.gpio2_20 */
 			0x140 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_111 F17 mii1_rxd0.gpio2_21 */
+			0x16C (PIN_INPUT_PULLDOWN | MUX_MODE7)			/* P600_58 J25 uart0_rtsn.gpio1_9 */
 
 			/* ClassName:ETH2 Slave 2 */
 			0x040 (PIN_INPUT_PULLDOWN | MUX_MODE7)			/* P600_153 C3 gpmc_a0.gpio1_16 */
@@ -212,7 +211,32 @@
 			0x064 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_149 B4 gpmc_a9.gpio1_25 */
 			0x068 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_147 G8 gpmc_a10.gpio1_26 */
 			0x06c (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_145 D8 gpmc_a11.gpio1_27 */
+			0x168 (PIN_INPUT_PULLDOWN | MUX_MODE7)			/* P600_60 L25 uart0_ctsn.gpio1_8 */
+
 			/* ClassName:USB01*/
+		>;
+	};
+
+	mmc1_pins: pinmux_mmc1_pins {
+		pinctrl-single,pins = <
+			0x100 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_clk.mmc0_clk */
+			0x104 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_cmd.mmc0_cmd */
+			0x0f0 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat0.mmc0_dat0 */
+			0x0f4 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat1.mmc0_dat1 */
+			0x0f8 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat2.mmc0_dat2 */
+			0x0fc (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat3.mmc0_dat3 */
+			0x160 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* spi0_cs1.mmc0_sdcd HACK to card detec both */
+		>;
+	};
+
+	mmc1_sleep_pins: pinmux_mmc1_sleep_pins {
+		pinctrl-single,pins = <
+			0x100 (PIN_INPUT_PULLDOWN | MUX_MODE7)
+			0x104 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0f0 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0f4 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0f8 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0fc (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
 		>;
 	};
 
@@ -386,6 +410,16 @@
 
 &elm {
 	status = "okay";
+};
+
+&mmc1 {
+	status = "okay";
+	vmmc-supply = <&evm_v3_3d>;
+	bus-width = <4>;
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&mmc1_pins>;
+	pinctrl-1 = <&mmc1_sleep_pins>;
+	cd-gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
 };
 
 &uart0 {
