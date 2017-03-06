@@ -19,6 +19,7 @@
 
 / {
 	compatible = "ti,am4372","ti,am43";
+	som = "MISDIMM 1.0.0";
 
 	evm_v3_3d: fixedregulator-v3_3d {
 		compatible = "regulator-fixed";
@@ -77,30 +78,6 @@
 		pinctrl-single,pins = <
 			0x15c (PIN_INPUT_PULLUP | MUX_MODE7) /* P600_68 T20 spi0_cs0.gpio0_5 */
 			0x158 (PIN_INPUT_PULLUP | MUX_MODE7) /* P600_70 T21 spi0_d1.gpio0_4 */
-		>;
-	};
-
-	mmc1_pins: pinmux_mmc1_pins {
-		pinctrl-single,pins = <
-			0x100 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_clk.mmc0_clk */
-			0x104 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_cmd.mmc0_cmd */
-			0x0f0 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat0.mmc0_dat0 */
-			0x0f4 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat1.mmc0_dat1 */
-			0x0f8 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat2.mmc0_dat2 */
-			0x0fc (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat3.mmc0_dat3 */
-			0x160 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* spi0_cs1.mmc0_sdcd HACK to card detec both */
-		>;
-	};
-
-	mmc1_sleep_pins: pinmux_mmc1_sleep_pins {
-		pinctrl-single,pins = <
-			0x100 (PIN_INPUT_PULLDOWN | MUX_MODE7)
-			0x104 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
-			0x0f0 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
-			0x0f4 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
-			0x0f8 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
-			0x0fc (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
-			
 		>;
 	};
 
@@ -308,16 +285,6 @@
 	ti,no-reset-on-init;
 };
 
-&mmc1 {
-	status = "okay";
-	vmmc-supply = <&evm_v3_3d>;
-	bus-width = <4>;
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&mmc1_pins>;
-	pinctrl-1 = <&mmc1_sleep_pins>;
-	cd-gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
-};
-
 /* eMMC sits on mmc2 */
 &mmc2 {
 	status = "okay";
@@ -336,20 +303,7 @@
 
 &cpu {
 	cpu0-supply = <&dcdc2>;
-};
-
-&cpu0_opp_table {
-	/*
-	 * Supply voltage supervisor on board will not allow opp50 so
-	 * disable it and set opp100 as suspend OPP.
-	 */
-	opp50@300000000 {
-		status = "disabled";
-	};
-
-	opp100@600000000 {
-		opp-suspend;
-	};
+	ti,opp-disable-exception = <300000>;
 };
 
 &rtc {
