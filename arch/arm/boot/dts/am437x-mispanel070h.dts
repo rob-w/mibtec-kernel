@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P070H111 v1.1.1";
+	model = "MIS P070H111 v1.3.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -48,7 +48,6 @@
 		compatible = "panel-dpi";
 		label = "lcd";
 		panel-timing {
-			/* 1024x600 if needed */
 			clock-frequency = <51200000>;
 			hactive = <1024>;
 			vactive = <600>;
@@ -74,12 +73,6 @@
 	btwilink {
 		status = "disabled";
 		compatible = "btwilink";
-	};
-
-	/* 0x220 P600_174 AE20 cam0_data6.gpio4_28 SUMMER */
-	beeper: beeper {
-		compatible = "gpio-beeper";
-		gpios = <&gpio4 28 GPIO_ACTIVE_HIGH>;
 	};
 
 	leds {
@@ -227,12 +220,34 @@
 			0x1a4 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_176 K23 mcasp0_fsr.gpio3_19 CAN0_TERMINATION */
 			0x1ac (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_162 L24  mcasp0_ahclkx.gpio3_21 ETH1_INT_N*/
 			0x218 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)/* P600_148 AE19 cam0_data4.gpio4_26 UART2_TE */
-			0x220 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_174 AE20 cam0_data6.gpio4_28 SUMMER */
 			0x240 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_170 G20  gpio5_10.gpio5_10 LCD_DIMO */
 			0x250 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_172 P25 spi4_sclk.gpio5_4 LCD_STANDBY */
 			0x258 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_164 P24  spi4_d1.gpio5_6 ETH2_INT_N */
 			0x264 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_158 P22  spi2_d0.gpio3_22 REGULATORS OFF */
 			0x278 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_166 H20  clkreq.gpio0_24 LCD_OFF */
+		>;
+	};
+
+	mmc1_pins: pinmux_mmc1_pins {
+		pinctrl-single,pins = <
+			0x100 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_clk.mmc0_clk */
+			0x104 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_cmd.mmc0_cmd */
+			0x0f0 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat0.mmc0_dat0 */
+			0x0f4 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat1.mmc0_dat1 */
+			0x0f8 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat2.mmc0_dat2 */
+			0x0fc (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat3.mmc0_dat3 */
+			0x160 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* spi0_cs1.mmc0_sdcd HACK to card detec both */
+		>;
+	};
+
+	mmc1_sleep_pins: pinmux_mmc1_sleep_pins {
+		pinctrl-single,pins = <
+			0x100 (PIN_INPUT_PULLDOWN | MUX_MODE7)
+			0x104 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0f0 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0f4 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0f8 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0fc (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
 		>;
 	};
 
@@ -484,6 +499,18 @@
 		>;
 	};
 
+	ehrpwm1_pins_default: ehrpwm1_pins_default {
+		pinctrl-single,pins = <
+			0x220 (PIN_OUTPUT_PULLDOWN | MUX_MODE6) /* P600_174 AE20 cam0_data6.ehrpwm1A SUMMER */
+		>;
+	};
+
+	ehrpwm1_pins_sleep: ehrpwm1_pins_sleep {
+		pinctrl-single,pins = <
+			0x220 (PIN_INPUT_PULLDOWN | MUX_MODE7)
+		>;
+	};
+
 	usb2_phy1_default: usb2_phy1_default {
 		pinctrl-single,pins = <
 			0x2c0 (DS0_PULL_UP_DOWN_EN | PIN_INPUT_PULLDOWN | MUX_MODE0)
@@ -552,6 +579,16 @@
 		compatible = "vishay,veml7700";
 		reg = <0x10>;
 	};
+};
+
+&mmc1 {
+	status = "okay";
+	vmmc-supply = <&evm_v3_3d>;
+	bus-width = <4>;
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&mmc1_pins>;
+	pinctrl-1 = <&mmc1_sleep_pins>;
+	cd-gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
 };
 
 &uart0 {
@@ -695,4 +732,15 @@
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&ecap0_pins_default>;
 	pinctrl-1 = <&ecap0_pins_sleep>;
+};
+
+&epwmss1 {
+	status = "okay";
+};
+
+&ehrpwm1{
+	status = "okay";
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&ehrpwm1_pins_default>;
+	pinctrl-1 = <&ehrpwm1_pins_sleep>;
 };
