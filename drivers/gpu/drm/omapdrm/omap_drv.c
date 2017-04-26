@@ -217,6 +217,8 @@ static int get_connector_type(struct omap_dss_device *dssdev)
 		return DRM_MODE_CONNECTOR_DVID;
 	case OMAP_DISPLAY_TYPE_DSI:
 		return DRM_MODE_CONNECTOR_DSI;
+	case OMAP_DISPLAY_TYPE_DPI:
+		return DRM_MODE_CONNECTOR_LVDS;
 	default:
 		return DRM_MODE_CONNECTOR_Unknown;
 	}
