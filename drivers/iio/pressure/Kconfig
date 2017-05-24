@@ -131,4 +131,12 @@ config T5403
           To compile this driver as a module, choose M here: the module
           will be called t5403.
 
+config AP4A
+	tristate "Fujikara AP4/AG4 Pressure Sensors"
+	depends on I2C
+	help
+	  Say Y here to build support for the Fujikara AP4xx Pressure Sensor.
+
+	  To compile this driver as a module, choose M here: the module will
+	  be called ap4a.
 endmenu
