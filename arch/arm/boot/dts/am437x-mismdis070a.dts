@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.2.0";
+	model = "MIS MDIS070A v0.3.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -537,6 +537,18 @@
 		reg = <0x6f>;
 		wakeup-source;
 	};
+
+	pressure_1: press@28 {
+		compatible = "fujikara,ap4a";
+		reg = <0x28>;
+		prefetchpause = <200>;
+	};
+
+	pressure_2: press@38 {
+		compatible = "fujikara,ap4a";
+		reg = <0x38>;
+		prefetchpause = <200>;
+	};
 };
 
 &i2c1 {
@@ -716,4 +728,7 @@
 	pinctrl-0 = <&spi2_pins_default>;
 	pinctrl-1 = <&spi2_pins_sleep>;
 	ti,spi-num-cs = <4>;
+
+	/* ADS1018IDGS */
+
 };
