@@ -26,6 +26,7 @@
 #include <linux/iio/sysfs.h>
 
 #define DRIVER_VERSION "v1.0"
+#define MAX_RAW		14746
 
 #define AP4A_CHAN(index, _type)				\
 	{										\
@@ -34,6 +35,7 @@
 		.channel = index,					\
 		.channel2 = index,					\
 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW)|\
+			BIT(IIO_CHAN_INFO_OFFSET)|\
 			BIT(IIO_CHAN_INFO_SCALE)|\
 			BIT(IIO_CHAN_INFO_PROCESSED),\
 		.scan_index = index + 1,			\
@@ -53,6 +55,7 @@ struct ap4a {
 	u8 speedmode;
 	u16 channels;
 	u32 prefetch;
+	u32 offset[2];
 	u32 scale[2];
 	u32 fetched[2];
 	struct work_struct fetch_work;
@@ -105,6 +108,7 @@ static int ap4a_read_raw(struct iio_dev *iio,
 {
 	struct ap4a *adc = iio_priv(iio);
 	int err;
+	unsigned long long tmp;
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
@@ -130,9 +134,23 @@ static int ap4a_read_raw(struct iio_dev *iio,
 		if (channel->type == IIO_TEMP)
 			*val1 = ((*val1 - 512) * 25/256);
 
-		if (adc->scale > 0)
-			*val1 -= adc->scale[channel->channel];
+		if (adc->offset[channel->channel] > 0)
+			*val1 -= adc->offset[channel->channel];
 
+		if (*val1 < 0)
+			*val1 = 0;
+
+		if (channel->type == IIO_PRESSURE) {
+			if (adc->scale[channel->channel]) {
+				tmp = div_s64(MAX_RAW - adc->offset[channel->channel], (s64) adc->scale[channel->channel]);
+				*val1 = (s64)*val1 * tmp;
+			}
+		}
+		return IIO_VAL_INT;
+
+	case IIO_CHAN_INFO_OFFSET:
+		*val1 = adc->offset[channel->channel];
+		*val2 = 0;
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_SCALE:
@@ -154,6 +172,9 @@ static int ap4a_write_raw(struct iio_dev *iio,
 	struct ap4a *adc = iio_priv(iio);
 
 	switch (mask) {
+	case IIO_CHAN_INFO_OFFSET:
+		adc->offset[channel->channel] = val;
+		break;
 	case IIO_CHAN_INFO_SCALE:
 		adc->scale[channel->channel] = val;
 		break;
