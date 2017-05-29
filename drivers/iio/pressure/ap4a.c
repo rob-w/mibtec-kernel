@@ -25,25 +25,18 @@
 #include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
 
-#define DRIVER_VERSION "v1.0"
-#define MAX_RAW		14746
+#define DRIVER_VERSION "v1.1"
+#define MAX_RAW		15565
 
-#define AP4A_CHAN(index, _type)				\
+#define AP4A_CHAN(index, _type, _info)		\
 	{										\
 		.type = (_type),					\
 		.indexed = 1,						\
 		.channel = index,					\
-		.channel2 = index,					\
-		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW)|\
-			BIT(IIO_CHAN_INFO_OFFSET)|\
-			BIT(IIO_CHAN_INFO_SCALE)|\
-			BIT(IIO_CHAN_INFO_PROCESSED),\
+		.info_mask_separate = (_info),		\
 		.scan_index = index + 1,			\
 		.scan_type = {						\
-			.sign = 's',					\
-			.realbits = 14,					\
-			.storagebits = 16,				\
-			.shift = 2,						\
+			.shift = 5,						\
 			.endianness = IIO_BE,			\
 		},									\
 	}
@@ -68,7 +61,6 @@ static int ap4a_read_channel(struct ap4a *adc,
 	signed int ret;
 	u8 outbuf[] = {0};
 	u8 in_buf[4];
-	u16 sleeper = 0;
 
 	ret = i2c_master_send(adc->i2c, outbuf, 1);
 
@@ -76,8 +68,6 @@ static int ap4a_read_channel(struct ap4a *adc,
 		return -EBUSY;
 	else if (ret != 1)
 		return -EIO;
-
-	msleep(sleeper);
 
 	ret = i2c_master_recv(adc->i2c, in_buf, 4);
 
@@ -88,16 +78,12 @@ static int ap4a_read_channel(struct ap4a *adc,
 
 	if (channel->type == IIO_TEMP) {
 		*value = (in_buf[2] << 8 | in_buf[3]);
-		*value >>= 5;
+		*value >>= channel->scan_type.shift;
 	} else {
 		*value = (in_buf[0] << 8 | in_buf[1]);
 		/// MASK away status bits
 		*value &= 0x3fff;
 	}
-
-	/// set new bit15 to be signed bit
-	if (channel->scan_type.sign == 's')
-		*value = sign_extend32(*value, 15);
 
 	return (0);
 }
@@ -109,6 +95,7 @@ static int ap4a_read_raw(struct iio_dev *iio,
 	struct ap4a *adc = iio_priv(iio);
 	int err;
 	unsigned long long tmp;
+	int range = 0;
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
@@ -131,21 +118,29 @@ static int ap4a_read_raw(struct iio_dev *iio,
 		if (err < 0)
 			return (err);
 
-		if (channel->type == IIO_TEMP)
-			*val1 = ((*val1 - 512) * 25/256);
+		if (channel->type == IIO_TEMP) {
+			*val1 = ((*val1 - 512) * 9765);
+			*val1 = div_s64((s64) *val1, 10000);
+		}
 
-		if (adc->offset[channel->channel] > 0)
-			*val1 -= adc->offset[channel->channel];
+		if (channel->type == IIO_PRESSURE) {
+			if (adc->offset[channel->channel] > 0) {
+				*val1 -= adc->offset[channel->channel];
+				range = MAX_RAW - adc->offset[channel->channel];
+			}
+
+			if (adc->scale[channel->channel]) {
+				if (range > 0) {
+					tmp = div_s64((s64) adc->scale[channel->channel]* 1000, range);
+					*val1 = div_s64(((s64)*val1 * tmp), 1000);
+				} else
+					*val1 = 0;
+			}
+		}
 
 		if (*val1 < 0)
 			*val1 = 0;
 
-		if (channel->type == IIO_PRESSURE) {
-			if (adc->scale[channel->channel]) {
-				tmp = div_s64(MAX_RAW - adc->offset[channel->channel], (s64) adc->scale[channel->channel]);
-				*val1 = (s64)*val1 * tmp;
-			}
-		}
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_OFFSET:
@@ -219,7 +214,6 @@ static ssize_t ap4a_set_prefetch(struct device *dev,
 	struct ap4a *adc = iio_priv(dev_to_iio_dev(dev));
 	unsigned int val;
 	int ret;
-	int on = 0;
 
 	ret = kstrtouint(buf, 0, &val);
 	if (ret)
@@ -228,11 +222,15 @@ static ssize_t ap4a_set_prefetch(struct device *dev,
 	if (val < 0)
 		return -EINVAL;
 
-	if (!adc->prefetch && val)
-		on = 1;
-	adc->prefetch = val;
-	if (on)
+	if (!adc->prefetch && val) {
+		adc->prefetch = val;
 		schedule_work(&adc->fetch_work);
+	}
+
+	if (adc->prefetch && !val) {
+		adc->prefetch = val;
+		cancel_work_sync(&adc->fetch_work);
+	}
 
 error_ret:
 	return ret ? ret : len;
@@ -259,8 +257,16 @@ static const struct attribute_group ap4a_attribute_group = {
 };
 
 static const struct iio_chan_spec ap4a_channels[] = {
-	AP4A_CHAN(0, IIO_PRESSURE),
-	AP4A_CHAN(1, IIO_TEMP),
+	AP4A_CHAN(0,
+			IIO_PRESSURE,
+			BIT(IIO_CHAN_INFO_RAW)|\
+			BIT(IIO_CHAN_INFO_OFFSET)|\
+			BIT(IIO_CHAN_INFO_SCALE)|\
+			BIT(IIO_CHAN_INFO_PROCESSED)),
+	AP4A_CHAN(1,
+			IIO_TEMP,
+			BIT(IIO_CHAN_INFO_RAW)|\
+			BIT(IIO_CHAN_INFO_PROCESSED)),
 };
 
 static const struct iio_info ap4a_info = {
@@ -356,6 +362,7 @@ static int ap4a_remove(struct i2c_client *client)
 
 	adc->prefetch = 0;
 	flush_work(&adc->fetch_work);
+	cancel_work_sync(&adc->fetch_work);
 
 	return 0;
 }
