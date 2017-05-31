@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.3.0";
+	model = "MIS MDIS070A v0.3.1";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -510,9 +510,9 @@
 	spi2_pins_default: spi2_pins_default {
 		pinctrl-single,pins = <
 			0x1d8 (PIN_OUTPUT_PULLDOWN | MUX_MODE4) /* P600_114 AC23 cam1_vd.spi2_cs2 */
-			0x1dc (PIN_OUTPUT_PULLDOWN | MUX_MODE4) /* P600_116 AE21 cam1_pclk.spi2_sclk */
-			0x1e4 (PIN_OUTPUT_PULLDOWN | MUX_MODE4)	/* P600_182 AB25 cam1_wen.spi2_d1 */
-			0x264 (PIN_INPUT_PULLDOWN | MUX_MODE0) /* P600_158 P22 spi2_d0.spi2_d0 */
+			0x1dc (PIN_INPUT_PULLDOWN | MUX_MODE4) /* P600_116 AE21 cam1_pclk.spi2_sclk */
+			0x1e4 (PIN_INPUT | MUX_MODE4)	/* P600_182 AB25 cam1_wen.spi2_d1 */
+			0x264 (PIN_OUTPUT | MUX_MODE0) /* P600_158 P22 spi2_d0.spi2_d0 */
 		>;
 	};
 
@@ -728,7 +728,17 @@
 	pinctrl-0 = <&spi2_pins_default>;
 	pinctrl-1 = <&spi2_pins_sleep>;
 	ti,spi-num-cs = <4>;
+	ti,pindir-d0-out-d1-in;
 
-	/* ADS1018IDGS */
+	adc@0 {
+		compatible = "ti,ads1018";
+		reg = <2>;
+		spi-cpha;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
+		prefetchpause = <0>;
+		single_shot = <1>;
+		spi-max-frequency = <1000000>;
+	};
 
 };
