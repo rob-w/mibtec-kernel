@@ -976,7 +976,7 @@ static int omap2_mcspi_setup_transfer(struct spi_device *spi,
 
 	cs->mode = spi->mode;
 
-	dev_dbg(&spi->dev, "setup: speed %d, sample %s edge, clk %s\n",
+	dev_info(&spi->dev, "setup: speed %d, sample %s edge, clk %s\n",
 			speed_hz,
 			(spi->mode & SPI_CPHA) ? "trailing" : "leading",
 			(spi->mode & SPI_CPOL) ? "inverted" : "normal");

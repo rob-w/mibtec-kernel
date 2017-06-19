@@ -118,6 +118,17 @@ config AD799X
 	  To compile this driver as a module, choose M here: the module will be
 	  called ad799x.
 
+config ADS1018
+	tristate "Texas Instruments ADS1018 ADC driver"
+	depends on SPI
+	help
+	  Say yes here to build support for Texas Instruments ADS1018
+	  spi analog to digital converter (ADC). Provides direct access
+	  via sysfs.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called ads1018.
+
 config AT91_ADC
 	tristate "Atmel AT91 ADC"
 	depends on ARCH_AT91
