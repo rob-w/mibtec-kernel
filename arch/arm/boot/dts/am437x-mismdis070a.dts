@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.3.1";
+	model = "MIS MDIS070A v0.4.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -549,6 +549,81 @@
 		reg = <0x38>;
 		prefetchpause = <200>;
 	};
+
+	tlc59116@60 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "ti,tlc59116";
+		reg = <0x60>;
+
+		d1_blue@0 {
+			label = "d1:blue";
+			reg = <0x0>;
+			linux,default_trigger = "heartbeat";
+		};
+		d1_green@1 {
+			label = "d1:green";
+			reg = <0x1>;
+			linux,default_trigger = "heartbeat";
+		};
+		d1_red@2 {
+			label = "d1:red";
+			reg = <0x2>;
+			linux,default_trigger = "heartbeat";
+		};
+
+		d2_blue@3 {
+			label = "d2:blue";
+			reg = <0x3>;
+		};
+		d2_green@4 {
+			label = "d2:green";
+			reg = <0x4>;
+		};
+		d2_red@5 {
+			label = "d2:red";
+			reg = <0x5>;
+		};
+
+		d3_blue@6 {
+			label = "d3:blue";
+			reg = <0x6>;
+		};
+		d3_green@7 {
+			label = "d3:green";
+			reg = <0x7>;
+		};
+		d3_red@8 {
+			label = "d3:red";
+			reg = <0x8>;
+		};
+
+		d4_blue@9 {
+			label = "d4:blue";
+			reg = <0x9>;
+		};
+		d4_green@10 {
+			label = "d4:green";
+			reg = <0xa>;
+		};
+		d4_red@11 {
+			label = "d4:red";
+			reg = <0xb>;
+		};
+
+		d5_blue@12 {
+			label = "d5:blue";
+			reg = <0xc>;
+		};
+		d5_green@13 {
+			label = "d5:green";
+			reg = <0xd>;
+		};
+		d5_red@14 {
+			label = "d5:red";
+			reg = <0xe>;
+		};
+	};
 };
 
 &i2c1 {
@@ -736,9 +811,9 @@
 		spi-cpha;
 		spi-tx-bus-width = <1>;
 		spi-rx-bus-width = <1>;
-		prefetchpause = <0>;
-		single_shot = <1>;
-		spi-max-frequency = <1000000>;
+		prefetch_pause = <0>;
+		single_shot = <0>;
+		spi-max-frequency = <3000000>;
 	};
 
 };
