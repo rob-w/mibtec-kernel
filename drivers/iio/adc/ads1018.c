@@ -25,17 +25,17 @@
 #include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
 
-#define DRIVER_VERSION "v0.92"
+#define DRIVER_VERSION "v0.94"
 
 #define ADS1018_MODE_SINGLE		1<<0
-#define ADS1018_VALID_DATA		1<<1
+#define ADS1018_VALID_DATA		3
 #define ADS1018_PULL_UP_EN		1<<3
 #define ADS1018_TS_MODE			1<<4
 #define ADS1018_SS_START		1<<7
 
 #define ADS1018_RATE_SHIFT		5
 #define ADS1018_INPUT_SHIFT		4
-#define ADS1018_GAIN_SHIFT		2
+#define ADS1018_GAIN_SHIFT		1
 
 enum {
 	ADS1018_AMP_FSR_6_144V = 0,
@@ -43,7 +43,7 @@ enum {
 	ADS1018_AMP_FSR_2_048V,
 	ADS1018_AMP_FSR_1_024V,
 	ADS1018_AMP_FSR_0_512V,
-	ADS1018_AMP_FSR_0_256
+	ADS1018_AMP_FSR_0_256V
 };
 
 enum {
@@ -94,13 +94,14 @@ static int ads1018_read_channel(struct ads1018 *adc,
 	struct spi_message message;
 	struct spi_transfer xfer[2];
 	u8 tx[2] = {0x0, 0x0};
-	u8 txe[2] = {0x0, 0x0};
 	u8 rx[2] = {0x0, 0x0};
 
 	spi_message_init(&message);
 	memset(xfer, 0, sizeof(xfer));
 
-	tx[1] = (ADS1018_VALID_DATA | adc->sample_rate_mode << ADS1018_RATE_SHIFT);
+	tx[1] = (ADS1018_VALID_DATA
+		| ADS1018_PULL_UP_EN
+		| adc->sample_rate_mode << ADS1018_RATE_SHIFT);
 
 	if (channel->type == IIO_CURRENT) {
 		tx[0] = (adc->single_shot ? ADS1018_MODE_SINGLE : 0)
@@ -115,6 +116,7 @@ static int ads1018_read_channel(struct ads1018 *adc,
 
 	if (channel->type == IIO_TEMP)
 		tx[1] = (ADS1018_VALID_DATA
+			| ADS1018_PULL_UP_EN
 			| adc->sample_rate_mode << ADS1018_RATE_SHIFT
 			| ADS1018_TS_MODE);
 
@@ -158,8 +160,6 @@ static int ads1018_read_raw(struct iio_dev *iio,
 {
 	struct ads1018 *adc = iio_priv(iio);
 	int err;
-	unsigned long long tmp;
-	int range = 0;
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
@@ -191,17 +191,11 @@ static int ads1018_read_raw(struct iio_dev *iio,
 		}
 
 		if (channel->type == IIO_CURRENT) {
-			if (adc->offset[channel->channel] > 0) {
+			if (adc->offset[channel->channel] > 0)
 				*val1 -= adc->offset[channel->channel];
-			}
 
-			if (adc->scale[channel->channel]) {
-				if (range > 0) {
-					tmp = div_s64((s64) adc->scale[channel->channel]* 1000, range);
-					*val1 = div_s64(((s64)*val1 * tmp), 1000);
-				} else
-					*val1 = 0;
-			}
+			if (adc->scale[channel->channel])
+				*val1 *= adc->scale[channel->channel];
 		}
 
 		if (*val1 < 0)
@@ -474,6 +468,8 @@ static int ads1018_probe(struct spi_device *spi)
 	adc->prefetch = 0;
 	adc->single_shot = 0;
 	adc->sample_rate_mode = 3;
+	adc->scale[0] = 10;
+	adc->scale[1] = 10;
 
 	if (spi->dev.of_node) {
 		err = ads1018_of_probe(spi, adc);
