@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.4.3";
+	model = "MIS MDIS070A v0.4.4";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -503,12 +503,10 @@
 			0x19c (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_112 M24  mcasp0_ahclkr.spi1_cs0 */
 
 			/* NetX module extras */
-			0x144 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_120 A16  rmii1_ref_clk.gpio0_29 */
-			0x108 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_122 D16  mii1_col.gpio3_0 */
-			0x10c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_126 B14  mii1_crs.gpio3_1 */
-			0x270 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_124 D24  xdma_event_intr0.gpio0_19 */
-
-
+			0x144 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_120 A16  rmii1_ref_clk.gpio0_29 JACK_SYNC0 */
+			0x108 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_122 D16  mii1_col.gpio3_0 JACK_SYNC1 */
+			0x10c (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_126 B14  mii1_crs.gpio3_1 JACK_NBOOT */
+			0x270 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_124 D24  xdma_event_intr0.gpio0_19 JACK_DPM_RESET */
 		>;
 	};
 
@@ -556,6 +554,11 @@
 		compatible = "microchip,mcp7941x";
 		reg = <0x6f>;
 		wakeup-source;
+	};
+
+	eeprom@57 {
+		compatible = "at,24c01";
+		reg = <0x57>;
 	};
 
 	pressure_1: press@28 {
