@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.4.0";
+	model = "MIS MDIS070A v0.4.3";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -34,14 +34,23 @@
 
 	lcd_bl: backlight {
 		compatible = "pwm-backlight";
-		pwms = <&ecap0 0 3906250 PWM_POLARITY_INVERTED>;
+		pwms = <&ecap0 0 50000 PWM_POLARITY_INVERTED>;
 
 		/* 0x250 P600_172 P25 164 spi4_sclk.gpio5_4 LCD_STANDBY */
 		enable-gpios = <&gpio5 4 GPIO_ACTIVE_HIGH>;
 
-		/* PWM starts at 75 and we make 16 levels */
-		brightness-levels = <0 75 87 99 111 123 135 147 159 171 183 195 207 219 231 243 255>;
-		default-brightness-level = <16>;
+		brightness-levels = < 0  1  2  3  4  5  6  7  8  9
+				     10 11 12 13 14 15 16 17 18 19
+				     20 21 22 23 24 25 26 27 28 29
+				     30 31 32 33 34 35 36 37 38 39
+				     40 41 42 43 44 45 46 47 48 49
+				     50 51 52 53 54 55 56 57 58 59
+				     60 61 62 63 64 65 66 67 68 69
+				     70 71 72 73 74 75 76 77 78 79
+				     80 81 82 83 84 85 86 87 88 89
+				     90 91 92 93 94 95 96 97 98 99
+				    100>;
+		default-brightness-level = <100>;
 	};
 
 	lcd0: display {
@@ -170,12 +179,9 @@
 			/* P600_38 AE16 ADC1_AIN6 */
 			/* P600_40 AD16 ADC1_AIN7 */
 
-			/* ClassName:AUDIO */
-			0x144 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_120 A16  rmii1_ref_clk.gpio0_29 */
-			0x108 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_122 D16  mii1_col.gpio3_0 */
-			0x10c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_126 B14  mii1_crs.gpio3_1 */
+			/* ClassName:NET */
 			0x110 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_128 B13  mii1_rx_er.gpio3_2 */
-			0x270 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_124 D24  xdma_event_intr0.gpio0_19 */
+
 
 			/* ClassName:ETH2 Slave 2 */
 			0x040 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_153 C3 gpmc_a0.gpio1_16 CPU1_GPIO2 */
@@ -183,10 +189,10 @@
 			0x048 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_157 C6 gpmc_a2.gpio1_18 CPU1_BOOT_NUART */
 			0x04c (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_159 A4 gpmc_a3.gpio1_19 CPU1_NFAULT */
 			0x050 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_161 D7 gpmc_a4.gpio1_20 DRV1_NRESET */
-			0x054 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_163 E7 gpmc_a5.gpio1_21 CPU1_NRESET */
+			0x054 (PIN_OUTPUT_PULLUP | MUX_MODE7)	/* P600_163 E7 gpmc_a5.gpio1_21 CPU1_RESET */
 			0x058 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_155 E8 gpmc_a6.gpio1_22 CPU1_GPIO1 */
 			0x05c (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_141 F6 gpmc_a7.gpio1_23 CPU2_GPIO2 */
-			0x060 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_151 F7 gpmc_a8.gpio1_24 CPU2_NRESET */
+			0x060 (PIN_OUTPUT_PULLUP | MUX_MODE7)	/* P600_151 F7 gpmc_a8.gpio1_24 CPU2_RESET */
 			0x064 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_149 B4 gpmc_a9.gpio1_25 DRV2_NRESET */
 			0x068 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_147 G8 gpmc_a10.gpio1_26 CPU2_NFAULT */
 			0x06c (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_145 D8 gpmc_a11.gpio1_27 CPU2_BOOT_NUART */
@@ -196,7 +202,7 @@
 			0x074 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_150 B3   gpmc_wpn.gpio0_31 DOUT_01 */
 			0x078 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_152 A3   gpmc_be1n.gpio1_28 DOUT_02 */
 			0x07c (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_146 A8   gpmc_csn0.gpio1_29 DIN_01 */
-			0x090 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_144 A9   gpmc_advn_ale.gpio2_2 SYNC-START-STOP */
+			0x090 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_144 A9   gpmc_advn_ale.gpio2_2 SYNC-START-STOP */
 			0x09c (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_156 C10  gpmc_be0n_cle.gpio2_5 UV_DETECT */
 			0x150 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_160 P23  spi0_sclk.gpio0_2 INTERFACES_OFF */
 			0x154 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_154 T22  spi0_d0.gpio0_3 USB1_nOC */
@@ -495,6 +501,14 @@
 			0x194 (PIN_INPUT_PULLDOWN | MUX_MODE3) /* P600_108 N22  mcasp0_fsx.spi1_d0 */
 			0x198 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_110 H23  mcasp0_axr0.spi1_d1 */
 			0x19c (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_112 M24  mcasp0_ahclkr.spi1_cs0 */
+
+			/* NetX module extras */
+			0x144 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_120 A16  rmii1_ref_clk.gpio0_29 */
+			0x108 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_122 D16  mii1_col.gpio3_0 */
+			0x10c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_126 B14  mii1_crs.gpio3_1 */
+			0x270 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_124 D24  xdma_event_intr0.gpio0_19 */
+
+
 		>;
 	};
 
@@ -504,6 +518,12 @@
 			0x194 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_108 N22  mcasp0_fsx.gpio3_15 */
 			0x198 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_110 H23  mcasp0_axr0.gpio3_16 */
 			0x19c (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_112 M24  mcasp0_ahclkr.gpio3_17 */
+
+			/* NetX module extras */
+			0x144 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_120 A16  rmii1_ref_clk.gpio0_29 */
+			0x108 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_122 D16  mii1_col.gpio3_0 */
+			0x10c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_126 B14  mii1_crs.gpio3_1 */
+			0x270 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_124 D24  xdma_event_intr0.gpio0_19 */
 		>;
 	};
 
@@ -622,6 +642,7 @@
 		d5_red@14 {
 			label = "d5:red";
 			reg = <0xe>;
+			linux,default_trigger = "default-on";
 		};
 	};
 };
