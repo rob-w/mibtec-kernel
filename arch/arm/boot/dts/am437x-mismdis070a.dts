@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.4.4";
+	model = "MIS MDIS070A v0.4.6";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -139,8 +139,8 @@
 		/* 0x258 P600_164 P24  spi4_d1.gpio5_6 ETH2_INT_N */
 		lcd_sleep {
 			label = "mispanel_lcd_sleep";
-			gpios = <&gpio5 6 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "default-on";
+			gpios = <&gpio5 6 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "oneshot";
 		};
 
 		/* 0x16C P600_58 J25 uart0_rtsn.gpio1_9 ETH1_OFF */
@@ -506,7 +506,7 @@
 			0x144 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_120 A16  rmii1_ref_clk.gpio0_29 JACK_SYNC0 */
 			0x108 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_122 D16  mii1_col.gpio3_0 JACK_SYNC1 */
 			0x10c (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_126 B14  mii1_crs.gpio3_1 JACK_NBOOT */
-			0x270 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_124 D24  xdma_event_intr0.gpio0_19 JACK_DPM_RESET */
+			0x270 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_124 D24  xdma_event_intr0.gpio0_19 JACK_DPM_NRESET */
 		>;
 	};
 
@@ -819,6 +819,12 @@
 	pinctrl-0 = <&spi1_pins_default>;
 	pinctrl-1 = <&spi1_pins_sleep>;
 	ti,spi-num-cs = <4>;
+
+	spidev@0x00 {
+		compatible = "spidev";
+		spi-max-frequency = <1200000>;
+		reg = <0>;
+	};
 };
 
 &spi2 {
