@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.4.8";
+	model = "MIS MDIS070A v0.4.9";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -497,7 +497,7 @@
 
 	spi1_pins_default: spi1_pins_default {
 		pinctrl-single,pins = <
-			0x190 (PIN_OUTPUT_PULLDOWN | MUX_MODE3) /* P600_106 N24  mcasp0_aclkx.sp11_sclk */
+			0x190 (PIN_INPUT_PULLDOWN | MUX_MODE3) /* P600_106 N24  mcasp0_aclkx.sp11_sclk */
 			0x194 (PIN_OUTPUT_PULLDOWN | MUX_MODE3) /* P600_108 N22  mcasp0_fsx.spi1_d0 */
 			0x198 (PIN_INPUT_PULLDOWN | MUX_MODE3) /* P600_110 H23  mcasp0_axr0.spi1_d1 */
 			0x19c (PIN_OUTPUT_PULLDOWN | MUX_MODE3) /* P600_112 M24  mcasp0_ahclkr.spi1_cs0 */
