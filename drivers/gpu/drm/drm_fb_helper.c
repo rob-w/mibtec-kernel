@@ -399,11 +399,10 @@ static int restore_fbdev_mode(struct drm_fb_helper *fb_helper)
 		if (plane->type != DRM_PLANE_TYPE_PRIMARY)
 			drm_plane_force_disable(plane);
 
-		if (dev->mode_config.rotation_property) {
+		if (plane->rotation_property)
 			drm_mode_plane_set_obj_prop(plane,
-						    dev->mode_config.rotation_property,
+						    plane->rotation_property,
 						    DRM_ROTATE_0);
-		}
 	}
 
 	for (i = 0; i < fb_helper->crtc_count; i++) {
@@ -847,6 +846,9 @@ void drm_fb_helper_fini(struct drm_fb_helper *fb_helper)
 {
 	if (!drm_fbdev_emulation)
 		return;
+
+	cancel_work_sync(&fb_helper->resume_work);
+	cancel_work_sync(&fb_helper->dirty_work);
 
 	if (!list_empty(&fb_helper->kernel_fb_list)) {
 		list_del(&fb_helper->kernel_fb_list);

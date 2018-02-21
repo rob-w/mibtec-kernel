@@ -410,18 +410,22 @@ int omap_aes_crypt_dma_stop(struct omap_aes_dev *dd)
 	return 0;
 }
 
-int omap_aes_check_aligned(struct scatterlist *sg, int total)
+bool omap_aes_copy_needed(struct scatterlist *sg, int total)
 {
 	int len = 0;
 
 	if (!IS_ALIGNED(total, AES_BLOCK_SIZE))
-		return -EINVAL;
+		return true;
 
 	while (sg) {
 		if (!IS_ALIGNED(sg->offset, 4))
-			return -1;
+			return true;
 		if (!IS_ALIGNED(sg->length, AES_BLOCK_SIZE))
-			return -1;
+			return true;
+#ifdef CONFIG_ZONE_DMA
+		if (page_zonenum(sg_page(sg)) != ZONE_DMA)
+			return true;
+#endif
 
 		len += sg->length;
 		sg = sg_next(sg);
@@ -431,9 +435,9 @@ int omap_aes_check_aligned(struct scatterlist *sg, int total)
 	}
 
 	if (len != total)
-		return -1;
+		return true;
 
-	return 0;
+	return false;
 }
 
 static int omap_aes_copy_sgs(struct omap_aes_dev *dd)
@@ -504,8 +508,8 @@ static int omap_aes_prepare_req(struct crypto_engine *engine,
 	if (dd->out_sg_len < 0)
 		return dd->out_sg_len;
 
-	if (omap_aes_check_aligned(dd->in_sg, dd->total) ||
-	    omap_aes_check_aligned(dd->out_sg, dd->total)) {
+	if (omap_aes_copy_needed(dd->in_sg, dd->total) ||
+	    omap_aes_copy_needed(dd->out_sg, dd->total)) {
 		if (omap_aes_copy_sgs(dd))
 			pr_err("Failed to copy SGs for unaligned cases\n");
 		dd->sgs_copied = 1;
@@ -1176,8 +1180,6 @@ static struct attribute_group omap_aes_attr_group = {
 	.attrs = omap_aes_attrs,
 };
 
-static DEFINE_MUTEX(probe_lock);
-
 static int omap_aes_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1253,6 +1255,7 @@ static int omap_aes_probe(struct platform_device *pdev)
 		}
 	}
 
+	spin_lock_init(&dd->lock);
 
 	INIT_LIST_HEAD(&dd->list);
 	spin_lock(&list_lock);
@@ -1272,8 +1275,6 @@ static int omap_aes_probe(struct platform_device *pdev)
 	if (err)
 		goto err_engine;
 
-	mutex_lock(&probe_lock);
-
 	for (i = 0; i < dd->pdata->algs_info_size; i++) {
 		if (!dd->pdata->algs_info[i].registered) {
 			for (j = 0; j < dd->pdata->algs_info[i].size; j++) {
@@ -1283,10 +1284,8 @@ static int omap_aes_probe(struct platform_device *pdev)
 				INIT_LIST_HEAD(&algp->cra_list);
 
 				err = crypto_register_alg(algp);
-				if (err) {
-					mutex_unlock(&probe_lock);
+				if (err)
 					goto err_algs;
-				}
 
 				dd->pdata->algs_info[i].registered++;
 			}
@@ -1302,16 +1301,12 @@ static int omap_aes_probe(struct platform_device *pdev)
 			INIT_LIST_HEAD(&algp->cra_list);
 
 			err = crypto_register_aead(aalg);
-			if (err) {
-				mutex_unlock(&probe_lock);
+			if (err)
 				goto err_aead_algs;
-			}
 
 			dd->pdata->aead_algs_info->registered++;
 		}
 	}
-
-	mutex_unlock(&probe_lock);
 
 	err = sysfs_create_group(&dev->kobj, &omap_aes_attr_group);
 	if (err) {

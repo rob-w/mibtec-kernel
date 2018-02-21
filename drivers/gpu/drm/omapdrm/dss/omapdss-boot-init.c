@@ -119,8 +119,7 @@ static void __init omapdss_omapify_node(struct device_node *node)
 
 static void __init omapdss_add_to_list(struct device_node *node, bool root)
 {
-	struct dss_conv_node *n = kmalloc(sizeof(struct dss_conv_node),
-		GFP_KERNEL);
+	struct dss_conv_node *n = kmalloc(sizeof(*n), GFP_KERNEL);
 	if (n) {
 		n->node = node;
 		n->root = root;
@@ -182,6 +181,7 @@ static const struct of_device_id omapdss_of_match[] __initconst = {
 	{ .compatible = "ti,omap4-dss", },
 	{ .compatible = "ti,omap5-dss", },
 	{ .compatible = "ti,dra7-dss", },
+	{ .compatible = "ti,k2g-dss", },
 	{},
 };
 

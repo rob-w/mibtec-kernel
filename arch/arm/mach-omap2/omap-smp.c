@@ -270,7 +270,7 @@ static void __init omap4_smp_prepare_cpus(unsigned int max_cpus)
 		c = &omap443x_cfg;
 	else if (soc_is_omap446x())
 		c = &omap446x_cfg;
-	else if (soc_is_dra74x() || soc_is_omap54xx())
+	else if (soc_is_dra74x() || soc_is_omap54xx() || soc_is_dra76x())
 		c = &omap5_cfg;
 
 	if (!c) {
@@ -282,7 +282,7 @@ static void __init omap4_smp_prepare_cpus(unsigned int max_cpus)
 	cfg.cpu1_rstctrl_pa = c->cpu1_rstctrl_pa;
 	cfg.startup_addr = c->startup_addr;
 
-	if (soc_is_dra74x() || soc_is_omap54xx()) {
+	if (soc_is_dra74x() || soc_is_omap54xx() || soc_is_dra76x()) {
 		if ((__boot_cpu_mode & MODE_MASK) == HYP_MODE)
 			cfg.startup_addr = omap5_secondary_hyp_startup;
 		omap5_erratum_workaround_801819();
@@ -302,8 +302,12 @@ static void __init omap4_smp_prepare_cpus(unsigned int max_cpus)
 	/*
 	 * Reset CPU1 before configuring, otherwise kexec will
 	 * end up trying to use old kernel startup address.
+	 * Resetting CPU1 causes secure side to lose context
+	 * on HS devices, so this step is skipped for them.
+	 * This breaks Kexec on HS devices and should be fixed
+	 * properly at some point.
 	 */
-	if (cfg.cpu1_rstctrl_va) {
+	if (omap_type() != OMAP2_DEVICE_TYPE_SEC && cfg.cpu1_rstctrl_va) {
 		writel_relaxed(1, cfg.cpu1_rstctrl_va);
 		readl_relaxed(cfg.cpu1_rstctrl_va);
 		writel_relaxed(0, cfg.cpu1_rstctrl_va);

@@ -437,6 +437,9 @@ extern int usb_hcd_alloc_bandwidth(struct usb_device *udev,
 		struct usb_host_interface *new_alt);
 extern int usb_hcd_get_frame_number(struct usb_device *udev);
 
+struct usb_hcd *__usb_create_hcd(const struct hc_driver *driver,
+		struct device *sysdev, struct device *dev, const char *bus_name,
+		struct usb_hcd *primary_hcd);
 extern struct usb_hcd *usb_create_hcd(const struct hc_driver *driver,
 		struct device *dev, const char *bus_name);
 extern struct usb_hcd *usb_create_shared_hcd(const struct hc_driver *driver,
@@ -561,9 +564,9 @@ extern void usb_ep0_reinit(struct usb_device *);
 	((USB_DIR_IN|USB_TYPE_STANDARD|USB_RECIP_INTERFACE)<<8)
 
 #define EndpointRequest \
-	((USB_DIR_IN|USB_TYPE_STANDARD|USB_RECIP_INTERFACE)<<8)
+	((USB_DIR_IN|USB_TYPE_STANDARD|USB_RECIP_ENDPOINT)<<8)
 #define EndpointOutRequest \
-	((USB_DIR_OUT|USB_TYPE_STANDARD|USB_RECIP_INTERFACE)<<8)
+	((USB_DIR_OUT|USB_TYPE_STANDARD|USB_RECIP_ENDPOINT)<<8)
 
 /* class requests from the USB 2.0 hub spec, table 11-15 */
 /* GetBusState and SetHubDescriptor are optional, omitted */

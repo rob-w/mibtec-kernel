@@ -30,6 +30,7 @@
 #include "control.h"
 #include "pm.h"
 #include "cm33xx.h"
+#include "prm.h"
 #include "prm33xx.h"
 #include "common.h"
 #include "clockdomain.h"
@@ -38,6 +39,7 @@
 #include "sram.h"
 #include "omap_hwmod.h"
 #include "iomap.h"
+#include "omap-secure.h"
 
 static struct powerdomain *cefuse_pwrdm, *gfx_pwrdm, *per_pwrdm, *mpu_pwrdm;
 static struct clockdomain *gfx_l4ls_clkdm;
@@ -194,6 +196,12 @@ static int am43xx_suspend(unsigned int state, int (*fn)(unsigned long),
 {
 	int ret = 0;
 
+	/* Suspend secure side on HS devices */
+	if (omap_type() != OMAP2_DEVICE_TYPE_GP)
+		omap_secure_dispatcher(AM43xx_PPA_SVC_PM_SUSPEND,
+				       FLAG_START_CRITICAL,
+				       0, 0, 0, 0, 0);
+
 	amx3_pre_suspend_common();
 	scu_power_mode(scu_base, SCU_PM_POWEROFF);
 	ret = cpu_suspend(args, fn);
@@ -201,6 +209,12 @@ static int am43xx_suspend(unsigned int state, int (*fn)(unsigned long),
 
 	if (!am43xx_check_off_mode_enable())
 		amx3_post_suspend_common();
+
+	/* Resume secure side on HS devices */
+	if (omap_type() != OMAP2_DEVICE_TYPE_GP)
+		omap_secure_dispatcher(AM43xx_PPA_SVC_PM_RESUME,
+				       FLAG_START_CRITICAL,
+				       0, 0, 0, 0, 0);
 
 	return ret;
 }
@@ -243,7 +257,7 @@ static struct am33xx_pm_sram_addr *amx3_get_sram_addrs(void)
 
 static void common_save_context(void)
 {
-	omap2_gpio_prepare_for_idle(1);
+	omap2_gpio_prepare_for_idle(0);
 	pinmux_save_context(pmx_dev, "am33xx_pmx_per");
 	clks_save_context();
 	pwrdms_save_context();
@@ -280,12 +294,14 @@ static void am43xx_save_context(void)
 {
 	common_save_context();
 	am43xx_control_save_context();
+	am43xx_prm_save_context();
 }
 
 static void am43xx_restore_context(void)
 {
 	common_restore_context();
 	am43xx_control_restore_context();
+	am43xx_prm_restore_context();
 	/*
 	 * HACK: restore dpll_per_clkdcoldo register contents, to avoid
 	 * breaking suspend-resume

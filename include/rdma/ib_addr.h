@@ -205,10 +205,12 @@ static inline void iboe_addr_get_sgid(struct rdma_dev_addr *dev_addr,
 
 	dev = dev_get_by_index(&init_net, dev_addr->bound_dev_if);
 	if (dev) {
-		ip4 = (struct in_device *)dev->ip_ptr;
-		if (ip4 && ip4->ifa_list && ip4->ifa_list->ifa_address)
+		ip4 = in_dev_get(dev);
+		if (ip4 && ip4->ifa_list && ip4->ifa_list->ifa_address) {
 			ipv6_addr_set_v4mapped(ip4->ifa_list->ifa_address,
 					       (struct in6_addr *)gid);
+			in_dev_put(ip4);
+		}
 		dev_put(dev);
 	}
 }
@@ -241,10 +243,11 @@ static inline void rdma_addr_set_dgid(struct rdma_dev_addr *dev_addr, union ib_g
 static inline enum ib_mtu iboe_get_mtu(int mtu)
 {
 	/*
-	 * reduce IB headers from effective IBoE MTU. 28 stands for
-	 * atomic header which is the biggest possible header after BTH
+	 * Reduce IB headers from effective IBoE MTU.
 	 */
-	mtu = mtu - IB_GRH_BYTES - IB_BTH_BYTES - 28;
+	mtu = mtu - (IB_GRH_BYTES + IB_UDP_BYTES + IB_BTH_BYTES +
+		     IB_EXT_XRC_BYTES + IB_EXT_ATOMICETH_BYTES +
+		     IB_ICRC_BYTES);
 
 	if (mtu >= ib_mtu_enum_to_int(IB_MTU_4096))
 		return IB_MTU_4096;

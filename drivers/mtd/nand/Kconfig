@@ -89,7 +89,7 @@ config MTD_NAND_AMS_DELTA
 
 config MTD_NAND_OMAP2
 	tristate "NAND Flash device on OMAP2, OMAP3, OMAP4 and Keystone"
-	depends on (ARCH_OMAP2PLUS || ARCH_KEYSTONE)
+	depends on OMAP_GPMC
 	help
           Support for NAND flash on Texas Instruments OMAP2, OMAP3, OMAP4
 	  and Keystone platforms.
@@ -537,7 +537,7 @@ config MTD_NAND_FSMC
 	  Flexible Static Memory Controller (FSMC)
 
 config MTD_NAND_XWAY
-	tristate "Support for NAND on Lantiq XWAY SoC"
+	bool "Support for NAND on Lantiq XWAY SoC"
 	depends on LANTIQ && SOC_TYPE_XWAY
 	help
 	  Enables support for NAND Flash chips on Lantiq XWAY SoCs. NAND is attached

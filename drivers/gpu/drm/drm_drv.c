@@ -218,7 +218,7 @@ static int drm_minor_register(struct drm_device *dev, unsigned int type)
 	ret = drm_debugfs_init(minor, minor->index, drm_debugfs_root);
 	if (ret) {
 		DRM_ERROR("DRM: Failed to initialize /sys/kernel/debug/dri.\n");
-		return ret;
+		goto err_debugfs;
 	}
 
 	ret = device_add(minor->kdev);
@@ -379,7 +379,12 @@ EXPORT_SYMBOL(drm_put_dev);
 void drm_unplug_dev(struct drm_device *dev)
 {
 	/* for a USB device */
-	drm_dev_unregister(dev);
+	if (drm_core_check_feature(dev, DRIVER_MODESET))
+		drm_modeset_unregister_all(dev);
+
+	drm_minor_unregister(dev, DRM_MINOR_PRIMARY);
+	drm_minor_unregister(dev, DRM_MINOR_RENDER);
+	drm_minor_unregister(dev, DRM_MINOR_CONTROL);
 
 	mutex_lock(&drm_global_mutex);
 
@@ -618,6 +623,8 @@ static void drm_dev_release(struct kref *ref)
 {
 	struct drm_device *dev = container_of(ref, struct drm_device, ref);
 
+	drm_vblank_cleanup(dev);
+
 	if (drm_core_check_feature(dev, DRIVER_GEM))
 		drm_gem_destroy(dev);
 
@@ -705,6 +712,8 @@ int drm_dev_register(struct drm_device *dev, unsigned long flags)
 	if (ret)
 		goto err_minors;
 
+	dev->registered = true;
+
 	if (dev->driver->load) {
 		ret = dev->driver->load(dev, flags);
 		if (ret)
@@ -744,6 +753,8 @@ void drm_dev_unregister(struct drm_device *dev)
 
 	drm_lastclose(dev);
 
+	dev->registered = false;
+
 	if (drm_core_check_feature(dev, DRIVER_MODESET))
 		drm_modeset_unregister_all(dev);
 
@@ -752,8 +763,6 @@ void drm_dev_unregister(struct drm_device *dev)
 
 	if (dev->agp)
 		drm_pci_agp_destroy(dev);
-
-	drm_vblank_cleanup(dev);
 
 	list_for_each_entry_safe(r_list, list_temp, &dev->maplist, head)
 		drm_legacy_rmmap(dev, r_list->map);

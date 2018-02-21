@@ -3359,6 +3359,39 @@ unsigned int regulator_get_mode(struct regulator *regulator)
 }
 EXPORT_SYMBOL_GPL(regulator_get_mode);
 
+static int _regulator_get_error_flags(struct regulator_dev *rdev,
+					unsigned int *flags)
+{
+	int ret;
+
+	mutex_lock(&rdev->mutex);
+
+	/* sanity check */
+	if (!rdev->desc->ops->get_error_flags) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	ret = rdev->desc->ops->get_error_flags(rdev, flags);
+out:
+	mutex_unlock(&rdev->mutex);
+	return ret;
+}
+
+/**
+ * regulator_get_error_flags - get regulator error information
+ * @regulator: regulator source
+ * @flags: pointer to store error flags
+ *
+ * Get the current regulator error information.
+ */
+int regulator_get_error_flags(struct regulator *regulator,
+				unsigned int *flags)
+{
+	return _regulator_get_error_flags(regulator->rdev, flags);
+}
+EXPORT_SYMBOL_GPL(regulator_get_error_flags);
+
 /**
  * regulator_set_load - set regulator load
  * @regulator: regulator source
@@ -4357,12 +4390,13 @@ static void regulator_summary_show_subtree(struct seq_file *s,
 	seq_puts(s, "\n");
 
 	list_for_each_entry(consumer, &rdev->consumer_list, list) {
-		if (consumer->dev->class == &regulator_class)
+		if (consumer->dev && consumer->dev->class == &regulator_class)
 			continue;
 
 		seq_printf(s, "%*s%-*s ",
 			   (level + 1) * 3 + 1, "",
-			   30 - (level + 1) * 3, dev_name(consumer->dev));
+			   30 - (level + 1) * 3,
+			   consumer->dev ? dev_name(consumer->dev) : "deviceless");
 
 		switch (rdev->desc->type) {
 		case REGULATOR_VOLTAGE:
@@ -4505,6 +4539,16 @@ static int __init regulator_init_complete(void)
 	 */
 	if (of_have_populated_dt())
 		has_full_constraints = true;
+
+	/*
+	 * Regulators may had failed to resolve their input supplies
+	 * when were registered, either because the input supply was
+	 * not registered yet or because its parent device was not
+	 * bound yet. So attempt to resolve the input supplies for
+	 * pending regulators before trying to disable unused ones.
+	 */
+	class_for_each_device(&regulator_class, NULL, NULL,
+			      regulator_register_resolve_supply);
 
 	/* If we have a full configuration then disable any regulators
 	 * we have permission to change the status for and which are

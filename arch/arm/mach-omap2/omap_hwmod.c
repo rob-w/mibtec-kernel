@@ -794,14 +794,14 @@ static int _init_main_clk(struct omap_hwmod *oh)
 	int ret = 0;
 	char name[MOD_CLK_MAX_NAME_LEN];
 	struct clk *clk;
+	static const char modck[] = "_mod_ck";
 
-	/* +7 magic comes from '_mod_ck' suffix */
-	if (strlen(oh->name) + 7 > MOD_CLK_MAX_NAME_LEN)
+	if (strlen(oh->name) >= MOD_CLK_MAX_NAME_LEN - strlen(modck))
 		pr_warn("%s: warning: cropping name for %s\n", __func__,
 			oh->name);
 
-	strncpy(name, oh->name, MOD_CLK_MAX_NAME_LEN - 7);
-	strcat(name, "_mod_ck");
+	strlcpy(name, oh->name, MOD_CLK_MAX_NAME_LEN - strlen(modck));
+	strlcat(name, modck, MOD_CLK_MAX_NAME_LEN);
 
 	clk = clk_get(NULL, name);
 	if (!IS_ERR(clk)) {
@@ -2187,7 +2187,7 @@ static int _enable(struct omap_hwmod *oh)
 
 	r = (soc_ops.wait_target_ready) ? soc_ops.wait_target_ready(oh) :
 		-EINVAL;
-	if (oh->clkdm)
+	if (oh->clkdm && !(oh->flags & HWMOD_CLKDM_NOAUTO))
 		clkdm_allow_idle(oh->clkdm);
 
 	if (!r) {
@@ -2244,7 +2244,7 @@ static int _idle(struct omap_hwmod *oh)
 		_idle_sysc(oh);
 	_del_initiator_dep(oh, mpu_oh);
 
-	if (oh->clkdm)
+	if (oh->clkdm && !(oh->flags & HWMOD_CLKDM_NOAUTO))
 		clkdm_deny_idle(oh->clkdm);
 
 	if (oh->flags & HWMOD_BLOCK_WFI)
@@ -3426,6 +3426,39 @@ int __init omap_hwmod_setup_one(const char *oh_name)
 }
 
 /**
+ * omap_hwmod_setup_earlycon_flags - set up flags for early console
+ *
+ * Enable DEBUG_OMAPUART_FLAGS for uart hwmod that is being used as
+ * early concole so that hwmod core doesn't reset and keep it in idle
+ * that specific uart.
+ */
+#ifdef CONFIG_SERIAL_EARLYCON
+static void __init omap_hwmod_setup_earlycon_flags(void)
+{
+	struct device_node *np;
+	struct omap_hwmod *oh;
+	const char *uart;
+
+	np = of_find_node_by_path("/chosen");
+	if (!np)
+		np = of_find_node_by_path("/chosen@0");
+
+	if (np) {
+		uart = of_get_property(np, "stdout-path", NULL);
+		if (uart) {
+			np = of_find_node_by_path(uart);
+			if (np) {
+				uart = of_get_property(np, "ti,hwmods", NULL);
+				oh = omap_hwmod_lookup(uart);
+				if (oh)
+					oh->flags |= DEBUG_OMAPUART_FLAGS;
+			}
+		}
+	}
+}
+#endif
+
+/**
  * omap_hwmod_setup_all - set up all registered IP blocks
  *
  * Initialize and set up all IP blocks registered with the hwmod code.
@@ -3438,6 +3471,9 @@ static int __init omap_hwmod_setup_all(void)
 	_ensure_mpu_hwmod_is_setup(NULL);
 
 	omap_hwmod_for_each(_init, NULL);
+#ifdef CONFIG_SERIAL_EARLYCON
+	omap_hwmod_setup_earlycon_flags();
+#endif
 	omap_hwmod_for_each(_setup, NULL);
 
 	return 0;

@@ -264,7 +264,7 @@ int nvmet_ns_enable(struct nvmet_ns *ns)
 	int ret = 0;
 
 	mutex_lock(&subsys->lock);
-	if (!list_empty(&ns->dev_link))
+	if (ns->enabled)
 		goto out_unlock;
 
 	ns->bdev = blkdev_get_by_path(ns->device_path, FMODE_READ | FMODE_WRITE,
@@ -309,6 +309,7 @@ int nvmet_ns_enable(struct nvmet_ns *ns)
 	list_for_each_entry(ctrl, &subsys->ctrls, subsys_entry)
 		nvmet_add_async_event(ctrl, NVME_AER_TYPE_NOTICE, 0, 0);
 
+	ns->enabled = true;
 	ret = 0;
 out_unlock:
 	mutex_unlock(&subsys->lock);
@@ -325,11 +326,11 @@ void nvmet_ns_disable(struct nvmet_ns *ns)
 	struct nvmet_ctrl *ctrl;
 
 	mutex_lock(&subsys->lock);
-	if (list_empty(&ns->dev_link)) {
-		mutex_unlock(&subsys->lock);
-		return;
-	}
-	list_del_init(&ns->dev_link);
+	if (!ns->enabled)
+		goto out_unlock;
+
+	ns->enabled = false;
+	list_del_rcu(&ns->dev_link);
 	mutex_unlock(&subsys->lock);
 
 	/*
@@ -351,6 +352,7 @@ void nvmet_ns_disable(struct nvmet_ns *ns)
 
 	if (ns->bdev)
 		blkdev_put(ns->bdev, FMODE_WRITE|FMODE_READ);
+out_unlock:
 	mutex_unlock(&subsys->lock);
 }
 
@@ -420,6 +422,13 @@ void nvmet_sq_setup(struct nvmet_ctrl *ctrl, struct nvmet_sq *sq,
 	ctrl->sqs[qid] = sq;
 }
 
+static void nvmet_confirm_sq(struct percpu_ref *ref)
+{
+	struct nvmet_sq *sq = container_of(ref, struct nvmet_sq, ref);
+
+	complete(&sq->confirm_done);
+}
+
 void nvmet_sq_destroy(struct nvmet_sq *sq)
 {
 	/*
@@ -428,7 +437,8 @@ void nvmet_sq_destroy(struct nvmet_sq *sq)
 	 */
 	if (sq->ctrl && sq->ctrl->sqs && sq->ctrl->sqs[0] == sq)
 		nvmet_async_events_free(sq->ctrl);
-	percpu_ref_kill(&sq->ref);
+	percpu_ref_kill_and_confirm(&sq->ref, nvmet_confirm_sq);
+	wait_for_completion(&sq->confirm_done);
 	wait_for_completion(&sq->free_done);
 	percpu_ref_exit(&sq->ref);
 
@@ -456,6 +466,7 @@ int nvmet_sq_init(struct nvmet_sq *sq)
 		return ret;
 	}
 	init_completion(&sq->free_done);
+	init_completion(&sq->confirm_done);
 
 	return 0;
 }
@@ -813,6 +824,9 @@ static void nvmet_ctrl_free(struct kref *ref)
 	mutex_lock(&subsys->lock);
 	list_del(&ctrl->subsys_entry);
 	mutex_unlock(&subsys->lock);
+
+	flush_work(&ctrl->async_event_work);
+	cancel_work_sync(&ctrl->fatal_err_work);
 
 	ida_simple_remove(&subsys->cntlid_ida, ctrl->cntlid);
 	nvmet_subsys_put(subsys);

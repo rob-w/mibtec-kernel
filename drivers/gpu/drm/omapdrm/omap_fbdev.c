@@ -22,6 +22,8 @@
 
 #include "omap_drv.h"
 
+#include <linux/suspend.h>
+
 MODULE_PARM_DESC(ywrap, "Enable ywrap scrolling (omap44xx and later, default 'y')");
 static bool ywrap_enabled = true;
 module_param_named(ywrap, ywrap_enabled, bool, 0644);
@@ -82,6 +84,7 @@ fallback:
 
 static struct fb_ops omap_fb_ops = {
 	.owner = THIS_MODULE,
+	DRM_FB_HELPER_DEFAULT_OPS,
 
 	/* Note: to properly handle manual update displays, we wrap the
 	 * basic fbdev ops which write to the framebuffer
@@ -92,11 +95,7 @@ static struct fb_ops omap_fb_ops = {
 	.fb_copyarea = drm_fb_helper_sys_copyarea,
 	.fb_imageblit = drm_fb_helper_sys_imageblit,
 
-	.fb_check_var = drm_fb_helper_check_var,
-	.fb_set_par = drm_fb_helper_set_par,
 	.fb_pan_display = omap_fbdev_pan_display,
-	.fb_blank = drm_fb_helper_blank,
-	.fb_setcmap = drm_fb_helper_setcmap,
 };
 
 static int omap_fbdev_create(struct drm_fb_helper *helper,
@@ -109,7 +108,7 @@ static int omap_fbdev_create(struct drm_fb_helper *helper,
 	union omap_gem_size gsize;
 	struct fb_info *fbi = NULL;
 	struct drm_mode_fb_cmd2 mode_cmd = {0};
-	dma_addr_t paddr;
+	dma_addr_t dma_addr;
 	int ret;
 
 	sizes->surface_bpp = 32;
@@ -165,10 +164,9 @@ static int omap_fbdev_create(struct drm_fb_helper *helper,
 	 * to it).  Then we just need to be sure that we are able to re-
 	 * pin it in case of an opps.
 	 */
-	ret = omap_gem_get_paddr(fbdev->bo, &paddr, true);
+	ret = omap_gem_pin(fbdev->bo, &dma_addr);
 	if (ret) {
-		dev_err(dev->dev,
-			"could not map (paddr)!  Skipping framebuffer alloc\n");
+		dev_err(dev->dev, "could not pin framebuffer\n");
 		ret = -ENOMEM;
 		goto fail;
 	}
@@ -196,11 +194,11 @@ static int omap_fbdev_create(struct drm_fb_helper *helper,
 	drm_fb_helper_fill_fix(fbi, fb->pitches[0], fb->depth);
 	drm_fb_helper_fill_var(fbi, helper, sizes->fb_width, sizes->fb_height);
 
-	dev->mode_config.fb_base = paddr;
+	dev->mode_config.fb_base = dma_addr;
 
 	fbi->screen_base = omap_gem_vaddr(fbdev->bo);
 	fbi->screen_size = fbdev->bo->size;
-	fbi->fix.smem_start = paddr;
+	fbi->fix.smem_start = dma_addr;
 	fbi->fix.smem_len = fbdev->bo->size;
 
 	/* if we have DMM, then we can use it for scrolling by just
@@ -258,6 +256,9 @@ struct drm_fb_helper *omap_fbdev_init(struct drm_device *dev)
 	struct drm_fb_helper *helper;
 	int ret = 0;
 
+	if (!priv->num_crtcs || !priv->num_connectors)
+		return NULL;
+
 	fbdev = kzalloc(sizeof(*fbdev), GFP_KERNEL);
 	if (!fbdev)
 		goto fail;
@@ -275,7 +276,9 @@ struct drm_fb_helper *omap_fbdev_init(struct drm_device *dev)
 		goto fail;
 	}
 
-	ret = drm_fb_helper_single_add_all_connectors(helper);
+	drm_modeset_lock_all(dev);
+	ret = drm_fb_helper_add_one_connector(helper, priv->connectors[0]);
+	drm_modeset_unlock_all(dev);
 	if (ret)
 		goto fini;
 
@@ -284,6 +287,14 @@ struct drm_fb_helper *omap_fbdev_init(struct drm_device *dev)
 		goto fini;
 
 	priv->fbdev = helper;
+
+	/*
+	 * disable creation of new console during suspend.
+	 * this works around a problem where a ctrl-c is needed
+	 * to be entered on the VT to actually get the device
+	 * to continue into the suspend state.
+	 */
+	pm_set_vt_switch(0);
 
 	return helper;
 
@@ -313,8 +324,8 @@ void omap_fbdev_free(struct drm_device *dev)
 
 	fbdev = to_omap_fbdev(priv->fbdev);
 
-	/* release the ref taken in omap_fbdev_create() */
-	omap_gem_put_paddr(fbdev->bo);
+	/* unpin the GEM object pinned in omap_fbdev_create() */
+	omap_gem_unpin(fbdev->bo);
 
 	/* this will free the backing object */
 	if (fbdev->fb) {

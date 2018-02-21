@@ -80,7 +80,7 @@ endif
 # Power Management
 omap-4-5-pm-common			= omap-mpuss-lowpower.o
 obj-$(CONFIG_ARCH_OMAP4)		+= $(omap-4-5-pm-common)
-obj-$(CONFIG_ARCH_OMAP5)		+= $(omap-4-5-pm-common)
+obj-$(CONFIG_SOC_OMAP5)			+= $(omap-4-5-pm-common)
 obj-$(CONFIG_OMAP_PM_NOOP)		+= omap-pm-noop.o
 
 ifeq ($(CONFIG_PM),y)
@@ -262,3 +262,8 @@ smsc911x-$(CONFIG_SMSC911X)		:= gpmc-smsc911x.o
 obj-y					+= $(smsc911x-m) $(smsc911x-y)
 
 obj-y					+= common-board-devices.o twl-common.o dss-common.o
+
+obj-$(CONFIG_OMAP_IOMMU)		+= omap-iommu.o
+ifneq ($(CONFIG_OMAP_REMOTEPROC),)
+obj-y					+= remoteproc.o
+endif

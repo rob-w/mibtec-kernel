@@ -34,38 +34,54 @@ struct omap_crtc {
 	const char *name;
 	enum omap_channel channel;
 
-	struct omap_video_timings timings;
-
-	struct omap_drm_irq vblank_irq;
-	struct omap_drm_irq error_irq;
+	struct videomode vm;
 
 	bool ignore_digit_sync_lost;
 
+	bool enabled;
 	bool pending;
 	wait_queue_head_t pending_wait;
+	struct drm_pending_vblank_event *event;
 };
+
+struct omap_crtc_state {
+	struct drm_crtc_state base;
+
+	u32 default_color;
+	unsigned int trans_key_mode;
+	unsigned int trans_key;
+	bool partial_alpha_enabled;
+};
+
+#define to_omap_crtc_state(x) container_of(x, struct omap_crtc_state, base)
 
 /* -----------------------------------------------------------------------------
  * Helper Functions
  */
 
-uint32_t pipe2vbl(struct drm_crtc *crtc)
+struct videomode *omap_crtc_timings(struct drm_crtc *crtc)
 {
 	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
-
-	return dispc_mgr_get_vsync_irq(omap_crtc->channel);
-}
-
-struct omap_video_timings *omap_crtc_timings(struct drm_crtc *crtc)
-{
-	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
-	return &omap_crtc->timings;
+	return &omap_crtc->vm;
 }
 
 enum omap_channel omap_crtc_channel(struct drm_crtc *crtc)
 {
 	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
 	return omap_crtc->channel;
+}
+
+static bool omap_crtc_is_pending(struct drm_crtc *crtc)
+{
+	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
+	unsigned long flags;
+	bool pending;
+
+	spin_lock_irqsave(&crtc->dev->event_lock, flags);
+	pending = omap_crtc->pending;
+	spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
+
+	return pending;
 }
 
 int omap_crtc_wait_pending(struct drm_crtc *crtc)
@@ -77,7 +93,7 @@ int omap_crtc_wait_pending(struct drm_crtc *crtc)
 	 * a single frame refresh even on slower displays.
 	 */
 	return wait_event_timeout(omap_crtc->pending_wait,
-				  !omap_crtc->pending,
+				  !omap_crtc_is_pending(crtc),
 				  msecs_to_jiffies(250));
 }
 
@@ -102,10 +118,12 @@ static struct omap_dss_device *omap_crtc_output[8];
 static int omap_crtc_dss_connect(enum omap_channel channel,
 		struct omap_dss_device *dst)
 {
+	const struct dispc_ops *dispc_ops = dispc_get_ops();
+
 	if (omap_crtc_output[channel])
 		return -EINVAL;
 
-	if ((dispc_mgr_get_supported_outputs(channel) & dst->id) == 0)
+	if ((dispc_ops->mgr_get_supported_outputs(channel) & dst->id) == 0)
 		return -EINVAL;
 
 	omap_crtc_output[channel] = dst;
@@ -129,19 +147,21 @@ static void omap_crtc_dss_start_update(enum omap_channel channel)
 static void omap_crtc_set_enabled(struct drm_crtc *crtc, bool enable)
 {
 	struct drm_device *dev = crtc->dev;
+	struct omap_drm_private *priv = dev->dev_private;
 	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
 	enum omap_channel channel = omap_crtc->channel;
 	struct omap_irq_wait *wait;
 	u32 framedone_irq, vsync_irq;
 	int ret;
 
+	if (WARN_ON(omap_crtc->enabled == enable))
+		return;
+
 	if (omap_crtc_output[channel]->output_type == OMAP_DISPLAY_TYPE_HDMI) {
-		dispc_mgr_enable(channel, enable);
+		priv->dispc_ops->mgr_enable(channel, enable);
+		omap_crtc->enabled = enable;
 		return;
 	}
-
-	if (dispc_mgr_is_enabled(channel) == enable)
-		return;
 
 	if (omap_crtc->channel == OMAP_DSS_CHANNEL_DIGIT) {
 		/*
@@ -151,8 +171,8 @@ static void omap_crtc_set_enabled(struct drm_crtc *crtc, bool enable)
 		omap_crtc->ignore_digit_sync_lost = true;
 	}
 
-	framedone_irq = dispc_mgr_get_framedone_irq(channel);
-	vsync_irq = dispc_mgr_get_vsync_irq(channel);
+	framedone_irq = priv->dispc_ops->mgr_get_framedone_irq(channel);
+	vsync_irq = priv->dispc_ops->mgr_get_vsync_irq(channel);
 
 	if (enable) {
 		wait = omap_irq_wait_init(dev, vsync_irq, 1);
@@ -172,7 +192,8 @@ static void omap_crtc_set_enabled(struct drm_crtc *crtc, bool enable)
 			wait = omap_irq_wait_init(dev, vsync_irq, 2);
 	}
 
-	dispc_mgr_enable(channel, enable);
+	priv->dispc_ops->mgr_enable(channel, enable);
+	omap_crtc->enabled = enable;
 
 	ret = omap_irq_wait(dev, wait, msecs_to_jiffies(100));
 	if (ret) {
@@ -191,17 +212,9 @@ static void omap_crtc_set_enabled(struct drm_crtc *crtc, bool enable)
 static int omap_crtc_dss_enable(enum omap_channel channel)
 {
 	struct omap_crtc *omap_crtc = omap_crtcs[channel];
-	struct omap_overlay_manager_info info;
+	struct omap_drm_private *priv = omap_crtc->base.dev->dev_private;
 
-	memset(&info, 0, sizeof(info));
-	info.default_color = 0x00000000;
-	info.trans_key = 0x00000000;
-	info.trans_key_type = OMAP_DSS_COLOR_KEY_GFX_DST;
-	info.trans_enabled = false;
-
-	dispc_mgr_setup(omap_crtc->channel, &info);
-	dispc_mgr_set_timings(omap_crtc->channel,
-			&omap_crtc->timings);
+	priv->dispc_ops->mgr_set_timings(omap_crtc->channel, &omap_crtc->vm);
 	omap_crtc_set_enabled(&omap_crtc->base, true);
 
 	return 0;
@@ -215,19 +228,21 @@ static void omap_crtc_dss_disable(enum omap_channel channel)
 }
 
 static void omap_crtc_dss_set_timings(enum omap_channel channel,
-		const struct omap_video_timings *timings)
+		const struct videomode *vm)
 {
 	struct omap_crtc *omap_crtc = omap_crtcs[channel];
 	DBG("%s", omap_crtc->name);
-	omap_crtc->timings = *timings;
+	omap_crtc->vm = *vm;
 }
 
 static void omap_crtc_dss_set_lcd_config(enum omap_channel channel,
 		const struct dss_lcd_mgr_config *config)
 {
 	struct omap_crtc *omap_crtc = omap_crtcs[channel];
+	struct omap_drm_private *priv = omap_crtc->base.dev->dev_private;
+
 	DBG("%s", omap_crtc->name);
-	dispc_mgr_set_lcd_config(omap_crtc->channel, config);
+	priv->dispc_ops->mgr_set_lcd_config(omap_crtc->channel, config);
 }
 
 static int omap_crtc_dss_register_framedone(
@@ -259,26 +274,9 @@ static const struct dss_mgr_ops mgr_ops = {
  * Setup, Flush and Page Flip
  */
 
-static void omap_crtc_complete_page_flip(struct drm_crtc *crtc)
+void omap_crtc_error_irq(struct drm_crtc *crtc, uint32_t irqstatus)
 {
-	struct drm_pending_vblank_event *event;
-	struct drm_device *dev = crtc->dev;
-	unsigned long flags;
-
-	event = crtc->state->event;
-
-	if (!event)
-		return;
-
-	spin_lock_irqsave(&dev->event_lock, flags);
-	drm_crtc_send_vblank_event(crtc, event);
-	spin_unlock_irqrestore(&dev->event_lock, flags);
-}
-
-static void omap_crtc_error_irq(struct omap_drm_irq *irq, uint32_t irqstatus)
-{
-	struct omap_crtc *omap_crtc =
-			container_of(irq, struct omap_crtc, error_irq);
+	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
 
 	if (omap_crtc->ignore_digit_sync_lost) {
 		irqstatus &= ~DISPC_IRQ_SYNC_LOST_DIGIT;
@@ -289,34 +287,160 @@ static void omap_crtc_error_irq(struct omap_drm_irq *irq, uint32_t irqstatus)
 	DRM_ERROR_RATELIMITED("%s: errors: %08x\n", omap_crtc->name, irqstatus);
 }
 
-static void omap_crtc_vblank_irq(struct omap_drm_irq *irq, uint32_t irqstatus)
+void omap_crtc_vblank_irq(struct drm_crtc *crtc)
 {
-	struct omap_crtc *omap_crtc =
-			container_of(irq, struct omap_crtc, vblank_irq);
+	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
 	struct drm_device *dev = omap_crtc->base.dev;
+	struct omap_drm_private *priv = dev->dev_private;
+	bool pending;
 
-	if (dispc_mgr_go_busy(omap_crtc->channel))
+	spin_lock(&crtc->dev->event_lock);
+	/*
+	 * If the dispc is busy we're racing the flush operation. Try again on
+	 * the next vblank interrupt.
+	 */
+	if (priv->dispc_ops->mgr_go_busy(omap_crtc->channel)) {
+		spin_unlock(&crtc->dev->event_lock);
 		return;
+	}
+
+	/* Send the vblank event if one has been requested. */
+	if (omap_crtc->event) {
+		drm_crtc_send_vblank_event(crtc, omap_crtc->event);
+		omap_crtc->event = NULL;
+	}
+
+	pending = omap_crtc->pending;
+	omap_crtc->pending = false;
+	spin_unlock(&crtc->dev->event_lock);
+
+	if (pending)
+		drm_crtc_vblank_put(crtc);
+
+	/* Wake up omap_atomic_complete. */
+	wake_up(&omap_crtc->pending_wait);
 
 	DBG("%s: apply done", omap_crtc->name);
+}
 
-	__omap_irq_unregister(dev, &omap_crtc->vblank_irq);
+static s16 omap_crtc_S31_32_to_s2_8(s64 coef)
+{
+	uint64_t sign_bit = 1ULL << 63;
+	uint64_t cbits = (uint64_t) coef;
+	s16 ret = clamp_val(((cbits & ~sign_bit) >> 24), 0, 0x1FF);
 
-	rmb();
-	WARN_ON(!omap_crtc->pending);
-	omap_crtc->pending = false;
-	wmb();
+	if (cbits & sign_bit)
+		ret = -ret;
 
-	/* wake up userspace */
-	omap_crtc_complete_page_flip(&omap_crtc->base);
+	return ret;
+}
 
-	/* wake up omap_atomic_complete */
-	wake_up(&omap_crtc->pending_wait);
+static void omap_crtc_cpr_coefs_from_ctm(const struct drm_color_ctm *ctm,
+					 struct omap_dss_cpr_coefs *cpr)
+{
+	cpr->rr = omap_crtc_S31_32_to_s2_8(ctm->matrix[0]);
+	cpr->rg = omap_crtc_S31_32_to_s2_8(ctm->matrix[1]);
+	cpr->rb = omap_crtc_S31_32_to_s2_8(ctm->matrix[2]);
+	cpr->gr = omap_crtc_S31_32_to_s2_8(ctm->matrix[3]);
+	cpr->gg = omap_crtc_S31_32_to_s2_8(ctm->matrix[4]);
+	cpr->gb = omap_crtc_S31_32_to_s2_8(ctm->matrix[5]);
+	cpr->br = omap_crtc_S31_32_to_s2_8(ctm->matrix[6]);
+	cpr->bg = omap_crtc_S31_32_to_s2_8(ctm->matrix[7]);
+	cpr->bb = omap_crtc_S31_32_to_s2_8(ctm->matrix[8]);
+}
+
+static void omap_crtc_write_crtc_properties(struct drm_crtc *crtc)
+{
+	struct omap_drm_private *priv = crtc->dev->dev_private;
+	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
+	struct omap_overlay_manager_info info;
+	const struct omap_crtc_state *omap_state =
+		to_omap_crtc_state(crtc->state);
+
+	memset(&info, 0, sizeof(info));
+	info.default_color = omap_state->default_color;
+
+	info.trans_key = omap_state->trans_key;
+
+	switch (omap_state->trans_key_mode) {
+	case 0:
+	default:
+		info.trans_enabled = false;
+		break;
+	case 1:
+		info.trans_enabled = true;
+		info.trans_key_type = OMAP_DSS_COLOR_KEY_GFX_DST;
+		break;
+	case 2:
+		info.trans_enabled = true;
+		info.trans_key_type = OMAP_DSS_COLOR_KEY_VID_SRC;
+		break;
+	}
+
+	info.partial_alpha_enabled = omap_state->partial_alpha_enabled;
+
+	if (crtc->state->ctm) {
+		struct drm_color_ctm *ctm =
+			(struct drm_color_ctm *) crtc->state->ctm->data;
+
+		info.cpr_enable = true;
+		omap_crtc_cpr_coefs_from_ctm(ctm, &info.cpr_coefs);
+	}
+
+	priv->dispc_ops->mgr_setup(omap_crtc->channel, &info);
 }
 
 /* -----------------------------------------------------------------------------
  * CRTC Functions
  */
+
+static struct drm_crtc_state *
+omap_crtc_atomic_duplicate_state(struct drm_crtc *crtc)
+{
+	struct omap_crtc_state *state;
+	struct omap_crtc_state *copy;
+
+	if (WARN_ON(!crtc->state))
+		return NULL;
+
+	state = to_omap_crtc_state(crtc->state);
+	copy = kmemdup(state, sizeof(*state), GFP_KERNEL);
+	if (copy == NULL)
+		return NULL;
+
+	__drm_atomic_helper_crtc_duplicate_state(crtc, &copy->base);
+
+	return &copy->base;
+}
+
+static void omap_crtc_atomic_destroy_state(struct drm_crtc *crtc,
+					   struct drm_crtc_state *state)
+{
+	__drm_atomic_helper_crtc_destroy_state(state);
+	kfree(to_omap_crtc_state(state));
+}
+
+static void omap_crtc_reset(struct drm_crtc *crtc)
+{
+	struct omap_crtc_state *omap_state;
+
+	if (crtc->state) {
+		omap_crtc_atomic_destroy_state(crtc, crtc->state);
+		crtc->state = NULL;
+	}
+
+	omap_state = kzalloc(sizeof(*omap_state), GFP_KERNEL);
+	if (omap_state == NULL)
+		return;
+
+	omap_state->default_color = 0;
+	omap_state->trans_key_mode = 0;
+	omap_state->trans_key = 0;
+	omap_state->partial_alpha_enabled = false;
+
+	crtc->state = &omap_state->base;
+	crtc->state->crtc = crtc;
+}
 
 static void omap_crtc_destroy(struct drm_crtc *crtc)
 {
@@ -324,28 +448,38 @@ static void omap_crtc_destroy(struct drm_crtc *crtc)
 
 	DBG("%s", omap_crtc->name);
 
-	WARN_ON(omap_crtc->vblank_irq.registered);
-	omap_irq_unregister(crtc->dev, &omap_crtc->error_irq);
-
 	drm_crtc_cleanup(crtc);
 
 	kfree(omap_crtc);
 }
 
-static void omap_crtc_enable(struct drm_crtc *crtc)
+static void omap_crtc_arm_event(struct drm_crtc *crtc)
 {
 	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
 
-	DBG("%s", omap_crtc->name);
-
-	rmb();
 	WARN_ON(omap_crtc->pending);
 	omap_crtc->pending = true;
-	wmb();
 
-	omap_irq_register(crtc->dev, &omap_crtc->vblank_irq);
+	if (crtc->state->event) {
+		omap_crtc->event = crtc->state->event;
+		crtc->state->event = NULL;
+	}
+}
 
+static void omap_crtc_enable(struct drm_crtc *crtc)
+{
+	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
+	int ret;
+
+	DBG("%s", omap_crtc->name);
+
+	spin_lock_irq(&crtc->dev->event_lock);
 	drm_crtc_vblank_on(crtc);
+	ret = drm_crtc_vblank_get(crtc);
+	WARN_ON(ret != 0);
+
+	omap_crtc_arm_event(crtc);
+	spin_unlock_irq(&crtc->dev->event_lock);
 }
 
 static void omap_crtc_disable(struct drm_crtc *crtc)
@@ -354,6 +488,13 @@ static void omap_crtc_disable(struct drm_crtc *crtc)
 
 	DBG("%s", omap_crtc->name);
 
+	spin_lock_irq(&crtc->dev->event_lock);
+	if (crtc->state->event) {
+		drm_crtc_send_vblank_event(crtc, crtc->state->event);
+		crtc->state->event = NULL;
+	}
+	spin_unlock_irq(&crtc->dev->event_lock);
+
 	drm_crtc_vblank_off(crtc);
 }
 
@@ -361,6 +502,11 @@ static void omap_crtc_mode_set_nofb(struct drm_crtc *crtc)
 {
 	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
 	struct drm_display_mode *mode = &crtc->state->adjusted_mode;
+	struct omap_drm_private *priv = crtc->dev->dev_private;
+	const u32 flags_mask = DISPLAY_FLAGS_DE_HIGH | DISPLAY_FLAGS_DE_LOW |
+		DISPLAY_FLAGS_PIXDATA_POSEDGE | DISPLAY_FLAGS_PIXDATA_NEGEDGE |
+		DISPLAY_FLAGS_SYNC_POSEDGE | DISPLAY_FLAGS_SYNC_NEGEDGE;
+	unsigned int i;
 
 	DBG("%s: set mode: %d:\"%s\" %d %d %d %d %d %d %d %d %d %d 0x%x 0x%x",
 	    omap_crtc->name, mode->base.id, mode->name,
@@ -369,7 +515,39 @@ static void omap_crtc_mode_set_nofb(struct drm_crtc *crtc)
 	    mode->vdisplay, mode->vsync_start, mode->vsync_end, mode->vtotal,
 	    mode->type, mode->flags);
 
-	copy_timings_drm_to_omap(&omap_crtc->timings, mode);
+	drm_display_mode_to_videomode(mode, &omap_crtc->vm);
+
+	/*
+	 * HACK: This fixes the vm flags.
+	 * struct drm_display_mode does not contain the VSYNC/HSYNC/DE flags
+	 * and they get lost when converting back and forth between
+	 * struct drm_display_mode and struct videomode. The hack below
+	 * goes and fetches the missing flags from the panel drivers.
+	 *
+	 * Correct solution would be to use DRM's bus-flags, but that's not
+	 * easily possible before the omapdrm's panel/encoder driver model
+	 * has been changed to the DRM model.
+	 */
+
+	for (i = 0; i < priv->num_encoders; ++i) {
+		struct drm_encoder *encoder = priv->encoders[i];
+
+		if (encoder->crtc == crtc) {
+			struct omap_dss_device *dssdev;
+
+			dssdev = omap_encoder_get_dssdev(encoder);
+
+			if (dssdev) {
+				struct videomode vm = {0};
+
+				dssdev->driver->get_timings(dssdev, &vm);
+
+				omap_crtc->vm.flags |= vm.flags & flags_mask;
+			}
+
+			break;
+		}
+	}
 }
 
 static int omap_crtc_atomic_check(struct drm_crtc *crtc,
@@ -387,29 +565,16 @@ static int omap_crtc_atomic_check(struct drm_crtc *crtc,
 }
 
 static void omap_crtc_atomic_begin(struct drm_crtc *crtc,
-                                  struct drm_crtc_state *old_crtc_state)
+				   struct drm_crtc_state *old_crtc_state)
 {
 }
 
 static void omap_crtc_atomic_flush(struct drm_crtc *crtc,
-                                  struct drm_crtc_state *old_crtc_state)
+				   struct drm_crtc_state *old_crtc_state)
 {
+	struct omap_drm_private *priv = crtc->dev->dev_private;
 	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
-
-	WARN_ON(omap_crtc->vblank_irq.registered);
-
-	if (crtc->state->color_mgmt_changed) {
-		struct drm_color_lut *lut = NULL;
-		uint length = 0;
-
-		if (crtc->state->gamma_lut) {
-			lut = (struct drm_color_lut *)
-				crtc->state->gamma_lut->data;
-			length = crtc->state->gamma_lut->length /
-				sizeof(*lut);
-		}
-		dispc_mgr_set_gamma(omap_crtc->channel, lut, length);
-	}
+	int ret;
 
 	if (crtc->state->color_mgmt_changed) {
 		struct drm_color_lut *lut = NULL;
@@ -421,30 +586,34 @@ static void omap_crtc_atomic_flush(struct drm_crtc *crtc,
 			length = crtc->state->gamma_lut->length /
 				sizeof(*lut);
 		}
-		dispc_mgr_set_gamma(omap_crtc->channel, lut, length);
+		priv->dispc_ops->mgr_set_gamma(omap_crtc->channel, lut, length);
 	}
 
-	if (dispc_mgr_is_enabled(omap_crtc->channel)) {
+	omap_crtc_write_crtc_properties(crtc);
 
-		DBG("%s: GO", omap_crtc->name);
+	/* Only flush the CRTC if it is currently enabled. */
+	if (!omap_crtc->enabled)
+		return;
 
-		rmb();
-		WARN_ON(omap_crtc->pending);
-		omap_crtc->pending = true;
-		wmb();
+	DBG("%s: GO", omap_crtc->name);
 
-		dispc_mgr_go(omap_crtc->channel);
-		omap_irq_register(crtc->dev, &omap_crtc->vblank_irq);
-	}
+	ret = drm_crtc_vblank_get(crtc);
+	WARN_ON(ret != 0);
+
+	spin_lock_irq(&crtc->dev->event_lock);
+	priv->dispc_ops->mgr_go(omap_crtc->channel);
+	omap_crtc_arm_event(crtc);
+	spin_unlock_irq(&crtc->dev->event_lock);
 }
 
-static bool omap_crtc_is_plane_prop(struct drm_device *dev,
+static bool omap_crtc_is_plane_prop(struct drm_crtc *crtc,
 	struct drm_property *property)
 {
+	struct drm_device *dev = crtc->dev;
 	struct omap_drm_private *priv = dev->dev_private;
 
 	return property == priv->zorder_prop ||
-		property == dev->mode_config.rotation_property;
+		property == crtc->primary->rotation_property;
 }
 
 static int omap_crtc_atomic_set_property(struct drm_crtc *crtc,
@@ -453,8 +622,10 @@ static int omap_crtc_atomic_set_property(struct drm_crtc *crtc,
 					 uint64_t val)
 {
 	struct drm_device *dev = crtc->dev;
+	struct omap_drm_private *priv = dev->dev_private;
+	struct omap_crtc_state *omap_state = to_omap_crtc_state(state);
 
-	if (omap_crtc_is_plane_prop(dev, property)) {
+	if (omap_crtc_is_plane_prop(crtc, property)) {
 		struct drm_plane_state *plane_state;
 		struct drm_plane *plane = crtc->primary;
 
@@ -471,7 +642,18 @@ static int omap_crtc_atomic_set_property(struct drm_crtc *crtc,
 				property, val);
 	}
 
-	return -EINVAL;
+	if (property == priv->background_color_prop)
+		omap_state->default_color = val;
+	else if (property == priv->trans_key_mode_prop)
+		omap_state->trans_key_mode = val;
+	else if (property == priv->trans_key_prop)
+		omap_state->trans_key = val;
+	else if (property == priv->alpha_blender_prop)
+		omap_state->partial_alpha_enabled = !!val;
+	else
+		return -EINVAL;
+
+	return 0;
 }
 
 static int omap_crtc_atomic_get_property(struct drm_crtc *crtc,
@@ -480,8 +662,10 @@ static int omap_crtc_atomic_get_property(struct drm_crtc *crtc,
 					 uint64_t *val)
 {
 	struct drm_device *dev = crtc->dev;
+	struct omap_drm_private *priv = dev->dev_private;
+	struct omap_crtc_state *omap_state = to_omap_crtc_state(state);
 
-	if (omap_crtc_is_plane_prop(dev, property)) {
+	if (omap_crtc_is_plane_prop(crtc, property)) {
 		/*
 		 * Delegate property get to the primary plane. The
 		 * drm_atomic_plane_get_property() function isn't exported, but
@@ -492,18 +676,29 @@ static int omap_crtc_atomic_get_property(struct drm_crtc *crtc,
 				property, val);
 	}
 
-	return -EINVAL;
+	if (property == priv->background_color_prop)
+		*val = omap_state->default_color;
+	else if (property == priv->trans_key_mode_prop)
+		*val = omap_state->trans_key_mode;
+	else if (property == priv->trans_key_prop)
+		*val = omap_state->trans_key;
+	else if (property == priv->alpha_blender_prop)
+		*val = omap_state->partial_alpha_enabled;
+	else
+		return -EINVAL;
+
+	return 0;
 }
 
 static const struct drm_crtc_funcs omap_crtc_funcs = {
-	.reset = drm_atomic_helper_crtc_reset,
+	.reset = omap_crtc_reset,
 	.set_config = drm_atomic_helper_set_config,
 	.destroy = omap_crtc_destroy,
 	.page_flip = drm_atomic_helper_page_flip,
 	.gamma_set = drm_atomic_helper_legacy_gamma_set,
 	.set_property = drm_atomic_helper_crtc_set_property,
-	.atomic_duplicate_state = drm_atomic_helper_crtc_duplicate_state,
-	.atomic_destroy_state = drm_atomic_helper_crtc_destroy_state,
+	.atomic_duplicate_state = omap_crtc_atomic_duplicate_state,
+	.atomic_destroy_state = omap_crtc_atomic_destroy_state,
 	.atomic_set_property = omap_crtc_atomic_set_property,
 	.atomic_get_property = omap_crtc_atomic_get_property,
 };
@@ -530,6 +725,8 @@ static const char *channel_names[] = {
 
 void omap_crtc_pre_init(void)
 {
+	memset(omap_crtcs, 0, sizeof(omap_crtcs));
+
 	dss_install_mgr_ops(&mgr_ops);
 }
 
@@ -538,19 +735,42 @@ void omap_crtc_pre_uninit(void)
 	dss_uninstall_mgr_ops();
 }
 
+static void omap_crtc_install_properties(struct drm_crtc *crtc)
+{
+	struct drm_device *dev = crtc->dev;
+	struct drm_mode_object *obj = &crtc->base;
+	struct omap_drm_private *priv = dev->dev_private;
+
+	drm_object_attach_property(obj, priv->background_color_prop, 0);
+	drm_object_attach_property(obj, priv->trans_key_mode_prop, 0);
+	drm_object_attach_property(obj, priv->trans_key_prop, 0);
+	drm_object_attach_property(obj, priv->alpha_blender_prop, 0);
+}
+
 /* initialize crtc */
 struct drm_crtc *omap_crtc_init(struct drm_device *dev,
-		struct drm_plane *plane, enum omap_channel channel, int id)
+		struct drm_plane *plane, struct omap_dss_device *dssdev)
 {
+	struct omap_drm_private *priv = dev->dev_private;
 	struct drm_crtc *crtc = NULL;
 	struct omap_crtc *omap_crtc;
+	enum omap_channel channel;
+	struct omap_dss_device *out;
 	int ret;
+
+	out = omapdss_find_output_from_display(dssdev);
+	channel = out->dispc_channel;
+	omap_dss_put_device(out);
 
 	DBG("%s", channel_names[channel]);
 
+	/* Multiple displays on same channel is not allowed */
+	if (WARN_ON(omap_crtcs[channel] != NULL))
+		return ERR_PTR(-EINVAL);
+
 	omap_crtc = kzalloc(sizeof(*omap_crtc), GFP_KERNEL);
 	if (!omap_crtc)
-		return NULL;
+		return ERR_PTR(-ENOMEM);
 
 	crtc = &omap_crtc->base;
 
@@ -559,19 +779,13 @@ struct drm_crtc *omap_crtc_init(struct drm_device *dev,
 	omap_crtc->channel = channel;
 	omap_crtc->name = channel_names[channel];
 
-	omap_crtc->vblank_irq.irqmask = pipe2vbl(crtc);
-	omap_crtc->vblank_irq.irq = omap_crtc_vblank_irq;
-
-	omap_crtc->error_irq.irqmask =
-			dispc_mgr_get_sync_lost_irq(channel);
-	omap_crtc->error_irq.irq = omap_crtc_error_irq;
-	omap_irq_register(dev, &omap_crtc->error_irq);
-
 	ret = drm_crtc_init_with_planes(dev, crtc, plane, NULL,
 					&omap_crtc_funcs, NULL);
 	if (ret < 0) {
+		dev_err(dev->dev, "%s(): could not init crtc for: %s\n",
+			__func__, dssdev->name);
 		kfree(omap_crtc);
-		return NULL;
+		return ERR_PTR(ret);
 	}
 
 	drm_crtc_helper_add(crtc, &omap_crtc_helper_funcs);
@@ -583,13 +797,14 @@ struct drm_crtc *omap_crtc_init(struct drm_device *dev,
 	 * extracted with dispc_mgr_gamma_size(). If it returns 0
 	 * gamma table is not supprted.
 	 */
-	if (dispc_mgr_gamma_size(channel)) {
+	if (priv->dispc_ops->mgr_gamma_size(channel)) {
 		uint gamma_lut_size = 256;
 
-		drm_crtc_enable_color_mgmt(crtc, 0, false, gamma_lut_size);
+		drm_crtc_enable_color_mgmt(crtc, 0, true, gamma_lut_size);
 		drm_mode_crtc_set_gamma_size(crtc, gamma_lut_size);
 	}
 
+	omap_crtc_install_properties(crtc);
 	omap_plane_install_properties(crtc->primary, &crtc->base);
 
 	omap_crtcs[channel] = omap_crtc;

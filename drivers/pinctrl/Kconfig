@@ -33,7 +33,8 @@ config DEBUG_PINCTRL
 
 config PINCTRL_ADI2
 	bool "ADI pin controller driver"
-	depends on BLACKFIN
+	depends on (BF54x || BF60x)
+	depends on !GPIO_ADI
 	select PINMUX
 	select IRQ_DOMAIN
 	help
@@ -89,6 +90,7 @@ config PINCTRL_AMD
 	tristate "AMD GPIO pin control"
 	depends on GPIOLIB
 	select GPIOLIB_IRQCHIP
+	select PINMUX
 	select PINCONF
 	select GENERIC_PINCONF
 	help
@@ -99,6 +101,15 @@ config PINCTRL_AMD
 
 	  Requires ACPI/FDT device enumeration code to set up a platform
 	  device.
+
+config PINCTRL_DA850_PUPD
+	tristate "TI DA850/OMAP-L138/AM18XX pullup/pulldown groups"
+	depends on OF && (ARCH_DAVINCI_DA850 || COMPILE_TEST)
+	select PINCONF
+	select GENERIC_PINCONF
+	help
+	  Driver for TI DA850/OMAP-L138/AM18XX pinconf. Used to control
+	  pullup/pulldown pin groups.
 
 config PINCTRL_DIGICOLOR
 	bool

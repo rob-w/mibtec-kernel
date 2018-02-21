@@ -15,6 +15,7 @@
 	interrupt-parent = <&wakeupgen>;
 	#address-cells = <1>;
 	#size-cells = <1>;
+	chosen { };
 
 	aliases {
 		i2c0 = &i2c1;
@@ -25,6 +26,8 @@
 		serial1 = &uart2;
 		serial2 = &uart3;
 		serial3 = &uart4;
+		rproc0 = &dsp;
+		rproc1 = &ipu;
 	};
 
 	cpus {
@@ -92,11 +95,6 @@
 			compatible = "ti,omap4-mpu";
 			ti,hwmods = "mpu";
 			sram = <&ocmcram>;
-		};
-
-		dsp {
-			compatible = "ti,omap3-c64";
-			ti,hwmods = "dsp";
 		};
 
 		iva {
@@ -184,6 +182,7 @@
 					reg = <0x40 0x0196>;
 					#address-cells = <1>;
 					#size-cells = <0>;
+					#pinctrl-cells = <1>;
 					#interrupt-cells = <1>;
 					interrupt-controller;
 					pinctrl-single,register-width = <16>;
@@ -256,6 +255,7 @@
 					reg = <0x1e040 0x0038>;
 					#address-cells = <1>;
 					#size-cells = <0>;
+					#pinctrl-cells = <1>;
 					#interrupt-cells = <1>;
 					interrupt-controller;
 					pinctrl-single,register-width = <16>;
@@ -832,6 +832,27 @@
 			interrupts = <GIC_SPI 47 IRQ_TYPE_LEVEL_HIGH>;
 			ti,hwmods = "timer11";
 			ti,timer-pwm;
+		};
+
+		dsp: dsp {
+			compatible = "ti,omap4-dsp";
+			ti,hwmods = "dsp";
+			syscon-bootreg = <&scm_conf 0x304>;
+			iommus = <&mmu_dsp>;
+			mboxes = <&mailbox &mbox_dsp>;
+			ti,rproc-standby-info = <0x4a004420>;
+			status = "disabled";
+		};
+
+		ipu: ipu@55020000 {
+			compatible = "ti,omap4-ipu";
+			reg = <0x55020000 0x10000>;
+			reg-names = "l2ram";
+			ti,hwmods = "ipu";
+			iommus = <&mmu_ipu>;
+			mboxes = <&mailbox &mbox_ipu>;
+			ti,rproc-standby-info = <0x4a008920>;
+			status = "disabled";
 		};
 
 		usbhstll: usbhstll@4a062000 {

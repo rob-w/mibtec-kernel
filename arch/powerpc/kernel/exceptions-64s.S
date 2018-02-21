@@ -655,6 +655,8 @@ END_MMU_FTR_SECTION_IFCLR(MMU_FTR_TYPE_RADIX)
 
 	andi.	r10,r12,MSR_RI	/* check for unrecoverable exception */
 	beq-	2f
+	andi.	r10,r12,MSR_PR	/* check for user mode (PR != 0) */
+	bne	1f
 
 	/* All done -- return from exception. */
 
@@ -671,7 +673,23 @@ END_MMU_FTR_SECTION_IFCLR(MMU_FTR_TYPE_RADIX)
 	ld	r11,PACA_EXSLB+EX_R11(r13)
 	ld	r12,PACA_EXSLB+EX_R12(r13)
 	ld	r13,PACA_EXSLB+EX_R13(r13)
-	rfid
+	RFI_TO_KERNEL
+	b	.	/* prevent speculative execution */
+
+1:
+.machine	push
+.machine	"power4"
+	mtcrf	0x80,r9
+	mtcrf	0x01,r9		/* slb_allocate uses cr0 and cr7 */
+.machine	pop
+
+	RESTORE_PPR_PACA(PACA_EXSLB, r9)
+	ld	r9,PACA_EXSLB+EX_R9(r13)
+	ld	r10,PACA_EXSLB+EX_R10(r13)
+	ld	r11,PACA_EXSLB+EX_R11(r13)
+	ld	r12,PACA_EXSLB+EX_R12(r13)
+	ld	r13,PACA_EXSLB+EX_R13(r13)
+	RFI_TO_USER
 	b	.	/* prevent speculative execution */
 
 2:	mfspr	r11,SPRN_SRR0
@@ -679,7 +697,7 @@ END_MMU_FTR_SECTION_IFCLR(MMU_FTR_TYPE_RADIX)
 	mtspr	SPRN_SRR0,r10
 	ld	r10,PACAKMSR(r13)
 	mtspr	SPRN_SRR1,r10
-	rfid
+	RFI_TO_KERNEL
 	b	.
 
 8:	mfspr	r11,SPRN_SRR0
@@ -764,7 +782,29 @@ EXC_REAL(program_check, 0x700, 0x800)
 EXC_VIRT(program_check, 0x4700, 0x4800, 0x700)
 TRAMP_KVM(PACA_EXGEN, 0x700)
 EXC_COMMON_BEGIN(program_check_common)
-	EXCEPTION_PROLOG_COMMON(0x700, PACA_EXGEN)
+	/*
+	 * It's possible to receive a TM Bad Thing type program check with
+	 * userspace register values (in particular r1), but with SRR1 reporting
+	 * that we came from the kernel. Normally that would confuse the bad
+	 * stack logic, and we would report a bad kernel stack pointer. Instead
+	 * we switch to the emergency stack if we're taking a TM Bad Thing from
+	 * the kernel.
+	 */
+	li	r10,MSR_PR		/* Build a mask of MSR_PR ..	*/
+	oris	r10,r10,0x200000@h	/* .. and SRR1_PROGTM		*/
+	and	r10,r10,r12		/* Mask SRR1 with that.		*/
+	srdi	r10,r10,8		/* Shift it so we can compare	*/
+	cmpldi	r10,(0x200000 >> 8)	/* .. with an immediate.	*/
+	bne 1f				/* If != go to normal path.	*/
+
+	/* SRR1 had PR=0 and SRR1_PROGTM=1, so use the emergency stack	*/
+	andi.	r10,r12,MSR_PR;		/* Set CR0 correctly for label	*/
+					/* 3 in EXCEPTION_PROLOG_COMMON	*/
+	mr	r10,r1			/* Save r1			*/
+	ld	r1,PACAEMERGSP(r13)	/* Use emergency stack		*/
+	subi	r1,r1,INT_FRAME_SIZE	/* alloc stack frame		*/
+	b 3f				/* Jump into the macro !!	*/
+1:	EXCEPTION_PROLOG_COMMON(0x700, PACA_EXGEN)
 	bl	save_nvgprs
 	RECONCILE_IRQ_STATE(r10, r11)
 	addi	r3,r1,STACK_FRAME_OVERHEAD
@@ -1411,10 +1451,8 @@ USE_TEXT_SECTION()
 	.align	7
 do_hash_page:
 #ifdef CONFIG_PPC_STD_MMU_64
-	andis.	r0,r4,0xa410		/* weird error? */
+	andis.	r0,r4,0xa450		/* weird error? */
 	bne-	handle_page_fault	/* if not, try to insert a HPTE */
-	andis.  r0,r4,DSISR_DABRMATCH@h
-	bne-    handle_dabr_fault
 	CURRENT_THREAD_INFO(r11, r1)
 	lwz	r0,TI_PREEMPT(r11)	/* If we're in an "NMI" */
 	andis.	r0,r0,NMI_MASK@h	/* (i.e. an irq when soft-disabled) */
@@ -1438,11 +1476,16 @@ do_hash_page:
 
 	/* Error */
 	blt-	13f
+
+	/* Reload DSISR into r4 for the DABR check below */
+	ld      r4,_DSISR(r1)
 #endif /* CONFIG_PPC_STD_MMU_64 */
 
 /* Here we have a page fault that hash_page can't handle. */
 handle_page_fault:
-11:	ld	r4,_DAR(r1)
+11:	andis.  r0,r4,DSISR_DABRMATCH@h
+	bne-    handle_dabr_fault
+	ld	r4,_DAR(r1)
 	ld	r5,_DSISR(r1)
 	addi	r3,r1,STACK_FRAME_OVERHEAD
 	bl	do_page_fault
@@ -1550,6 +1593,92 @@ END_FTR_SECTION_IFSET(CPU_FTR_CFAR)
 1:	addi	r3,r1,STACK_FRAME_OVERHEAD
 	bl	kernel_bad_stack
 	b	1b
+
+	.globl rfi_flush_fallback
+rfi_flush_fallback:
+	SET_SCRATCH0(r13);
+	GET_PACA(r13);
+	std	r9,PACA_EXRFI+EX_R9(r13)
+	std	r10,PACA_EXRFI+EX_R10(r13)
+	std	r11,PACA_EXRFI+EX_R11(r13)
+	std	r12,PACA_EXRFI+EX_R12(r13)
+	std	r8,PACA_EXRFI+EX_R13(r13)
+	mfctr	r9
+	ld	r10,PACA_RFI_FLUSH_FALLBACK_AREA(r13)
+	ld	r11,PACA_L1D_FLUSH_SETS(r13)
+	ld	r12,PACA_L1D_FLUSH_CONGRUENCE(r13)
+	/*
+	 * The load adresses are at staggered offsets within cachelines,
+	 * which suits some pipelines better (on others it should not
+	 * hurt).
+	 */
+	addi	r12,r12,8
+	mtctr	r11
+	DCBT_STOP_ALL_STREAM_IDS(r11) /* Stop prefetch streams */
+
+	/* order ld/st prior to dcbt stop all streams with flushing */
+	sync
+1:	li	r8,0
+	.rept	8 /* 8-way set associative */
+	ldx	r11,r10,r8
+	add	r8,r8,r12
+	xor	r11,r11,r11	// Ensure r11 is 0 even if fallback area is not
+	add	r8,r8,r11	// Add 0, this creates a dependency on the ldx
+	.endr
+	addi	r10,r10,128 /* 128 byte cache line */
+	bdnz	1b
+
+	mtctr	r9
+	ld	r9,PACA_EXRFI+EX_R9(r13)
+	ld	r10,PACA_EXRFI+EX_R10(r13)
+	ld	r11,PACA_EXRFI+EX_R11(r13)
+	ld	r12,PACA_EXRFI+EX_R12(r13)
+	ld	r8,PACA_EXRFI+EX_R13(r13)
+	GET_SCRATCH0(r13);
+	rfid
+
+	.globl hrfi_flush_fallback
+hrfi_flush_fallback:
+	SET_SCRATCH0(r13);
+	GET_PACA(r13);
+	std	r9,PACA_EXRFI+EX_R9(r13)
+	std	r10,PACA_EXRFI+EX_R10(r13)
+	std	r11,PACA_EXRFI+EX_R11(r13)
+	std	r12,PACA_EXRFI+EX_R12(r13)
+	std	r8,PACA_EXRFI+EX_R13(r13)
+	mfctr	r9
+	ld	r10,PACA_RFI_FLUSH_FALLBACK_AREA(r13)
+	ld	r11,PACA_L1D_FLUSH_SETS(r13)
+	ld	r12,PACA_L1D_FLUSH_CONGRUENCE(r13)
+	/*
+	 * The load adresses are at staggered offsets within cachelines,
+	 * which suits some pipelines better (on others it should not
+	 * hurt).
+	 */
+	addi	r12,r12,8
+	mtctr	r11
+	DCBT_STOP_ALL_STREAM_IDS(r11) /* Stop prefetch streams */
+
+	/* order ld/st prior to dcbt stop all streams with flushing */
+	sync
+1:	li	r8,0
+	.rept	8 /* 8-way set associative */
+	ldx	r11,r10,r8
+	add	r8,r8,r12
+	xor	r11,r11,r11	// Ensure r11 is 0 even if fallback area is not
+	add	r8,r8,r11	// Add 0, this creates a dependency on the ldx
+	.endr
+	addi	r10,r10,128 /* 128 byte cache line */
+	bdnz	1b
+
+	mtctr	r9
+	ld	r9,PACA_EXRFI+EX_R9(r13)
+	ld	r10,PACA_EXRFI+EX_R10(r13)
+	ld	r11,PACA_EXRFI+EX_R11(r13)
+	ld	r12,PACA_EXRFI+EX_R12(r13)
+	ld	r8,PACA_EXRFI+EX_R13(r13)
+	GET_SCRATCH0(r13);
+	hrfid
 
 /*
  * Called from arch_local_irq_enable when an interrupt needs

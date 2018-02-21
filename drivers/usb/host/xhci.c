@@ -192,6 +192,9 @@ int xhci_reset(struct xhci_hcd *xhci)
 	if (ret)
 		return ret;
 
+	if (xhci->quirks & XHCI_ASMEDIA_MODIFY_FLOWCONTROL)
+		usb_asmedia_modifyflowcontrol(to_pci_dev(xhci_to_hcd(xhci)->self.controller));
+
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			 "Wait for controller to be ready for doorbell rings");
 	/*
@@ -231,6 +234,9 @@ static int xhci_free_msi(struct xhci_hcd *xhci)
 static int xhci_setup_msi(struct xhci_hcd *xhci)
 {
 	int ret;
+	/*
+	 * TODO:Check with MSI Soc for sysdev
+	 */
 	struct pci_dev  *pdev = to_pci_dev(xhci_to_hcd(xhci)->self.controller);
 
 	ret = pci_enable_msi(pdev);
@@ -257,7 +263,7 @@ static int xhci_setup_msi(struct xhci_hcd *xhci)
  */
 static void xhci_free_irq(struct xhci_hcd *xhci)
 {
-	struct pci_dev *pdev = to_pci_dev(xhci_to_hcd(xhci)->self.controller);
+	struct pci_dev *pdev = to_pci_dev(xhci_to_hcd(xhci)->self.sysdev);
 	int ret;
 
 	/* return if using legacy interrupt */
@@ -743,7 +749,7 @@ void xhci_shutdown(struct usb_hcd *hcd)
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 
 	if (xhci->quirks & XHCI_SPURIOUS_REBOOT)
-		usb_disable_xhci_ports(to_pci_dev(hcd->self.controller));
+		usb_disable_xhci_ports(to_pci_dev(hcd->self.sysdev));
 
 	spin_lock_irq(&xhci->lock);
 	xhci_halt(xhci);
@@ -760,7 +766,7 @@ void xhci_shutdown(struct usb_hcd *hcd)
 
 	/* Yet another workaround for spurious wakeups at shutdown with HSW */
 	if (xhci->quirks & XHCI_SPURIOUS_WAKEUP)
-		pci_set_power_state(to_pci_dev(hcd->self.controller), PCI_D3hot);
+		pci_set_power_state(to_pci_dev(hcd->self.sysdev), PCI_D3hot);
 }
 
 #ifdef CONFIG_PM
@@ -1121,6 +1127,9 @@ int xhci_resume(struct xhci_hcd *xhci, bool hibernated)
 	 */
 	if ((xhci->quirks & XHCI_COMP_MODE_QUIRK) && !comp_timer_running)
 		compliance_mode_recovery_timer_init(xhci);
+
+	if (xhci->quirks & XHCI_ASMEDIA_MODIFY_FLOWCONTROL)
+		usb_asmedia_modifyflowcontrol(to_pci_dev(hcd->self.controller));
 
 	/* Re-enable port polling. */
 	xhci_dbg(xhci, "%s: starting port polling.\n", __func__);
@@ -1528,19 +1537,6 @@ int xhci_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 		usb_hcd_giveback_urb(hcd, urb, -ESHUTDOWN);
 		xhci_urb_free_priv(urb_priv);
 		return ret;
-	}
-	if ((xhci->xhc_state & XHCI_STATE_DYING) ||
-			(xhci->xhc_state & XHCI_STATE_HALTED)) {
-		xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
-				"Ep 0x%x: URB %p to be canceled on "
-				"non-responsive xHCI host.",
-				urb->ep->desc.bEndpointAddress, urb);
-		/* Let the stop endpoint command watchdog timer (which set this
-		 * state) finish cleaning up the endpoint TD lists.  We must
-		 * have caught it in the middle of dropping a lock and giving
-		 * back an URB.
-		 */
-		goto done;
 	}
 
 	ep_index = xhci_get_endpoint_index(&urb->ep->desc);
@@ -3783,8 +3779,10 @@ static int xhci_setup_device(struct usb_hcd *hcd, struct usb_device *udev,
 
 	mutex_lock(&xhci->mutex);
 
-	if (xhci->xhc_state)	/* dying, removing or halted */
+	if (xhci->xhc_state) {	/* dying, removing or halted */
+		ret = -ESHUTDOWN;
 		goto out;
+	}
 
 	if (!udev->slot_id) {
 		xhci_dbg_trace(xhci, trace_xhci_dbg_address,
@@ -4832,7 +4830,11 @@ int xhci_get_frame(struct usb_hcd *hcd)
 int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 {
 	struct xhci_hcd		*xhci;
-	struct device		*dev = hcd->self.controller;
+	/*
+	 * TODO: Check with DWC3 clients for sysdev according to
+	 * quirks
+	 */
+	struct device		*dev = hcd->self.sysdev;
 	int			retval;
 
 	/* Accept arbitrarily long scatter-gather lists */
@@ -4860,7 +4862,8 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 		 */
 		hcd->has_tt = 1;
 	} else {
-		if (xhci->sbrn == 0x31) {
+		/* Some 3.1 hosts return sbrn 0x30, can't rely on sbrn alone */
+		if (xhci->sbrn == 0x31 || xhci->usb3_rhub.min_rev >= 1) {
 			xhci_info(xhci, "Host supports USB 3.1 Enhanced SuperSpeed\n");
 			hcd->speed = HCD_USB31;
 			hcd->self.root_hub->speed = USB_SPEED_SUPER_PLUS;

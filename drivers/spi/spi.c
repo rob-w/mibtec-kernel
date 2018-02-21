@@ -621,8 +621,10 @@ void spi_unregister_device(struct spi_device *spi)
 	if (!spi)
 		return;
 
-	if (spi->dev.of_node)
+	if (spi->dev.of_node) {
 		of_node_clear_flag(spi->dev.of_node, OF_POPULATED);
+		of_node_put(spi->dev.of_node);
+	}
 	if (ACPI_COMPANION(&spi->dev))
 		acpi_device_clear_enumerated(ACPI_COMPANION(&spi->dev));
 	device_unregister(&spi->dev);
@@ -720,6 +722,7 @@ static int spi_map_buf(struct spi_master *master, struct device *dev,
 	int desc_len;
 	int sgs;
 	struct page *vm_page;
+	struct scatterlist *sg;
 	void *sg_buf;
 	size_t min;
 	int i, ret;
@@ -738,6 +741,7 @@ static int spi_map_buf(struct spi_master *master, struct device *dev,
 	if (ret != 0)
 		return ret;
 
+	sg = &sgt->sgl[0];
 	for (i = 0; i < sgs; i++) {
 
 		if (vmalloced_buf || kmap_buf) {
@@ -751,16 +755,17 @@ static int spi_map_buf(struct spi_master *master, struct device *dev,
 				sg_free_table(sgt);
 				return -ENOMEM;
 			}
-			sg_set_page(&sgt->sgl[i], vm_page,
+			sg_set_page(sg, vm_page,
 				    min, offset_in_page(buf));
 		} else {
 			min = min_t(size_t, len, desc_len);
 			sg_buf = buf;
-			sg_set_buf(&sgt->sgl[i], sg_buf, min);
+			sg_set_buf(sg, sg_buf, min);
 		}
 
 		buf += min;
 		len -= min;
+		sg = sg_next(sg);
 	}
 
 	ret = dma_map_sg(dev, sgt->sgl, sgt->nents, dir);
@@ -797,12 +802,12 @@ static int __spi_map_msg(struct spi_master *master, struct spi_message *msg)
 	if (master->dma_tx)
 		tx_dev = master->dma_tx->device->dev;
 	else
-		tx_dev = &master->dev;
+		tx_dev = master->dev.parent;
 
 	if (master->dma_rx)
 		rx_dev = master->dma_rx->device->dev;
 	else
-		rx_dev = &master->dev;
+		rx_dev = master->dev.parent;
 
 	list_for_each_entry(xfer, &msg->transfers, transfer_list) {
 		if (!master->can_dma(master, msg->spi, xfer))
@@ -844,12 +849,12 @@ static int __spi_unmap_msg(struct spi_master *master, struct spi_message *msg)
 	if (master->dma_tx)
 		tx_dev = master->dma_tx->device->dev;
 	else
-		tx_dev = &master->dev;
+		tx_dev = master->dev.parent;
 
 	if (master->dma_rx)
 		rx_dev = master->dma_rx->device->dev;
 	else
-		rx_dev = &master->dev;
+		rx_dev = master->dev.parent;
 
 	list_for_each_entry(xfer, &msg->transfers, transfer_list) {
 		if (!master->can_dma(master, msg->spi, xfer))
@@ -1004,7 +1009,7 @@ static int spi_transfer_one_message(struct spi_master *master,
 				ret = 0;
 				ms = 8LL * 1000LL * xfer->len;
 				do_div(ms, xfer->speed_hz);
-				ms += ms + 100; /* some tolerance */
+				ms += ms + 200; /* some tolerance */
 
 				if (ms > UINT_MAX)
 					ms = UINT_MAX;
@@ -1589,11 +1594,13 @@ of_register_spi_device(struct spi_master *master, struct device_node *nc)
 	if (rc) {
 		dev_err(&master->dev, "spi_device register error %s\n",
 			nc->full_name);
-		goto err_out;
+		goto err_of_node_put;
 	}
 
 	return spi;
 
+err_of_node_put:
+	of_node_put(nc);
 err_out:
 	spi_dev_put(spi);
 	return ERR_PTR(rc);
@@ -2799,11 +2806,13 @@ int spi_flash_read(struct spi_device *spi,
 	mutex_lock(&master->io_mutex);
 	if (master->dma_rx) {
 		rx_dev = master->dma_rx->device->dev;
-		ret = spi_map_buf(master, rx_dev, &msg->rx_sg,
-				  msg->buf, msg->len,
-				  DMA_FROM_DEVICE);
-		if (!ret)
-			msg->cur_msg_mapped = true;
+		if (virt_addr_valid(msg->buf)) {
+			ret = spi_map_buf(master, rx_dev, &msg->rx_sg,
+					  msg->buf, msg->len,
+					  DMA_FROM_DEVICE);
+			if (!ret)
+				msg->cur_msg_mapped = true;
+		}
 	}
 	ret = master->spi_flash_read(spi, msg);
 	if (msg->cur_msg_mapped)

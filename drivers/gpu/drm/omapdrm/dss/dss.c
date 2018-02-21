@@ -117,14 +117,6 @@ static const char * const dss_generic_clk_source_names[] = {
 	[DSS_CLK_SRC_HDMI_PLL]	= "HDMI PLL",
 };
 
-static bool dss_initialized;
-
-bool omapdss_is_initialized(void)
-{
-	return dss_initialized;
-}
-EXPORT_SYMBOL(omapdss_is_initialized);
-
 static inline void dss_write_reg(const struct dss_reg idx, u32 val)
 {
 	__raw_writel(val, dss.base + idx.idx);
@@ -1201,17 +1193,9 @@ static int dss_bind(struct device *dev)
 		return r;
 
 	dss_mem = platform_get_resource(dss.pdev, IORESOURCE_MEM, 0);
-	if (!dss_mem) {
-		DSSERR("can't get IORESOURCE_MEM DSS\n");
-		return -EINVAL;
-	}
-
-	dss.base = devm_ioremap(&pdev->dev, dss_mem->start,
-				resource_size(dss_mem));
-	if (!dss.base) {
-		DSSERR("can't ioremap DSS\n");
-		return -ENOMEM;
-	}
+	dss.base = devm_ioremap_resource(&pdev->dev, dss_mem);
+	if (IS_ERR(dss.base))
+		return PTR_ERR(dss.base);
 
 	r = dss_get_clocks();
 	if (r)
@@ -1267,7 +1251,8 @@ static int dss_bind(struct device *dev)
 
 	pm_set_vt_switch(0);
 
-	dss_initialized = true;
+	omapdss_gather_components(dev);
+	omapdss_set_is_initialized(true);
 
 	return 0;
 
@@ -1291,7 +1276,7 @@ static void dss_unbind(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 
-	dss_initialized = false;
+	omapdss_set_is_initialized(false);
 
 	component_unbind_all(&pdev->dev, NULL);
 

@@ -20,6 +20,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/remoteproc.h>
+#include <linux/sizes.h>
 #include <linux/slab.h>
 
 #include "remoteproc_internal.h"
@@ -115,6 +116,7 @@ int qcom_mdt_load(struct rproc *rproc,
 	const struct elf32_phdr *phdrs;
 	const struct elf32_phdr *phdr;
 	const struct elf32_hdr *ehdr;
+	const struct firmware *seg_fw;
 	size_t fw_name_len;
 	char *fw_name;
 	void *ptr;
@@ -144,7 +146,8 @@ int qcom_mdt_load(struct rproc *rproc,
 		if (!phdr->p_memsz)
 			continue;
 
-		ptr = rproc_da_to_va(rproc, phdr->p_paddr, phdr->p_memsz);
+		ptr = rproc_da_to_va(rproc, phdr->p_paddr, phdr->p_memsz,
+				     RPROC_FLAGS_NONE);
 		if (!ptr) {
 			dev_err(&rproc->dev, "segment outside memory range\n");
 			ret = -EINVAL;
@@ -153,16 +156,16 @@ int qcom_mdt_load(struct rproc *rproc,
 
 		if (phdr->p_filesz) {
 			sprintf(fw_name + fw_name_len - 3, "b%02d", i);
-			ret = request_firmware(&fw, fw_name, &rproc->dev);
+			ret = request_firmware(&seg_fw, fw_name, &rproc->dev);
 			if (ret) {
 				dev_err(&rproc->dev, "failed to load %s\n",
 					fw_name);
 				break;
 			}
 
-			memcpy(ptr, fw->data, fw->size);
+			memcpy(ptr, seg_fw->data, seg_fw->size);
 
-			release_firmware(fw);
+			release_firmware(seg_fw);
 		}
 
 		if (phdr->p_memsz > phdr->p_filesz)

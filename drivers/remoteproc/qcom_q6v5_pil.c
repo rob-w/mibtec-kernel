@@ -587,7 +587,7 @@ static int q6v5_stop(struct rproc *rproc)
 	return 0;
 }
 
-static void *q6v5_da_to_va(struct rproc *rproc, u64 da, int len)
+static void *q6v5_da_to_va(struct rproc *rproc, u64 da, int len, u32 flags)
 {
 	struct q6v5 *qproc = rproc->priv;
 	int offset;
@@ -894,6 +894,7 @@ static const struct of_device_id q6v5_of_match[] = {
 	{ .compatible = "qcom,q6v5-pil", },
 	{ },
 };
+MODULE_DEVICE_TABLE(of, q6v5_of_match);
 
 static struct platform_driver q6v5_driver = {
 	.probe = q6v5_probe,

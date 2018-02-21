@@ -78,6 +78,8 @@
 #define FLAGS_INIT		BIT(4)
 #define FLAGS_BUSY		BIT(6)
 
+#define DEFAULT_AUTOSUSPEND_DELAY	1000
+
 struct omap_des_ctx {
 	struct omap_des_dev *dd;
 
@@ -506,8 +508,10 @@ static void omap_des_finish_req(struct omap_des_dev *dd, int err)
 
 	pr_debug("err: %d\n", err);
 
-	pm_runtime_put(dd->dev);
 	crypto_finalize_cipher_request(dd->engine, req, err);
+
+	pm_runtime_mark_last_busy(dd->dev);
+	pm_runtime_put_autosuspend(dd->dev);
 }
 
 static int omap_des_crypt_dma_stop(struct omap_des_dev *dd)
@@ -522,27 +526,31 @@ static int omap_des_crypt_dma_stop(struct omap_des_dev *dd)
 	return 0;
 }
 
-static int omap_des_copy_needed(struct scatterlist *sg, int total)
+static bool omap_des_copy_needed(struct scatterlist *sg, int total)
 {
 	int len = 0;
 
 	if (!IS_ALIGNED(total, DES_BLOCK_SIZE))
-		return -1;
+		return true;
 
 	while (sg) {
 		if (!IS_ALIGNED(sg->offset, 4))
-			return -1;
+			return true;
 		if (!IS_ALIGNED(sg->length, DES_BLOCK_SIZE))
-			return -1;
+			return true;
+#ifdef CONFIG_ZONE_DMA
+		if (page_zonenum(sg_page(sg)) != ZONE_DMA)
+			return true;
+#endif
 
 		len += sg->length;
 		sg = sg_next(sg);
 	}
 
 	if (len != total)
-		return -1;
+		return true;
 
-	return 0;
+	return false;
 }
 
 static int omap_des_copy_sgs(struct omap_des_dev *dd)
@@ -706,15 +714,27 @@ static int omap_des_crypt(struct ablkcipher_request *req, unsigned long mode)
 
 /* ********************** ALG API ************************************ */
 
-static int omap_des_setkey(struct crypto_ablkcipher *tfm, const u8 *key,
+static int omap_des_setkey(struct crypto_ablkcipher *cipher, const u8 *key,
 			   unsigned int keylen)
 {
-	struct omap_des_ctx *ctx = crypto_ablkcipher_ctx(tfm);
+	struct omap_des_ctx *ctx = crypto_ablkcipher_ctx(cipher);
+	struct crypto_tfm *tfm = crypto_ablkcipher_tfm(cipher);
 
 	if (keylen != DES_KEY_SIZE && keylen != (3*DES_KEY_SIZE))
 		return -EINVAL;
 
 	pr_debug("enter, keylen: %d\n", keylen);
+
+	/* Do we need to test against weak key? */
+	if (tfm->crt_flags & CRYPTO_TFM_REQ_WEAK_KEY) {
+		u32 tmp[DES_EXPKEY_WORDS];
+		int ret = des_ekey(tmp, key);
+
+		if (!ret) {
+			tfm->crt_flags |= CRYPTO_TFM_RES_WEAK_KEY;
+			return -EINVAL;
+		}
+	}
 
 	memcpy(ctx->key, key, keylen);
 	ctx->keylen = keylen;
@@ -1039,8 +1059,10 @@ static int omap_des_probe(struct platform_device *pdev)
 	}
 	dd->phys_base = res->start;
 
+	pm_runtime_use_autosuspend(dev);
+	pm_runtime_set_autosuspend_delay(dev, DEFAULT_AUTOSUSPEND_DELAY);
+
 	pm_runtime_enable(dev);
-	pm_runtime_irq_safe(dev);
 	err = pm_runtime_get_sync(dev);
 	if (err < 0) {
 		pm_runtime_put_noidle(dev);

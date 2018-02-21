@@ -39,28 +39,6 @@
 
 struct omap_drm_usergart;
 
-/* parameters which describe (unrotated) coordinates of scanout within a fb: */
-struct omap_drm_window {
-	uint32_t rotation;
-	int32_t  crtc_x, crtc_y;		/* signed because can be offscreen */
-	uint32_t crtc_w, crtc_h;
-	uint32_t src_x, src_y;
-	uint32_t src_w, src_h;
-};
-
-/* For transiently registering for different DSS irqs that various parts
- * of the KMS code need during setup/configuration.  We these are not
- * necessarily the same as what drm_vblank_get/put() are requesting, and
- * the hysteresis in drm_vblank_put() is not necessarily desirable for
- * internal housekeeping related irq usage.
- */
-struct omap_drm_irq {
-	struct list_head node;
-	uint32_t irqmask;
-	bool registered;
-	void (*irq)(struct omap_drm_irq *irq, uint32_t irqstatus);
-};
-
 /* For KMS code that needs to wait for a certain # of IRQs:
  */
 struct omap_irq_wait;
@@ -71,6 +49,11 @@ int omap_irq_wait(struct drm_device *dev, struct omap_irq_wait *wait,
 
 struct omap_drm_private {
 	uint32_t omaprev;
+
+	const struct dispc_ops *dispc_ops;
+
+	unsigned int num_dssdevs;
+	struct omap_dss_device *dssdevs[8];
 
 	unsigned int num_crtcs;
 	struct drm_crtc *crtcs[8];
@@ -97,13 +80,27 @@ struct omap_drm_private {
 	struct omap_drm_usergart *usergart;
 	bool has_dmm;
 
-	/* properties: */
+	/* plane properties */
 	struct drm_property *zorder_prop;
+	struct drm_property *global_alpha_prop;
+	struct drm_property *pre_mult_alpha_prop;
+
+	/* crtc properties */
+	struct drm_property *background_color_prop;
+	struct drm_property *trans_key_mode_prop;
+	struct drm_property *trans_key_prop;
+	struct drm_property *alpha_blender_prop;
 
 	/* irq handling: */
-	struct list_head irq_list;    /* list of omap_drm_irq */
-	uint32_t vblank_mask;         /* irq bits set for userspace vblank */
-	struct omap_drm_irq error_handler;
+	spinlock_t wait_lock;		/* protects the wait_list */
+	struct list_head wait_list;	/* list of omap_irq_wait */
+	uint32_t irq_mask;		/* enabled irqs in addition to wait_list */
+
+	void *wb_private;	      /* Write-back private data */
+	bool wb_initialized;
+
+	/* memory bandwidth limit if it is needed on the platform */
+	unsigned int max_bandwidth;
 
 	/* atomic commit */
 	struct {
@@ -128,10 +125,6 @@ int omap_gem_resume(struct device *dev);
 
 int omap_irq_enable_vblank(struct drm_device *dev, unsigned int pipe);
 void omap_irq_disable_vblank(struct drm_device *dev, unsigned int pipe);
-void __omap_irq_register(struct drm_device *dev, struct omap_drm_irq *irq);
-void __omap_irq_unregister(struct drm_device *dev, struct omap_drm_irq *irq);
-void omap_irq_register(struct drm_device *dev, struct omap_drm_irq *irq);
-void omap_irq_unregister(struct drm_device *dev, struct omap_drm_irq *irq);
 void omap_drm_irq_uninstall(struct drm_device *dev);
 int omap_drm_irq_install(struct drm_device *dev);
 
@@ -148,18 +141,24 @@ static inline void omap_fbdev_free(struct drm_device *dev)
 }
 #endif
 
-struct omap_video_timings *omap_crtc_timings(struct drm_crtc *crtc);
+struct videomode *omap_crtc_timings(struct drm_crtc *crtc);
 enum omap_channel omap_crtc_channel(struct drm_crtc *crtc);
 void omap_crtc_pre_init(void);
 void omap_crtc_pre_uninit(void);
 struct drm_crtc *omap_crtc_init(struct drm_device *dev,
-		struct drm_plane *plane, enum omap_channel channel, int id);
+		struct drm_plane *plane, struct omap_dss_device *dssdev);
 int omap_crtc_wait_pending(struct drm_crtc *crtc);
+void omap_crtc_error_irq(struct drm_crtc *crtc, uint32_t irqstatus);
+void omap_crtc_vblank_irq(struct drm_crtc *crtc);
 
 struct drm_plane *omap_plane_init(struct drm_device *dev,
-		int id, enum drm_plane_type type);
+		int idx, enum drm_plane_type type,
+		u32 possible_crtcs);
 void omap_plane_install_properties(struct drm_plane *plane,
 		struct drm_mode_object *obj);
+int omap_plane_id(struct drm_plane *plane);
+struct drm_plane *omap_plane_reserve_wb(struct drm_device *dev);
+void omap_plane_release_wb(struct drm_plane *plane);
 
 struct drm_encoder *omap_encoder_init(struct drm_device *dev,
 		struct omap_dss_device *dssdev);
@@ -171,13 +170,6 @@ struct drm_encoder *omap_connector_attached_encoder(
 		struct drm_connector *connector);
 bool omap_connector_get_hdmi_mode(struct drm_connector *connector);
 
-void copy_timings_omap_to_drm(struct drm_display_mode *mode,
-		struct omap_video_timings *timings);
-void copy_timings_drm_to_omap(struct omap_video_timings *timings,
-		struct drm_display_mode *mode);
-
-uint32_t omap_framebuffer_get_formats(uint32_t *pixel_formats,
-		uint32_t max_formats, enum omap_color_mode supported_modes);
 struct drm_framebuffer *omap_framebuffer_create(struct drm_device *dev,
 		struct drm_file *file, const struct drm_mode_fb_cmd2 *mode_cmd);
 struct drm_framebuffer *omap_framebuffer_init(struct drm_device *dev,
@@ -185,7 +177,7 @@ struct drm_framebuffer *omap_framebuffer_init(struct drm_device *dev,
 int omap_framebuffer_pin(struct drm_framebuffer *fb);
 void omap_framebuffer_unpin(struct drm_framebuffer *fb);
 void omap_framebuffer_update_scanout(struct drm_framebuffer *fb,
-		struct omap_drm_window *win, struct omap_overlay_info *info);
+		struct drm_plane_state *state, struct omap_overlay_info *info);
 struct drm_connector *omap_framebuffer_get_next_connector(
 		struct drm_framebuffer *fb, struct drm_connector *from);
 bool omap_framebuffer_supports_rotation(struct drm_framebuffer *fb);
@@ -215,18 +207,17 @@ int omap_gem_op_sync(struct drm_gem_object *obj, enum omap_gem_op op);
 int omap_gem_op_async(struct drm_gem_object *obj, enum omap_gem_op op,
 		void (*fxn)(void *arg), void *arg);
 int omap_gem_roll(struct drm_gem_object *obj, uint32_t roll);
-void omap_gem_cpu_sync(struct drm_gem_object *obj, int pgoff);
-void omap_gem_dma_sync(struct drm_gem_object *obj,
+void omap_gem_cpu_sync_page(struct drm_gem_object *obj, int pgoff);
+void omap_gem_dma_sync_buffer(struct drm_gem_object *obj,
 		enum dma_data_direction dir);
-int omap_gem_get_paddr(struct drm_gem_object *obj,
-		dma_addr_t *paddr, bool remap);
-void omap_gem_put_paddr(struct drm_gem_object *obj);
+int omap_gem_pin(struct drm_gem_object *obj, dma_addr_t *dma_addr);
+void omap_gem_unpin(struct drm_gem_object *obj);
 int omap_gem_get_pages(struct drm_gem_object *obj, struct page ***pages,
 		bool remap);
 int omap_gem_put_pages(struct drm_gem_object *obj);
 uint32_t omap_gem_flags(struct drm_gem_object *obj);
-int omap_gem_rotated_paddr(struct drm_gem_object *obj, uint32_t orient,
-		int x, int y, dma_addr_t *paddr);
+int omap_gem_rotated_dma_addr(struct drm_gem_object *obj, uint32_t orient,
+		int x, int y, dma_addr_t *dma_addr);
 uint64_t omap_gem_mmap_offset(struct drm_gem_object *obj);
 size_t omap_gem_mmap_size(struct drm_gem_object *obj);
 int omap_gem_tiled_stride(struct drm_gem_object *obj, uint32_t orient);
@@ -237,32 +228,26 @@ struct drm_gem_object *omap_gem_prime_import(struct drm_device *dev,
 		struct dma_buf *buffer);
 
 /* map crtc to vblank mask */
-uint32_t pipe2vbl(struct drm_crtc *crtc);
 struct omap_dss_device *omap_encoder_get_dssdev(struct drm_encoder *encoder);
 
-/* should these be made into common util helpers?
- */
+#if IS_ENABLED(CONFIG_DRM_OMAP_WB)
 
-static inline int objects_lookup(
-		struct drm_file *filp, uint32_t pixel_format,
-		struct drm_gem_object **bos, const uint32_t *handles)
-{
-	int i, n = drm_format_num_planes(pixel_format);
+#define OMAP_WB_IRQ_MASK (DISPC_IRQ_FRAMEDONEWB | \
+			  DISPC_IRQ_WBBUFFEROVERFLOW | \
+			  DISPC_IRQ_WBUNCOMPLETEERROR)
 
-	for (i = 0; i < n; i++) {
-		bos[i] = drm_gem_object_lookup(filp, handles[i]);
-		if (!bos[i])
-			goto fail;
+int omap_wb_init(struct drm_device *drmdev);
+void omap_wb_cleanup(struct drm_device *drmdev);
+void omap_wb_irq(void *priv, u32 irqstatus);
 
-	}
+#else
 
-	return 0;
+#define OMAP_WB_IRQ_MASK (0)
 
-fail:
-	while (--i > 0)
-		drm_gem_object_unreference_unlocked(bos[i]);
+static inline int omap_wb_init(struct drm_device *drmdev) { return 0; }
+static inline void omap_wb_cleanup(struct drm_device *drmdev) { }
+static inline void omap_wb_irq(void *priv, u32 irqstatus) { }
 
-	return -ENOENT;
-}
+#endif
 
 #endif /* __OMAP_DRV_H__ */

@@ -23,11 +23,14 @@
 #include <linux/platform_data/pinctrl-single.h>
 #include <linux/platform_data/hsmmc-omap.h>
 #include <linux/platform_data/iommu-omap.h>
+#include <linux/platform_data/remoteproc-omap.h>
+#include <linux/platform_data/remoteproc-pruss.h>
 #include <linux/platform_data/wkup_m3.h>
 #include <linux/platform_data/pwm_omap_dmtimer.h>
 #include <linux/platform_data/media/ir-rx51.h>
 #include <linux/platform_data/asoc-ti-mcbsp.h>
 #include <plat/dmtimer.h>
+#include <linux/platform_data/sgx-omap.h>
 
 #include "common.h"
 #include "common-board-devices.h"
@@ -38,6 +41,7 @@
 #include "omap-secure.h"
 #include "soc.h"
 #include "hsmmc.h"
+#include "remoteproc.h"
 
 static struct omap_hsmmc_platform_data __maybe_unused mmc_pdata[2];
 
@@ -48,6 +52,25 @@ struct pdata_init {
 
 static struct of_dev_auxdata omap_auxdata_lookup[];
 static struct twl4030_gpio_platform_data twl_gpio_auxdata;
+
+#if IS_ENABLED(CONFIG_OMAP_IOMMU)
+int omap_iommu_set_pwrdm_constraint(struct platform_device *pdev, bool request,
+				    u8 *pwrst);
+#else
+static inline int omap_iommu_set_pwrdm_constraint(struct platform_device *pdev,
+						  bool request, u8 *pwrst)
+{
+	return 0;
+}
+#endif
+
+#if defined(CONFIG_SOC_AM33XX) || defined(CONFIG_SOC_AM43XX)
+static struct gfx_sgx_platform_data sgx_pdata = {
+	.reset_name = "gfx",
+	.assert_reset = omap_device_assert_hardreset,
+	.deassert_reset = omap_device_deassert_hardreset,
+};
+#endif
 
 #ifdef CONFIG_MACH_NOKIA_N8X0
 static void __init omap2420_n8x0_legacy_init(void)
@@ -93,6 +116,13 @@ static struct iommu_platform_data omap3_iommu_pdata = {
 	.reset_name = "mmu",
 	.assert_reset = omap_device_assert_hardreset,
 	.deassert_reset = omap_device_deassert_hardreset,
+	.device_enable = omap_device_enable,
+	.device_idle = omap_device_idle,
+};
+
+static struct iommu_platform_data omap3_iommu_isp_pdata = {
+	.device_enable = omap_device_enable,
+	.device_idle = omap_device_idle,
 };
 
 static int omap3_sbc_t3730_twl_callback(struct device *dev,
@@ -147,7 +177,7 @@ static struct ti_st_plat_data wilink_pdata = {
 	.nshutdown_gpio = 137,
 	.dev_name = "/dev/ttyO1",
 	.flow_cntrl = 1,
-	.baud_rate = 300000,
+	.baud_rate = 3000000,
 };
 
 static struct platform_device wl18xx_device = {
@@ -162,7 +192,7 @@ static struct ti_st_plat_data wilink7_pdata = {
 	.nshutdown_gpio = 162,
 	.dev_name = "/dev/ttyO1",
 	.flow_cntrl = 1,
-	.baud_rate = 300000,
+	.baud_rate = 3000000,
 };
 
 static struct platform_device wl128x_device = {
@@ -413,11 +443,29 @@ static void __init omap3_pandora_legacy_init(void)
 }
 #endif /* CONFIG_ARCH_OMAP3 */
 
-#if defined(CONFIG_ARCH_OMAP4) || defined(CONFIG_SOC_OMAP5)
+#if defined(CONFIG_ARCH_OMAP4) || defined(CONFIG_SOC_OMAP5) || \
+	defined(CONFIG_SOC_DRA7XX)
+static struct omap_rproc_timer_ops omap_rproc_dmtimer_ops = {
+	.request_timer = omap_rproc_request_timer,
+	.release_timer = omap_rproc_release_timer,
+	.start_timer = omap_rproc_start_timer,
+	.stop_timer = omap_rproc_stop_timer,
+	.get_timer_irq = omap_rproc_get_timer_irq,
+	.ack_timer_irq = omap_rproc_ack_timer_irq,
+};
+
+static struct omap_rproc_pdata omap4_ipu_dsp_pdata = {
+	.device_enable = omap_rproc_device_enable,
+	.device_shutdown = omap_rproc_device_shutdown,
+	.timer_ops = &omap_rproc_dmtimer_ops,
+};
+
 static struct iommu_platform_data omap4_iommu_pdata = {
 	.reset_name = "mmu_cache",
 	.assert_reset = omap_device_assert_hardreset,
 	.deassert_reset = omap_device_deassert_hardreset,
+	.device_enable = omap_device_enable,
+	.device_idle = omap_device_idle,
 };
 #endif
 
@@ -427,11 +475,51 @@ static struct wkup_m3_platform_data wkup_m3_data = {
 	.assert_reset = omap_device_assert_hardreset,
 	.deassert_reset = omap_device_deassert_hardreset,
 };
+
+static struct pruss_platform_data pruss_pdata = {
+	.reset_name = "pruss",
+	.assert_reset = omap_device_assert_hardreset,
+	.deassert_reset = omap_device_deassert_hardreset,
+};
 #endif
 
 #ifdef CONFIG_SOC_OMAP5
 static void __init omap5_uevm_legacy_init(void)
 {
+}
+#endif
+
+#ifdef CONFIG_SOC_DRA7XX
+static struct iommu_platform_data dra7_ipu1_dsp_iommu_pdata = {
+	.reset_name = "mmu_cache",
+	.assert_reset = omap_device_assert_hardreset,
+	.deassert_reset = omap_device_deassert_hardreset,
+	.device_enable = omap_device_enable,
+	.device_idle = omap_device_idle,
+	.set_pwrdm_constraint = omap_iommu_set_pwrdm_constraint,
+};
+
+static struct iommu_platform_data dra7_dsp_mmu_edma_pdata = {
+	.device_enable = omap_device_enable,
+	.device_idle = omap_device_idle,
+};
+
+static struct omap_hsmmc_platform_data dra7_hsmmc_data_mmc1;
+static struct omap_hsmmc_platform_data dra7_hsmmc_data_mmc2;
+static struct omap_hsmmc_platform_data dra7_hsmmc_data_mmc3;
+
+static void __init dra7x_evm_mmc_quirk(void)
+{
+	if (omap_rev() == DRA752_REV_ES1_1 || omap_rev() == DRA752_REV_ES1_0) {
+		dra7_hsmmc_data_mmc1.version = "rev11";
+		dra7_hsmmc_data_mmc1.max_freq = 96000000;
+
+		dra7_hsmmc_data_mmc2.version = "rev11";
+		dra7_hsmmc_data_mmc2.max_freq = 48000000;
+
+		dra7_hsmmc_data_mmc3.version = "rev11";
+		dra7_hsmmc_data_mmc3.max_freq = 48000000;
+	}
 }
 #endif
 
@@ -532,6 +620,8 @@ static struct of_dev_auxdata omap_auxdata_lookup[] __initdata = {
 #ifdef CONFIG_ARCH_OMAP3
 	OF_DEV_AUXDATA("ti,omap2-iommu", 0x5d000000, "5d000000.mmu",
 		       &omap3_iommu_pdata),
+	OF_DEV_AUXDATA("ti,omap2-iommu", 0x480bd400, "480bd400.mmu",
+		       &omap3_iommu_isp_pdata),
 	OF_DEV_AUXDATA("ti,omap3-hsmmc", 0x4809c000, "4809c000.mmc", &mmc_pdata[0]),
 	OF_DEV_AUXDATA("ti,omap3-hsmmc", 0x480b4000, "480b4000.mmc", &mmc_pdata[1]),
 	OF_DEV_AUXDATA("nokia,n900-ir", 0, "n900-ir", &rx51_lirc_data),
@@ -548,19 +638,63 @@ static struct of_dev_auxdata omap_auxdata_lookup[] __initdata = {
 #ifdef CONFIG_SOC_AM33XX
 	OF_DEV_AUXDATA("ti,am3352-wkup-m3", 0x44d00000, "44d00000.wkup_m3",
 		       &wkup_m3_data),
+	OF_DEV_AUXDATA("ti,am3356-pruss-soc-bus", 0x4a326000,
+		       "4a326000.pruss-soc-bus", &pruss_pdata),
+	OF_DEV_AUXDATA("ti,am3352-sgx530", 0x56000000, "56000000.sgx",
+		       &sgx_pdata),
 #endif
 #ifdef CONFIG_SOC_AM43XX
 	OF_DEV_AUXDATA("ti,am4372-wkup-m3", 0x44d00000, "44d00000.wkup_m3",
 		       &wkup_m3_data),
+	OF_DEV_AUXDATA("ti,am4376-pruss-soc-bus", 0x54426000,
+		       "54426000.pruss_soc_bus", &pruss_pdata),
+	OF_DEV_AUXDATA("ti,am4376-sgx530", 0x56000000, "56000000.sgx",
+		       &sgx_pdata),
 #endif
 #if IS_ENABLED(CONFIG_OMAP_DM_TIMER)
 	OF_DEV_AUXDATA("ti,omap-dmtimer-pwm", 0, NULL, &pwm_dmtimer_pdata),
+#endif
+#ifdef CONFIG_ARCH_OMAP4
+	OF_DEV_AUXDATA("ti,omap4-dsp", 0, "dsp", &omap4_ipu_dsp_pdata),
+	OF_DEV_AUXDATA("ti,omap4-ipu", 0x55020000, "ipu", &omap4_ipu_dsp_pdata),
+#endif
+#ifdef CONFIG_SOC_OMAP5
+	OF_DEV_AUXDATA("ti,omap5-dsp", 0, "dsp", &omap4_ipu_dsp_pdata),
+	OF_DEV_AUXDATA("ti,omap5-ipu", 0x55020000, "ipu", &omap4_ipu_dsp_pdata),
 #endif
 #if defined(CONFIG_ARCH_OMAP4) || defined(CONFIG_SOC_OMAP5)
 	OF_DEV_AUXDATA("ti,omap4-iommu", 0x4a066000, "4a066000.mmu",
 		       &omap4_iommu_pdata),
 	OF_DEV_AUXDATA("ti,omap4-iommu", 0x55082000, "55082000.mmu",
 		       &omap4_iommu_pdata),
+#endif
+#ifdef CONFIG_SOC_DRA7XX
+	OF_DEV_AUXDATA("ti,dra7-dsp-iommu", 0x40d01000, "40d01000.mmu",
+		       &dra7_ipu1_dsp_iommu_pdata),
+	OF_DEV_AUXDATA("ti,dra7-dsp-iommu", 0x41501000, "41501000.mmu",
+		       &dra7_ipu1_dsp_iommu_pdata),
+	OF_DEV_AUXDATA("ti,dra7-dsp-iommu", 0x40d02000, "40d02000.mmu",
+		       &dra7_dsp_mmu_edma_pdata),
+	OF_DEV_AUXDATA("ti,dra7-dsp-iommu", 0x41502000, "41502000.mmu",
+		       &dra7_dsp_mmu_edma_pdata),
+	OF_DEV_AUXDATA("ti,dra7-iommu", 0x55082000, "55082000.mmu",
+		       &omap4_iommu_pdata),
+	OF_DEV_AUXDATA("ti,dra7-iommu", 0x58882000, "58882000.mmu",
+		       &dra7_ipu1_dsp_iommu_pdata),
+	OF_DEV_AUXDATA("ti,dra7-ipu", 0x55020000, "55020000.ipu",
+		       &omap4_ipu_dsp_pdata),
+	OF_DEV_AUXDATA("ti,dra7-ipu", 0x58820000, "58820000.ipu",
+		       &omap4_ipu_dsp_pdata),
+	OF_DEV_AUXDATA("ti,dra7-dsp", 0x40800000, "40800000.dsp",
+		       &omap4_ipu_dsp_pdata),
+	OF_DEV_AUXDATA("ti,dra7-dsp", 0x41000000, "41000000.dsp",
+		       &omap4_ipu_dsp_pdata),
+	OF_DEV_AUXDATA("ti,dra7-hsmmc", 0x4809c000, "4809c000.mmc",
+		       &dra7_hsmmc_data_mmc1),
+	OF_DEV_AUXDATA("ti,dra7-hsmmc", 0x480b4000, "480b4000.mmc",
+		       &dra7_hsmmc_data_mmc2),
+	OF_DEV_AUXDATA("ti,dra7-hsmmc", 0x480ad000, "480ad000.mmc",
+		       &dra7_hsmmc_data_mmc3),
 #endif
 	/* Common auxdata */
 	OF_DEV_AUXDATA("pinctrl-single", 0, NULL, &pcs_pdata),
@@ -591,6 +725,9 @@ static struct pdata_init pdata_quirks[] __initdata = {
 #ifdef CONFIG_SOC_OMAP5
 	{ "ti,omap5-uevm", omap5_uevm_legacy_init, },
 #endif
+#ifdef CONFIG_SOC_DRA7XX
+	{ "ti,dra7-evm", dra7x_evm_mmc_quirk, },
+#endif
 	{ /* sentinel */ },
 };
 
@@ -600,7 +737,6 @@ static void pdata_quirks_check(struct pdata_init *quirks)
 		if (of_machine_is_compatible(quirks->compatible)) {
 			if (quirks->fn)
 				quirks->fn();
-			break;
 		}
 		quirks++;
 	}

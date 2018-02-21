@@ -61,8 +61,10 @@ config TI_EMIF
 	  temperature changes
 
 config OMAP_GPMC
-	bool
+	bool "Texas Instruments GPMC driver"
+	default y
 	select GPIOLIB
+	depends on (ARCH_OMAP2PLUS || ARCH_KEYSTONE)
 	help
 	  This driver is for the General Purpose Memory Controller (GPMC)
 	  present on Texas Instruments SoCs (e.g. OMAP2+). GPMC allows
@@ -143,6 +145,14 @@ config MTK_SMI
 	  This driver is for the Memory Controller module in MediaTek SoCs,
 	  mainly help enable/disable iommu and control the power domain and
 	  clocks for each local arbiter.
+
+config DA8XX_DDRCTL
+	bool "Texas Instruments da8xx DDR2/mDDR driver"
+	depends on ARCH_DAVINCI_DA8XX
+	help
+	  This driver is for the DDR2/mDDR Memory Controller present on
+	  Texas Instruments da8xx SoCs. It's used to tweak various memory
+	  controller configuration options.
 
 source "drivers/memory/samsung/Kconfig"
 source "drivers/memory/tegra/Kconfig"

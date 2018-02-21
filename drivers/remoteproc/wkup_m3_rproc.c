@@ -88,7 +88,8 @@ static int wkup_m3_rproc_stop(struct rproc *rproc)
 	return 0;
 }
 
-static void *wkup_m3_rproc_da_to_va(struct rproc *rproc, u64 da, int len)
+static void *wkup_m3_rproc_da_to_va(struct rproc *rproc, u64 da, int len,
+				    u32 flags)
 {
 	struct wkup_m3_rproc *wkupm3 = rproc->priv;
 	void *va = NULL;
@@ -111,7 +112,7 @@ static void *wkup_m3_rproc_da_to_va(struct rproc *rproc, u64 da, int len)
 	return va;
 }
 
-static struct rproc_ops wkup_m3_rproc_ops = {
+static const struct rproc_ops wkup_m3_rproc_ops = {
 	.start		= wkup_m3_rproc_start,
 	.stop		= wkup_m3_rproc_stop,
 	.da_to_va	= wkup_m3_rproc_da_to_va,

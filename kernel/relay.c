@@ -611,7 +611,6 @@ free_bufs:
 
 	kref_put(&chan->kref, relay_destroy_channel);
 	mutex_unlock(&relay_channels_mutex);
-	kfree(chan);
 	return NULL;
 }
 EXPORT_SYMBOL_GPL(relay_open);
@@ -809,11 +808,11 @@ void relay_subbufs_consumed(struct rchan *chan,
 {
 	struct rchan_buf *buf;
 
-	if (!chan)
+	if (!chan || cpu >= NR_CPUS)
 		return;
 
 	buf = *per_cpu_ptr(chan->buf, cpu);
-	if (cpu >= NR_CPUS || !buf || subbufs_consumed > chan->n_subbufs)
+	if (!buf || subbufs_consumed > chan->n_subbufs)
 		return;
 
 	if (subbufs_consumed > buf->subbufs_produced - buf->subbufs_consumed)

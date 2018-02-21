@@ -16,6 +16,26 @@
 	compatible = "ti,k2e-evm", "ti,k2e", "ti,keystone";
 	model = "Texas Instruments Keystone 2 Edison EVM";
 
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		dsp_common_cma_pool: dsp_common_cma_pool@81f800000 {
+			compatible = "shared-dma-pool";
+			reg = <0x00000008 0x1f800000 0x00000000 0x800000>;
+			reusable;
+			status = "okay";
+		};
+
+		dsp_common_mpm_pool: dsp_common_mpm_pool@820000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x00000008 0x20000000 0x00000000 0x10000000>;
+			no-map;
+			status = "okay";
+		};
+	};
+
 	soc {
 
 		clocks {
@@ -39,6 +59,15 @@
 				clock-frequency = <100000000>;
 				clock-output-names = "refclk-ddr3a";
 			};
+		};
+
+		ddr3edac: edac@21010000 {
+			status = "ok";
+		};
+
+		mpm_mem: dspmem@a0000000 {
+			compatible = "ti,keystone-dsp-mem";
+			reg = <0xa0000000 0x10000000>;
 		};
 	};
 };
@@ -137,13 +166,13 @@
 
 		partition@0 {
 			label = "u-boot-spl";
-			reg = <0x0 0x80000>;
+			reg = <0x0 0x100000>;
 			read-only;
 		};
 
 		partition@1 {
 			label = "misc";
-			reg = <0x80000 0xf80000>;
+			reg = <0x100000 0xf00000>;
 		};
 	};
 };
@@ -159,4 +188,20 @@
 		compatible = "marvell,88E1514", "marvell,88E1510", "ethernet-phy-ieee802.3-c22";
 		reg = <1>;
 	};
+};
+
+&gbe_serdes0 {
+	status = "okay";
+};
+
+&pcie1_phy {
+	status = "okay";
+};
+
+&pcie1 {
+	status = "okay";
+};
+
+&dsp0 {
+	memory-region = <&dsp_common_cma_pool>;
 };

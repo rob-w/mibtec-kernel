@@ -1846,6 +1846,7 @@ static int snd_soc_instantiate_card(struct snd_soc_card *card)
 	struct snd_soc_pcm_runtime *rtd;
 	struct snd_soc_dai_link *dai_link;
 	int ret, i, order;
+	int idx;
 
 	mutex_lock(&client_mutex);
 	mutex_lock_nested(&card->mutex, SND_SOC_CARD_CLASS_INIT);
@@ -1877,8 +1878,16 @@ static int snd_soc_instantiate_card(struct snd_soc_card *card)
 			goto base_error;
 	}
 
+	if (card->dev->of_node) {
+		idx = of_alias_get_id(card->dev->of_node, "sound");
+		if (idx < 0)
+			idx = SNDRV_DEFAULT_IDX1;
+	} else {
+		idx = card->id_hint;
+	}
+
 	/* card bind complete so register a sound card */
-	ret = snd_card_new(card->dev, SNDRV_DEFAULT_IDX1, SNDRV_DEFAULT_STR1,
+	ret = snd_card_new(card->dev, idx, SNDRV_DEFAULT_STR1,
 			card->owner, 0, &card->snd_card);
 	if (ret < 0) {
 		dev_err(card->dev,
@@ -2076,6 +2085,9 @@ static int soc_cleanup_card_resources(struct snd_soc_card *card)
 	list_for_each_entry(rtd, &card->rtd_list, list)
 		flush_delayed_work(&rtd->delayed_work);
 
+	/* free the ALSA card at first; this syncs with pending operations */
+	snd_card_free(card->snd_card);
+
 	/* remove and free each DAI */
 	soc_remove_dai_links(card);
 	soc_remove_pcm_runtimes(card);
@@ -2090,9 +2102,7 @@ static int soc_cleanup_card_resources(struct snd_soc_card *card)
 	if (card->remove)
 		card->remove(card);
 
-	snd_card_free(card->snd_card);
 	return 0;
-
 }
 
 /* removes a socdev */

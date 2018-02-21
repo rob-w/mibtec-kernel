@@ -280,7 +280,13 @@ static void stmmac_eee_ctrl_timer(unsigned long arg)
 bool stmmac_eee_init(struct stmmac_priv *priv)
 {
 	unsigned long flags;
+	int interface = priv->plat->interface;
 	bool ret = false;
+
+	if ((interface != PHY_INTERFACE_MODE_MII) &&
+	    (interface != PHY_INTERFACE_MODE_GMII) &&
+	    !phy_interface_mode_is_rgmii(interface))
+		goto out;
 
 	/* Using PCS we cannot dial with the phy registers at this stage
 	 * so we do not support extra feature like EEE.
@@ -1795,6 +1801,7 @@ static int stmmac_open(struct net_device *dev)
 
 	priv->dma_buf_sz = STMMAC_ALIGN(buf_sz);
 	priv->rx_copybreak = STMMAC_RX_COPYBREAK;
+	priv->mss = 0;
 
 	ret = alloc_dma_desc_resources(priv);
 	if (ret < 0) {
@@ -1953,7 +1960,7 @@ static void stmmac_tso_allocator(struct stmmac_priv *priv, unsigned int des,
 
 		priv->hw->desc->prepare_tso_tx_desc(desc, 0, buff_size,
 			0, 1,
-			(last_segment) && (buff_size < TSO_MAX_BUFF_SIZE),
+			(last_segment) && (tmp_len <= TSO_MAX_BUFF_SIZE),
 			0, 0);
 
 		tmp_len -= TSO_MAX_BUFF_SIZE;
@@ -3349,12 +3356,6 @@ int stmmac_dvr_probe(struct device *device,
 	spin_lock_init(&priv->lock);
 	spin_lock_init(&priv->tx_lock);
 
-	ret = register_netdev(ndev);
-	if (ret) {
-		pr_err("%s: ERROR %i registering the device\n", __func__, ret);
-		goto error_netdev_register;
-	}
-
 	/* If a specific clk_csr value is passed from the platform
 	 * this means that the CSR Clock Range selection cannot be
 	 * changed at run-time and it is fixed. Viceversa the driver'll try to
@@ -3376,15 +3377,24 @@ int stmmac_dvr_probe(struct device *device,
 		if (ret < 0) {
 			pr_debug("%s: MDIO bus (id: %d) registration failed",
 				 __func__, priv->plat->bus_id);
-			goto error_mdio_register;
+			goto error_napi_register;
 		}
 	}
 
-	return 0;
+	ret = register_netdev(ndev);
+	if (ret) {
+		pr_err("%s: ERROR %i registering the device\n", __func__, ret);
+		goto error_netdev_register;
+	}
 
-error_mdio_register:
-	unregister_netdev(ndev);
+	return ret;
+
 error_netdev_register:
+	if (priv->hw->pcs != STMMAC_PCS_RGMII &&
+	    priv->hw->pcs != STMMAC_PCS_TBI &&
+	    priv->hw->pcs != STMMAC_PCS_RTBI)
+		stmmac_mdio_unregister(ndev);
+error_napi_register:
 	netif_napi_del(&priv->napi);
 error_hw_init:
 	clk_disable_unprepare(priv->pclk);

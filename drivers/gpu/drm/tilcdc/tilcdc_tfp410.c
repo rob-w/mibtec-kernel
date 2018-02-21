@@ -249,8 +249,6 @@ static struct drm_connector *tfp410_connector_create(struct drm_device *dev,
 	if (ret)
 		goto fail;
 
-	drm_connector_register(connector);
-
 	return connector;
 
 fail:
@@ -388,7 +386,7 @@ struct platform_driver tfp410_driver = {
 	.remove = tfp410_remove,
 	.driver = {
 		.owner = THIS_MODULE,
-		.name = "tfp410",
+		.name = "tilcdc-tfp410",
 		.of_match_table = tfp410_of_match,
 	},
 };
