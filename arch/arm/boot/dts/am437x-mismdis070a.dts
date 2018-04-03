@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.4.9";
+	model = "MIS MDIS070A v0.5.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -148,6 +148,20 @@
 			label = "mispanel_eth1_off";
 			gpios = <&gpio1 9 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "off";
+		};
+
+		/* 0x10c P600_126 B14  mii1_crs.gpio3_1 JACK_NBOOT */
+		eth1_off {
+			label = "mispanel_netx_nboot";
+			gpios = <&gpio1 9 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "on";
+		};
+
+		/* 0x270 P600_124 D24 xdma_event_intr0.gpio0_19 JACK_DPM_NRESET */
+		eth1_off {
+			label = "mispanel_netx_nreset";
+			gpios = <&gpio0 19 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "oneshot";
 		};
 	};
 };
@@ -505,8 +519,6 @@
 			/* NetX module extras */
 			0x144 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_120 A16  rmii1_ref_clk.gpio0_29 JACK_SYNC0 */
 			0x108 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_122 D16  mii1_col.gpio3_0 JACK_SYNC1 */
-			0x10c (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_126 B14  mii1_crs.gpio3_1 JACK_NBOOT */
-			0x270 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_124 D24  xdma_event_intr0.gpio0_19 JACK_DPM_NRESET */
 		>;
 	};
 
@@ -520,8 +532,6 @@
 			/* NetX module extras */
 			0x144 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_120 A16  rmii1_ref_clk.gpio0_29 */
 			0x108 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_122 D16  mii1_col.gpio3_0 */
-			0x10c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_126 B14  mii1_crs.gpio3_1 */
-			0x270 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_124 D24  xdma_event_intr0.gpio0_19 */
 		>;
 	};
 
