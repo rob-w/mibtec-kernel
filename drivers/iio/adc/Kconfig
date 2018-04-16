@@ -513,6 +513,17 @@ config TI_ADS1015
 	  This driver can also be built as a module. If so, the module will be
 	  called ti-ads1015.
 
+config TI_ADS1018
+        tristate "Texas Instruments ADS1018 ADC driver"
+        depends on SPI
+        help
+          Say yes here to build support for Texas Instruments ADS1018
+          spi analog to digital converter (ADC). Provides direct access
+          via sysfs.
+
+          To compile this driver as a module, choose M here: the module will be
+          called ti-ads1018.
+
 config TI_ADS8688
 	tristate "Texas Instruments ADS8688"
 	depends on SPI && OF
