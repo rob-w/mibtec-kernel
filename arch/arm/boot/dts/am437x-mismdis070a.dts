@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.5.0";
+	model = "MIS MDIS070A v0.5.1";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -569,6 +569,12 @@
 	eeprom@57 {
 		compatible = "at,24c01";
 		reg = <0x57>;
+	};
+
+	tmp102: tmp102@48 {
+		compatible = "ti,tmp102";
+		reg = <0x48>;
+		#thermal-sensor-cells = <1>;
 	};
 
 	pressure_1: press@28 {
