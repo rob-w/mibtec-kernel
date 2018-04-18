@@ -19,7 +19,7 @@
 
 / {
 	compatible = "ti,am4372","ti,am43";
-	som = "MISDIMM 1.0.0";
+	som = "MISDIMM 1.0.1";
 
 	evm_v3_3d: fixedregulator-v3_3d {
 		compatible = "regulator-fixed";
@@ -320,5 +320,17 @@
 };
 
 &sgx {
+	status = "okay";
+};
+
+&sham {
+	status = "okay";
+};
+
+&aes {
+	status = "okay";
+};
+
+&des {
 	status = "okay";
 };
