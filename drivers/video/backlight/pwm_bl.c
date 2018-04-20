@@ -55,7 +55,7 @@ static void pwm_backlight_power_on(struct pwm_bl_data *pb, int brightness)
 		dev_err(pb->dev, "failed to enable power supply\n");
 
 	if (pb->enable_gpio)
-		gpiod_set_value(pb->enable_gpio, 1);
+		gpiod_set_value_cansleep(pb->enable_gpio, 1);
 
 	pwm_enable(pb->pwm);
 	pb->enabled = true;
@@ -70,7 +70,7 @@ static void pwm_backlight_power_off(struct pwm_bl_data *pb)
 	pwm_disable(pb->pwm);
 
 	if (pb->enable_gpio)
-		gpiod_set_value(pb->enable_gpio, 0);
+		gpiod_set_value_cansleep(pb->enable_gpio, 0);
 
 	regulator_disable(pb->power_supply);
 	pb->enabled = false;
@@ -79,14 +79,17 @@ static void pwm_backlight_power_off(struct pwm_bl_data *pb)
 static int compute_duty_cycle(struct pwm_bl_data *pb, int brightness)
 {
 	unsigned int lth = pb->lth_brightness;
-	int duty_cycle;
+	u64 duty_cycle;
 
 	if (pb->levels)
 		duty_cycle = pb->levels[brightness];
 	else
 		duty_cycle = brightness;
 
-	return (duty_cycle * (pb->period - lth) / pb->scale) + lth;
+	duty_cycle *= pb->period - lth;
+	do_div(duty_cycle, pb->scale);
+
+	return duty_cycle + lth;
 }
 
 static int pwm_backlight_update_status(struct backlight_device *bl)
@@ -178,7 +181,7 @@ static int pwm_backlight_parse_dt(struct device *dev,
 	return 0;
 }
 
-static struct of_device_id pwm_backlight_of_match[] = {
+static const struct of_device_id pwm_backlight_of_match[] = {
 	{ .compatible = "pwm-backlight" },
 	{ }
 };
@@ -207,23 +210,15 @@ static int pwm_backlight_initial_power_state(const struct pwm_bl_data *pb)
 	 * appropriate time. Therefore, if it is disabled, keep it so.
 	 */
 
-	/*
-	 * if the enable GPIO is set as output and it is disabled, do not enable
-	 * the backlight
-	 */
-	if (pb->enable_gpio) {
-		if (gpiod_get_direction(pb->enable_gpio) == GPIOF_DIR_OUT &&
-		    gpiod_get_value(pb->enable_gpio) == 0)
-			return FB_BLANK_POWERDOWN;
-
-		gpiod_direction_output(pb->enable_gpio, 1);
-	}
+	/* if the enable GPIO is disabled, do not enable the backlight */
+	if (pb->enable_gpio && gpiod_get_value(pb->enable_gpio) == 0)
+		return FB_BLANK_POWERDOWN;
 
 	/* The regulator is disabled, do not enable the backlight */
 	if (!regulator_is_enabled(pb->power_supply))
 		return FB_BLANK_POWERDOWN;
 
-	/* The pwm is disabled, keep it like this */
+	/* The PWM is disabled, keep it like this */
 	if (!pwm_is_enabled(pb->pwm))
 		return FB_BLANK_POWERDOWN;
 
@@ -278,7 +273,6 @@ static int pwm_backlight_probe(struct platform_device *pdev)
 	pb->check_fb = data->check_fb;
 	pb->exit = data->exit;
 	pb->dev = &pdev->dev;
-	pb->enabled = false;
 
 	pb->enable_gpio = devm_gpiod_get_optional(&pdev->dev, "enable",
 						  GPIOD_ASIS);
@@ -302,6 +296,18 @@ static int pwm_backlight_probe(struct platform_device *pdev)
 
 		pb->enable_gpio = gpio_to_desc(data->enable_gpio);
 	}
+
+	/*
+	 * If the GPIO is not known to be already configured as output, that
+	 * is, if gpiod_get_direction returns either GPIOF_DIR_IN or -EINVAL,
+	 * change the direction to output and set the GPIO as active.
+	 * Do not force the GPIO to active when it was already output as it
+	 * could cause backlight flickering or we would enable the backlight too
+	 * early. Leave the decision of the initial backlight state for later.
+	 */
+	if (pb->enable_gpio &&
+	    gpiod_get_direction(pb->enable_gpio) != GPIOF_DIR_OUT)
+		gpiod_direction_output(pb->enable_gpio, 1);
 
 	pb->power_supply = devm_regulator_get(&pdev->dev, "power");
 	if (IS_ERR(pb->power_supply)) {
@@ -356,6 +362,13 @@ static int pwm_backlight_probe(struct platform_device *pdev)
 			 data->dft_brightness, data->max_brightness);
 		data->dft_brightness = data->max_brightness;
 	}
+
+	/// if we want default off, we change the flag here
+	/// so we actually drive it off once
+	if (!data->dft_brightness)
+		pb->enabled = true;
+	else
+		pb->enabled = false;
 
 	bl->props.brightness = data->dft_brightness;
 	bl->props.power = pwm_backlight_initial_power_state(pb);
