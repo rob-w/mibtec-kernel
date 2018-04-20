@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.5.1";
+	model = "MIS MDIS070A v0.9.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -36,8 +36,8 @@
 		compatible = "pwm-backlight";
 		pwms = <&ecap0 0 50000 PWM_POLARITY_INVERTED>;
 
-		/* 0x250 P600_172 P25 164 spi4_sclk.gpio5_4 LCD_STANDBY */
-		enable-gpios = <&gpio5 4 GPIO_ACTIVE_HIGH>;
+		/* 0x250 P600_172 P25 164 spi4_sclk.gpio5_4 BACKLIGHT_ON */
+		enable-gpios = <&gpio5 4 GPIO_ACTIVE_LOW>;
 
 		brightness-levels = < 0  1  2  3  4  5  6  7  8  9
 				     10 11 12 13 14 15 16 17 18 19
@@ -50,7 +50,7 @@
 				     80 81 82 83 84 85 86 87 88 89
 				     90 91 92 93 94 95 96 97 98 99
 				    100>;
-		default-brightness-level = <100>;
+		default-brightness-level = <0>;
 	};
 
 	lcd0: display {
@@ -132,15 +132,15 @@
 		/* 0x278 P600_166 H20  clkreq.gpio0_24 LCD_OFF */
 		lcd_off {
 			label = "mispanel_lcd_off";
-			gpios = <&gpio0 24 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio0 24 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "oneshot";
 		};
 
-		/* 0x258 P600_164 P24  spi4_d1.gpio5_6 ETH2_INT_N */
+		/* 0x258 P600_164 P24  spi4_d1.gpio5_6 LCD_STANDBY */
 		lcd_sleep {
-			label = "mispanel_lcd_sleep";
+			label = "mispanel_lcd_standby";
 			gpios = <&gpio5 6 GPIO_ACTIVE_LOW>;
-			linux,default-trigger = "oneshot";
+			linux,default-trigger = "off";
 		};
 
 		/* 0x16C P600_58 J25 uart0_rtsn.gpio1_9 ETH1_OFF */
@@ -154,7 +154,7 @@
 		eth1_off {
 			label = "mispanel_netx_nboot";
 			gpios = <&gpio1 9 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "on";
+			linux,default-trigger = "default-on";
 		};
 
 		/* 0x270 P600_124 D24 xdma_event_intr0.gpio0_19 JACK_DPM_NRESET */
