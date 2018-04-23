@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.9.0";
+	model = "MIS MDIS070A v0.9.1";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -232,7 +232,6 @@
 			0x218 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_148 AE19 cam0_data4.gpio4_26 DIN_02 */
 			0x234 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_57  K24  uart3_rtsn.gpio5_1 REGULATORS_OFF */
 			0x240 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_170 G20  gpio5_10.gpio5_10 LCD_DIMO */
-			0x250 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_172 P25  spi4_sclk.gpio5_4 LCD_STANDBY */
 			0x258 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_164 P24  spi4_d1.gpio5_6 ETH2_INT_N */
 			0x278 (PIN_OUTPUT_PULLUP | MUX_MODE7)	/* P600_166 H20  clkreq.gpio0_24 LCD_OFF */
 		>;
@@ -456,12 +455,14 @@
 	ecap0_pins_default: backlight_pins_default {
 		pinctrl-single,pins = <
 			0x164 (MUX_MODE0) /* P600_104 G24 ecap0_pwm0_out.ecap0_pwm0_out*/
+			0x250 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_172 P25  spi4_sclk.gpio5_4 BACKLIGHT_ON */
 		>;
 	};
 
 	ecap0_pins_sleep: backlight_pins_sleep {
 		pinctrl-single,pins = <
 			0x164 (PIN_INPUT_PULLDOWN | MUX_MODE7)
+			0x250 (PIN_INPUT_PULLDOWN | MUX_MODE7)
 		>;
 	};
 
