@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.9.3";
+	model = "MIS MDIS070A v0.9.4";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -151,14 +151,14 @@
 		};
 
 		/* 0x10c P600_126 B14  mii1_crs.gpio3_1 JACK_NBOOT */
-		eth1_off {
+		netx_nboot {
 			label = "mispanel_netx_nboot";
-			gpios = <&gpio1 9 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio3 1 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "default-on";
 		};
 
 		/* 0x270 P600_124 D24 xdma_event_intr0.gpio0_19 JACK_DPM_NRESET */
-		eth1_off {
+		netx_nreset {
 			label = "mispanel_netx_nreset";
 			gpios = <&gpio0 19 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "oneshot";
