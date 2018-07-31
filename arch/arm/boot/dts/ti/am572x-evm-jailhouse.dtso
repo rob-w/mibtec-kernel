@@ -1,8 +1,5 @@
 /dts-v1/;
 /plugin/;
-#include <dt-bindings/interrupt-controller/irq.h>
-#include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/input/input.h>
 
 / {
   fragment@101 {
@@ -22,14 +19,12 @@
 				status = "okay";
 			};
 		};
-
-		ocp {
-			crossbar_mpu: crossbar@4a002a48 {
-				ti,irqs-skip = <10 133 134 135 139 140>;
-			};
-		};
 	};
   };
+};
+
+&crossbar_mpu {
+	ti,irqs-skip = <10 133 134 135 139 140>;
 };
 
 &timer8 {
