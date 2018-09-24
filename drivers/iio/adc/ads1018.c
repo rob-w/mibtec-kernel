@@ -25,10 +25,10 @@
 #include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
 
-#define DRIVER_VERSION "v0.94"
+#define DRIVER_VERSION "v0.95"
 
 #define ADS1018_MODE_SINGLE		1<<0
-#define ADS1018_VALID_DATA		3
+#define ADS1018_VALID_DATA		1<<1
 #define ADS1018_PULL_UP_EN		1<<3
 #define ADS1018_TS_MODE			1<<4
 #define ADS1018_SS_START		1<<7
