@@ -374,7 +374,6 @@ static const struct iio_info ltc2499_info = {
 	.read_raw = ltc2499_read_raw,
 	.write_raw = ltc2499_write_raw,
 	.attrs = &ltc2499_attribute_group,
-	.driver_module = THIS_MODULE,
 };
 
 #ifdef CONFIG_OF

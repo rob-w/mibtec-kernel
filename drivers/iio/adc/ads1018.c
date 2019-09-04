@@ -411,7 +411,6 @@ static const struct iio_info ads1018_info = {
 	.read_raw = ads1018_read_raw,
 	.write_raw = ads1018_write_raw,
 	.attrs = &ads1018_attribute_group,
-	.driver_module = THIS_MODULE,
 };
 
 #ifdef CONFIG_OF

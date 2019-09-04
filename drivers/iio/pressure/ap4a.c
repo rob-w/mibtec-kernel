@@ -273,7 +273,6 @@ static const struct iio_info ap4a_info = {
 	.read_raw = ap4a_read_raw,
 	.write_raw = ap4a_write_raw,
 	.attrs = &ap4a_attribute_group,
-	.driver_module = THIS_MODULE,
 };
 
 #ifdef CONFIG_OF
