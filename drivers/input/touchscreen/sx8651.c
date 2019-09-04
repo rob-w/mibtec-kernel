@@ -81,9 +81,9 @@ struct sx8651 {
 	struct timer_list timer;
 };
 
-static void sx8651_timer(unsigned long data)
+static void sx8651_timer(struct timer_list *t)
 {
-	struct sx8651 *ts = (void *)data;
+	struct sx8651 *ts = from_timer(ts, t, timer);
 
 	dev_dbg(&ts->client->dev, "pen untouch timer");
 
@@ -213,8 +213,7 @@ static int sx8651_probe(struct i2c_client *client,
 
 	input_set_drvdata(sx8651->input, sx8651);
 
-	setup_timer(&sx8651->timer, sx8651_timer,
-		    (unsigned long)sx8651);
+	timer_setup(&sx8651->timer, sx8651_timer, 0);
 
 	error = i2c_smbus_write_byte_data(client, I2C_REG_SOFTRESET,
 					  SOFTRESET_VALUE);
