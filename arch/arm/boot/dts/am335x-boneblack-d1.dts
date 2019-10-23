@@ -1,0 +1,400 @@
+/*
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+/dts-v1/;
+
+#include <dt-bindings/board/am335x-bbw-bbb-base.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "am33xx.dtsi"
+#include "am335x-bone-common.dtsi"
+
+&sgx {
+	status = "okay";
+};
+
+/ {
+	model = "TI AM335x BeagleBone Black D1 v0.19";
+	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
+
+	leds {
+		compatible = "gpio-leds";
+
+		/// BONE_P8_03
+		basis_led_1 {
+			label = "basis_led_1";
+			gpios = <&gpio1 6 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "cpu0";
+		};
+		/// BONE_P8_04
+		basis_led_2 {
+			label = "basis_led_2";
+			gpios = <&gpio1 7 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
+		};
+		/// BONE_P8_05
+		basis_led_3 {
+			label = "basis_led_3";
+			gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
+		};
+		/// BONE_P8_06
+		basis_led_4 {
+			label = "basis_led_4";
+			gpios = <&gpio1 3 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
+		};
+
+		adc_1 {
+			label = "adc_1";
+			gpios = <&pcf8575_21 4 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+		};
+
+		adc_2 {
+			label = "adc_2";
+			gpios = <&pcf8575_21 12 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+		};
+		adc_3 {
+			label = "adc_3";
+			gpios = <&pcf8575_22 4 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+		};
+		adc_4 {
+			label = "adc_4";
+			gpios = <&pcf8575_22 12 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+		};
+		adc_5 {
+			label = "adc_5";
+			gpios = <&pcf8575_23 4 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+		};
+		adc_6 {
+			label = "adc_6";
+			gpios = <&pcf8575_23 12 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+		};
+	};
+};
+
+&cpu0_opp_table {
+	/*
+	 * All PG 2.0 silicon may not support 1GHz but some of the early
+	 * BeagleBone Blacks have PG 2.0 silicon which is guaranteed
+	 * to support 1GHz OPP so enable it for PG 2.0 on this board.
+	 */
+	oppnitro-1000000000 {
+		opp-supported-hw = <0x06 0x0100>;
+	};
+};
+
+&am33xx_pinmux {
+	pinctrl-names = "default";
+	pinctrl-0 = <&d1_pins>;
+
+	d1_pins: d1_pins {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P8_07, PIN_INPUT | MUX_MODE2)					/* timer4 */
+			AM33XX_IOPAD(BONE_P8_08, PIN_INPUT | MUX_MODE2)					/* timer7 */
+			AM33XX_IOPAD(BONE_P8_09, PIN_INPUT | MUX_MODE2)					/* timer5 */
+			AM33XX_IOPAD(BONE_P8_10, PIN_INPUT | MUX_MODE2)					/* timer6 */
+			AM33XX_IOPAD(BONE_P8_11, PIN_INPUT | MUX_MODE7)					/* PRU0 TX_D1 */
+			AM33XX_IOPAD(BONE_P8_12, PIN_INPUT | MUX_MODE7)					/* PRU0 TX_D2 */
+			AM33XX_IOPAD(BONE_P8_14, PIN_INPUT | MUX_MODE7)					/* PRU0 TX_EN */
+			AM33XX_IOPAD(BONE_P8_15, PIN_INPUT | MUX_MODE7)					/* PRU0 CLK_OUT */
+			AM33XX_IOPAD(BONE_P8_16, PIN_INPUT | MUX_MODE7)					/* PRU0 TX_D0 */
+			AM33XX_IOPAD(BONE_P8_17, PIN_INPUT | MUX_MODE7)					/* PRU0 TX D3 */
+			AM33XX_IOPAD(BONE_P8_18, PIN_INPUT | MUX_MODE7)					/* gpio2_1 IN SYNC */
+			AM33XX_IOPAD(BONE_P8_19, PIN_INPUT | MUX_MODE7)					/* PRU0 TX_CLK */
+//			AM33XX_IOPAD(BONE_P8_22, PIN_INPUT | MUX_MODE7)					/*  */
+//			AM33XX_IOPAD(BONE_P8_23, PIN_INPUT | MUX_MODE7)					/* gpio1_4 */
+//			AM33XX_IOPAD(BONE_P8_24, PIN_INPUT | MUX_MODE7)					/*  */
+//			AM33XX_IOPAD(BONE_P8_25, PIN_INPUT | MUX_MODE7)					/* gpio1_0 */
+			AM33XX_IOPAD(BONE_P8_27, PIN_INPUT | MUX_MODE7)					/* gpio2_22 */
+			AM33XX_IOPAD(BONE_P8_28, PIN_INPUT | MUX_MODE7)					/* PRU0 CTS */
+			AM33XX_IOPAD(BONE_P8_30, PIN_INPUT | MUX_MODE7)					/* gpio2_25 */
+			AM33XX_IOPAD(BONE_P8_31, PIN_INPUT | MUX_MODE7)					/* PRU0 RX_CLK */
+			AM33XX_IOPAD(BONE_P8_32, PIN_INPUT | MUX_MODE7)					/* PRU0 RX DV */
+			AM33XX_IOPAD(BONE_P8_33, PIN_INPUT | MUX_MODE7)					/* gpio0_9 */
+			AM33XX_IOPAD(BONE_P8_34, PIN_INPUT | MUX_MODE7)					/* PRU0 RX D0 */
+			AM33XX_IOPAD(BONE_P8_35, PIN_INPUT | MUX_MODE7)					/* gpio0_8 */
+			AM33XX_IOPAD(BONE_P8_36, PIN_INPUT | MUX_MODE7)					/* PRU0 RX D1 */
+			AM33XX_IOPAD(BONE_P8_37, PIN_INPUT | MUX_MODE7)					/* PRU0 RX D3 */
+			AM33XX_IOPAD(BONE_P8_38, PIN_INPUT | MUX_MODE7)					/* PRU0 RX D2 */
+			AM33XX_IOPAD(BONE_P8_39, PIN_INPUT | MUX_MODE7)					/* gpio2_12 */
+			AM33XX_IOPAD(BONE_P8_40, PIN_INPUT | MUX_MODE7)					/* PRU0 RTS */
+
+			AM33XX_IOPAD(BONE_P9_12, PIN_INPUT | MUX_MODE7)					/* gpio1_28 OUT SYNC */
+			AM33XX_IOPAD(BONE_P9_14, PIN_INPUT | MUX_MODE7)					/* gpio1_18 RTC IRQ */
+			AM33XX_IOPAD(BONE_P9_23, PIN_INPUT | MUX_MODE7)					/* gpio1_17 HIGH -> Detec Card */
+			AM33XX_IOPAD(BONE_P9_25, PIN_INPUT | MUX_MODE7)					/* gpio3_21 */
+			AM33XX_IOPAD(BONE_P9_27, PIN_INPUT | MUX_MODE7)					/* gpio3_19 */
+
+			/* P9_39 AIN0 TEMPERATUR */
+			AM33XX_IOPAD(BONE_P9_41, PIN_INPUT | MUX_MODE7)					/* gpio3_20 */
+			AM33XX_IOPAD(BONE_P9_42, PIN_INPUT | MUX_MODE7)					/* gpio3_18 */
+
+			AM33XX_IOPAD(BONE_P8_20, PIN_OUTPUT | MUX_MODE5)				/* gpio1_31.pr1_pru1_pru_r30_13  PRU SCLK */
+			AM33XX_IOPAD(BONE_P8_21, PIN_OUTPUT | MUX_MODE5)				/* gpio1_30.pr1_pru1_pru_r30_12  PRU DIN */
+			AM33XX_IOPAD(BONE_P8_26, PIN_INPUT | MUX_MODE7)					/* gpio1_29 enable = Port Low  && SYS_RESET -> IO_EN */
+			AM33XX_IOPAD(BONE_P8_29, PIN_OUTPUT | MUX_MODE5)				/* gpio2_23.pr1_pru1_pru_r30_9 PRU CONVS */
+
+			AM33XX_IOPAD(BONE_P8_45, PIN_INPUT | MUX_MODE5) 				/* gpio2_6.pr1_pru1_pru_r30_0 PRU DOUT_1 via IO_EN */
+			AM33XX_IOPAD(BONE_P8_46, PIN_INPUT | MUX_MODE5) 				/* gpio2_7.pr1_pru1_pru_r30_1 PRU DOUT_2 via IO_EN*/
+			AM33XX_IOPAD(BONE_P8_43, PIN_INPUT | MUX_MODE5)					/* gpio2_8.pr1_pru1_pru_r30_2 PRU DOUT_3 via IO_EN*/
+			AM33XX_IOPAD(BONE_P8_44, PIN_INPUT | MUX_MODE5)					/* gpio2_9.pr1_pru1_pru_r30_3 PRU DOUT_4 via IO_EN */
+			AM33XX_IOPAD(BONE_P8_41, PIN_INPUT | MUX_MODE5)					/* gpio2_10.pr1_pru1_pru_r30_4 PRU DOUT_5 via IO_EN */
+			AM33XX_IOPAD(BONE_P8_42, PIN_INPUT | MUX_MODE5)					/* gpio2_11.pr1_pru1_pru_r30_5 PRU DOUT_6 via IO_EN */
+		>;
+	};
+
+	adc0_pins: adc0_pins {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P9_15, PIN_INPUT | MUX_MODE7)					/* gpio1_16 ADC BASIS BUSY */
+			AM33XX_IOPAD(BONE_P8_13, PIN_INPUT | MUX_MODE7)					/* gpio0_23 ADC BASIS START */
+		>;
+	};
+
+	dcan0_pins: dcan0_pins {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P9_19, PIN_INPUT_PULLUP | MUX_MODE2)			/* dcan0_rx HIGH */
+			AM33XX_IOPAD(BONE_P9_20, PIN_OUTPUT_PULLUP | MUX_MODE2)			/* dcan0_tx LOW */
+		>;
+	};
+
+	uart1_pins: uart1_pins {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P9_26, PIN_INPUT_PULLUP | MUX_MODE0)			/* uart1_rxd rs485 */
+			AM33XX_IOPAD(BONE_P9_24, PIN_OUTPUT_PULLDOWN | MUX_MODE0)		/* uart1_txd rs485 */
+		>;
+	};
+
+	uart4_pins: uart4_pins {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P9_11, PIN_INPUT_PULLUP | MUX_MODE6)			/* uart4_rxd rs232 */
+			AM33XX_IOPAD(BONE_P9_13, PIN_OUTPUT_PULLDOWN | MUX_MODE6)		/* uart4_txd rs232 */
+		>;
+	};
+
+	spi1_pins: spi1_pins {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P9_28, PIN_OUTPUT_PULLUP | MUX_MODE3)			/* spi1_cs0 ADC BASIS CS0  */
+			AM33XX_IOPAD(BONE_P9_29, PIN_INPUT_PULLUP | MUX_MODE3)			/* spi1_d0 ADC BASIS DAT OUT */
+			AM33XX_IOPAD(BONE_P9_30, PIN_INPUT_PULLUP | MUX_MODE7)			/* spi1_d1.noch_gpio ?? */
+			AM33XX_IOPAD(BONE_P9_31, PIN_INPUT_PULLUP | MUX_MODE3)			/* spi1_sclk ADC BASIS CLK */
+		>;
+	};
+
+	i2c1_pins: i2c1_pins {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P9_17, SLEWCTRL_SLOW | PIN_INPUT_PULLUP | MUX_MODE2)	/* i2c1_scl */
+			AM33XX_IOPAD(BONE_P9_18, SLEWCTRL_SLOW | PIN_INPUT_PULLUP | MUX_MODE2)	/* i2c1_sda */
+		>;
+	};
+
+	ehrpwm0_pins_default: ehrpwm0_pins_default {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P9_21, PIN_INPUT | MUX_MODE3)					/* ehrpwm0B */
+			AM33XX_IOPAD(BONE_P9_22, PIN_INPUT | MUX_MODE3)					/* ehrpwm0A */
+		>;
+	};
+
+	ehrpwm1_pins_default: ehrpwm1_pins_default {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P9_16, PIN_INPUT | MUX_MODE6)					/* EHRPWM1B  */
+		>;
+	};
+};
+
+
+&dcan0 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&dcan0_pins>;
+};
+
+&uart1 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart1_pins>;
+};
+
+&uart4 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart4_pins>;
+};
+
+&spi1 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi1_pins>;
+
+	/* spi-cpha; sets CPHA=1, default is CPHA=0 */
+	/* spi-cpol; sets CPOL=1, default is CPOL=0 */
+	/* spi-cs-high; default is spi cs low */
+
+	adc@0 {
+		compatible = "adi,ad7606-8";
+		pinctrl-0 = <&adc0_pins>;
+		interrupt-parent = <&gpio1>;
+		interrupts = <16 IRQ_TYPE_EDGE_FALLING>;
+
+		reg = <0>;
+		/*** 16Mhz ??? divisor problem ? */
+		spi-max-frequency = <20000000>;
+		spi-cpol;
+
+		adi,conversion-start-gpios = <&gpio0 23 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&pcf8575_26 4 GPIO_ACTIVE_HIGH>;
+		adi,oversampling-ratio-gpios = <&pcf8575_26 0 GPIO_ACTIVE_HIGH
+						&pcf8575_26 1 GPIO_ACTIVE_HIGH
+						&pcf8575_26 2 GPIO_ACTIVE_HIGH>;
+	};
+
+};
+
+&i2c1 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c1_pins>;
+	clock-frequency = <100000>;
+
+	tmp102@48 {
+		compatible = "ti,tmp102";
+		reg = <0x48>;
+	};
+
+	pcf8523: pcf8523@68 {
+		compatible = "nxp,pcf8523";
+		reg = <0x68>;
+		#clock-cells = <0>;
+	};
+
+	pcf8575_20: gpio@20 {
+		compatible = "nxp,pcf8575";
+		reg = <0x20>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		lines-initial-states = <0xF100>;
+		gpio-line-names = "BASIS_ID_0", "BASIS_ID_1", "BASIS_ID_2", "BASIS_ID_3",
+						  "BASIS_VAR_0", "BASIS_VAR_1", "BASIS_VAR_2", "BASIS_VAR_3",
+						  "RS485_EN", "", "", "", "DI_1", "DI_2", "DI_3", "DI_4";
+	};
+
+	pcf8575_26: gpio@26 {
+		compatible = "nxp,pcf8575";
+		reg = <0x26>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		lines-initial-states = <0xFF1F>;
+		gpio-line-names = "OS_0", "OS_1", "OS_2", "RANGE", "AD_RES", "", "", "",
+						  "AI1B", "AI2B", "AI3B", "AI4B", "AI5B", "AI6B", "AI7B", "AI8B";
+	};
+
+	/* from here we have a ANPASSKARTE */
+
+	pcf8575_21: gpio@21 {
+		compatible = "nxp,pcf8575";
+		reg = <0x21>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		lines-initial-states = <0xF3F3>;
+		gpio-line-names = "MUX_A_1", "MUX_B_1", "", "", "LED_1", "MAIN_G2_1", "MAIN_G1_1", "MAIN_G0_1",
+						  "MUX_A_2", "MUX_B_2", "", "", "LED_2", "MAIN_G2_2", "MAIN_G1_2", "MAIN_G0_2";
+	};
+
+	pcf8575_22: gpio@22 {
+		compatible = "nxp,pcf8575";
+		reg = <0x22>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		lines-initial-states = <0xF3F3>;
+		gpio-line-names = "MUX_A_3", "MUX_B_3", "", "", "LED_3", "MAIN_G2_3", "MAIN_G1_3", "MAIN_G0_3",
+						  "MUX_A_4", "MUX_B_4", "", "", "LED_4", "MAIN_G2_4", "MAIN_G1_4", "MAIN_G0_4";
+	};
+
+	pcf8575_23: gpio@23 {
+		compatible = "nxp,pcf8575";
+		reg = <0x23>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		lines-initial-states = <0xF3F3>;
+		gpio-line-names = "MUX_A_5", "MUX_B_5", "", "", "LED_5", "MAIN_G2_5", "MAIN_G1_5", "MAIN_G0_5",
+						  "MUX_A_6", "MUX_B_6", "", "", "LED_6", "MAIN_G2_6", "MAIN_G1_6", "MAIN_G0_6";
+	};
+
+	pcf8575_27: gpio@27 {
+		compatible = "nxp,pcf8575";
+		reg = <0x27>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		lines-initial-states = <0x0000>;
+		gpio-line-names = "ADAPT_ID_0", "ADAPT_ID_1", "ADAPT_ID_2", "ADAPT_ID_3",
+						  "ADAPT_VAR_0", "ADAPT_VAR_1", "ADAPT_VAR_2", "ADAPT_VAR_3",
+						  "P5", "P3", "P1", "P2", "P4", "P6", "", "";
+	};
+};
+
+&epwmss0 {
+	status = "okay";
+};
+
+&epwmss1 {
+	status = "okay";
+};
+
+&ehrpwm0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&ehrpwm0_pins_default>;
+	status = "okay";
+};
+
+&ehrpwm1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&ehrpwm1_pins_default>;
+	status = "okay";
+};
+
+&mcasp0	{
+	status = "disabled";
+};
+
+&i2c2 {
+	status = "disabled";
+};
+
+&ldo3_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	regulator-always-on;
+};
+
+&mmc1 {
+	vmmc-supply = <&vmmcsd_fixed>;
+};
+
+&mmc2 {
+	vmmc-supply = <&vmmcsd_fixed>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&emmc_pins>;
+	bus-width = <8>;
+	status = "disabled";
+};
