@@ -310,7 +310,7 @@ static int pru_request_gpios(struct pru_state *st)
 	struct device *dev = st->dev;
 
 	st->gpio_io_en = devm_gpiod_get(dev, "pru,io-enable",
-					 GPIOD_OUT_LOW);
+					 GPIOD_OUT_HIGH);
 	if (IS_ERR(st->gpio_io_en))
 		return PTR_ERR(st->gpio_io_en);
 	return 0;
@@ -392,7 +392,7 @@ static int pru_probe(struct platform_device *pdev)
 	int ret;
 	struct iio_dev *indio_dev;
 
-	printk("pru-adc-spi: probe()\n");
+	printk("pru-adc-spi: probe() 0.2\n");
 
 	indio_dev = devm_iio_device_alloc(dev, sizeof(*st));
 	if (!indio_dev)
@@ -452,6 +452,8 @@ static int pru_probe(struct platform_device *pdev)
 					      &pru_buffer_ops);
 	if (ret)
 		return ret;
+
+	gpiod_set_value(st->gpio_io_en, 0);
 
 	return devm_iio_device_register(dev, indio_dev);
 }
