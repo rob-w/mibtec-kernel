@@ -17,7 +17,7 @@
 };
 
 / {
-	model = "TI AM335x BeagleBone Black D1 v0.24";
+	model = "TI AM335x BeagleBone Black D1 v0.25";
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
 	pru_adc_spi {
@@ -26,6 +26,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&pru_adc_pins>;
 
+		/* BONE_P8_26 gpio1_29 enable = Port Low  && SYS_RESET -> IO_EN*/
 		pru,io-enable-gpios = <&gpio1 29 GPIO_ACTIVE_HIGH>;
 	};
 
@@ -153,16 +154,15 @@
 	pru_adc_pins: pru_adc_pins {
 		pinctrl-single,pins = <
 			AM33XX_IOPAD(BONE_P8_20, PIN_OUTPUT | MUX_MODE5)				/* gpio1_31.pr1_pru1_pru_r30_13  PRU SCLK */
-			AM33XX_IOPAD(BONE_P8_21, PIN_OUTPUT | MUX_MODE5)				/* gpio1_30.pr1_pru1_pru_r30_12  PRU DIN */
-/*			AM33XX_IOPAD(BONE_P8_26, PIN_INPUT | MUX_MODE7)	*/				/* gpio1_29 enable = Port Low  && SYS_RESET -> IO_EN */
+			AM33XX_IOPAD(BONE_P8_21, PIN_OUTPUT | MUX_MODE5)				/* gpio1_30.pr1_pru1_pru_r30_12  ADS DIN */
 			AM33XX_IOPAD(BONE_P8_29, PIN_OUTPUT | MUX_MODE5)				/* gpio2_23.pr1_pru1_pru_r30_9 PRU CONVS */
 
-			AM33XX_IOPAD(BONE_P8_45, PIN_INPUT | MUX_MODE5) 				/* gpio2_6.pr1_pru1_pru_r30_0 PRU DOUT_1 via IO_EN */
-			AM33XX_IOPAD(BONE_P8_46, PIN_INPUT | MUX_MODE5) 				/* gpio2_7.pr1_pru1_pru_r30_1 PRU DOUT_2 via IO_EN*/
-			AM33XX_IOPAD(BONE_P8_43, PIN_INPUT | MUX_MODE5)					/* gpio2_8.pr1_pru1_pru_r30_2 PRU DOUT_3 via IO_EN*/
-			AM33XX_IOPAD(BONE_P8_44, PIN_INPUT | MUX_MODE5)					/* gpio2_9.pr1_pru1_pru_r30_3 PRU DOUT_4 via IO_EN */
-			AM33XX_IOPAD(BONE_P8_41, PIN_INPUT | MUX_MODE5)					/* gpio2_10.pr1_pru1_pru_r30_4 PRU DOUT_5 via IO_EN */
-			AM33XX_IOPAD(BONE_P8_42, PIN_INPUT | MUX_MODE5)					/* gpio2_11.pr1_pru1_pru_r30_5 PRU DOUT_6 via IO_EN */
+			AM33XX_IOPAD(BONE_P8_45, PIN_INPUT | MUX_MODE5) 				/* gpio2_6.pr1_pru1_pru_r30_0 ADS DOUT_1 via IO_EN */
+			AM33XX_IOPAD(BONE_P8_46, PIN_INPUT | MUX_MODE5) 				/* gpio2_7.pr1_pru1_pru_r30_1 ADS DOUT_2 via IO_EN*/
+			AM33XX_IOPAD(BONE_P8_43, PIN_INPUT | MUX_MODE5)					/* gpio2_8.pr1_pru1_pru_r30_2 ADS DOUT_3 via IO_EN*/
+			AM33XX_IOPAD(BONE_P8_44, PIN_INPUT | MUX_MODE5)					/* gpio2_9.pr1_pru1_pru_r30_3 ADS DOUT_4 via IO_EN */
+			AM33XX_IOPAD(BONE_P8_41, PIN_INPUT | MUX_MODE5)					/* gpio2_10.pr1_pru1_pru_r30_4 ADS DOUT_5 via IO_EN */
+			AM33XX_IOPAD(BONE_P8_42, PIN_INPUT | MUX_MODE5)					/* gpio2_11.pr1_pru1_pru_r30_5 ADS DOUT_6 via IO_EN */
 		>;
 	};
 
