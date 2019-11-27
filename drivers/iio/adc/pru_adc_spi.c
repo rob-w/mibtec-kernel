@@ -12,6 +12,7 @@
 #include <linux/gpio/consumer.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
+#include <linux/rpmsg.h>
 #include <linux/module.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sched.h>
@@ -28,7 +29,11 @@
 #include <linux/iio/triggered_buffer.h>
 #include <linux/iio/trigger_consumer.h>
 
-#define DRIVER_VERSION "v1.1"
+#include <linux/rpmsg/virtio_rpmsg.h>
+
+#define DRIVER_VERSION "v1.3a"
+
+static struct class *rpmsg_pru_class;
 
 struct pru_chip_info {
 	const struct iio_chan_spec	*channels;
@@ -36,6 +41,11 @@ struct pru_chip_info {
 	const unsigned int		*oversampling_avail;
 	unsigned int			oversampling_num;
 	bool				os_req_reset;
+};
+
+struct rpmsg_pru_dev {
+	struct rpmsg_device *rpdev;
+	wait_queue_head_t wait_list;
 };
 
 struct pru_state {
@@ -383,7 +393,53 @@ static const struct of_device_id of_pru_adc_spi_match[] = {
 	{},
 };
 
+static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
+			void *priv, u32 src)
+{
+	u32 length;
+	struct rpmsg_pru_dev *prudev;
+
+	prudev = dev_get_drvdata(&rpdev->dev);
+
+	printk("pru-adc-spi: rpmsg_pru_cb src %d len %d\n", src, len);
+
+//	wake_up_interruptible(&prudev->wait_list);
+
+	return 0;
+}
+
+static int rpmsg_pru_probe(struct rpmsg_device *rpdev)
+{
+	int ret;
+	struct rpmsg_pru_dev *prudev;
+	int minor_got;
+	printk("pru-adc-spi: rpmsg_pru_probe()\n");
+
+	prudev = devm_kzalloc(&rpdev->dev, sizeof(*prudev), GFP_KERNEL);
+	if (!prudev)
+		return -ENOMEM;
+
+	prudev->rpdev = rpdev;
+
+	return 0;
+}
+
 MODULE_DEVICE_TABLE(of, of_pru_adc_spi_match);
+
+/* .name matches on RPMsg Channels and causes a probe */
+static const struct rpmsg_device_id rpmsg_driver_pru_id_table[] = {
+	{ .name	= "rpmsg-pru" },
+	{ },
+};
+
+MODULE_DEVICE_TABLE(rpmsg, rpmsg_driver_pru_id_table);
+
+static struct rpmsg_driver rpmsg_pru_driver = {
+	.drv.name	= KBUILD_MODNAME,
+	.id_table	= rpmsg_driver_pru_id_table,
+	.probe		= rpmsg_pru_probe,
+	.callback	= rpmsg_pru_cb,
+};
 
 static int pru_probe(struct platform_device *pdev)
 {
@@ -392,7 +448,21 @@ static int pru_probe(struct platform_device *pdev)
 	int ret;
 	struct iio_dev *indio_dev;
 
-	printk("pru-adc-spi: probe() 0.2\n");
+	printk("pru-adc-spi: probe() %s\n", DRIVER_VERSION);
+
+	rpmsg_pru_class = class_create(THIS_MODULE, "rpmsg_pru");
+	if (IS_ERR(rpmsg_pru_class)) {
+		pr_err("Unable to create class\n");
+		ret = PTR_ERR(rpmsg_pru_class);
+		return (ret);
+	}
+
+	ret = register_rpmsg_driver(&rpmsg_pru_driver);
+	if (ret) {
+		pr_err("Unable to register rpmsg driver");
+		class_destroy(rpmsg_pru_class);
+		return (ret);
+	}
 
 	indio_dev = devm_iio_device_alloc(dev, sizeof(*st));
 	if (!indio_dev)
@@ -488,9 +558,19 @@ static void pru_shutdown(struct platform_device *pdev)
 
 }
 
+static int pru_remove(struct platform_device *pdev)
+{
+	printk("pru-adc-spi: remove\n");
+
+	unregister_rpmsg_driver(&rpmsg_pru_driver);
+	class_destroy(rpmsg_pru_class);
+	return 0;
+}
+
 static struct platform_driver pru_adc_spi = {
 	.probe		= pru_probe,
 	.shutdown	= pru_shutdown,
+	.remove		= pru_remove,
 	.driver		= {
 		.name	= "pru-adc-spi",
 		.of_match_table = of_pru_adc_spi_match,
