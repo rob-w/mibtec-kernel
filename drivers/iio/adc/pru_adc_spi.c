@@ -31,7 +31,10 @@
 
 #include <linux/rpmsg/virtio_rpmsg.h>
 
-#define DRIVER_VERSION "v1.3a"
+/* Matches the definition in virtio_rpmsg_bus.c */
+#define RPMSG_BUF_SIZE				(512)
+
+#define DRIVER_VERSION "v1.3b"
 
 static struct class *rpmsg_pru_class;
 
@@ -48,7 +51,7 @@ struct rpmsg_pru_dev {
 	wait_queue_head_t wait_list;
 };
 
-struct pru_state {
+struct pru_priv {
 	int 					state;
 	struct device			*dev;
 	const struct pru_chip_info	*chip_info;
@@ -65,7 +68,7 @@ struct pru_state {
 	struct gpio_desc		*gpio_io_en;
 	struct iio_trigger		*trig;
 	struct completion		completion;
-
+	struct rpmsg_device 	*rpdev;
 	/*
 	 * DMA (thus cache coherency maintenance) requires the
 	 * transfer buffers to live in their own cache lines.
@@ -73,7 +76,7 @@ struct pru_state {
 	 */
 	unsigned short			data[20] ____cacheline_aligned;
 };
-
+struct pru_priv *p_st;
 
 static const unsigned int pru_scale_avail[2] = {
 	152588, 305176
@@ -83,17 +86,23 @@ static const unsigned int pru_oversampling_avail[7] = {
 	1, 2, 4, 8, 16, 32, 64,
 };
 
-static int pru_reset(struct pru_state *st)
+static int pru_reset(struct pru_priv *st)
 {
 	ndelay(100); /* t_reset >= 100ns */
 	return 0;
 }
 
-static int pru_read_samples(struct pru_state *st)
+static int pru_read_samples(struct pru_priv *st)
 {
-//	unsigned int num = st->chip_info->num_channels -1;
-//	u16 *data = st->data;
 	int ret = 0;
+	int count = 2;
+	static char rpmsg_pru_buf[RPMSG_BUF_SIZE];
+
+	rpmsg_pru_buf[0] = 'C';
+
+	ret = rpmsg_send(st->rpdev->ept, (void *)rpmsg_pru_buf, count);
+	if (ret)
+		dev_err(st->dev, "rpmsg_send failed: %d\n", ret);
 
 //	return st->bops->read_block(st->dev, num, data);
 	return ret;
@@ -103,7 +112,7 @@ static irqreturn_t pru_trigger_handler(int irq, void *p)
 {
 	struct iio_poll_func *pf = p;
 	struct iio_dev *indio_dev = pf->indio_dev;
-	struct pru_state *st = iio_priv(indio_dev);
+	struct pru_priv *st = iio_priv(indio_dev);
 	int ret;
 
 	mutex_lock(&st->lock);
@@ -121,7 +130,7 @@ static irqreturn_t pru_trigger_handler(int irq, void *p)
 
 static int pru_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 {
-	struct pru_state *st = iio_priv(indio_dev);
+	struct pru_priv *st = iio_priv(indio_dev);
 	int ret;
 
 	ret = pru_read_samples(st);
@@ -138,7 +147,7 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 			   long m)
 {
 	int ret;
-	struct pru_state *st = iio_priv(indio_dev);
+	struct pru_priv *st = iio_priv(indio_dev);
 
 	switch (m) {
 	case IIO_CHAN_INFO_RAW:
@@ -184,7 +193,7 @@ static ssize_t in_voltage_scale_available_show(struct device *dev,
 					       char *buf)
 {
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
-	struct pru_state *st = iio_priv(indio_dev);
+	struct pru_priv *st = iio_priv(indio_dev);
 
 	return pru_show_avail(buf, st->scale_avail, st->num_scales, true);
 }
@@ -197,7 +206,7 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 			    int val2,
 			    long mask)
 {
-	struct pru_state *st = iio_priv(indio_dev);
+	struct pru_priv *st = iio_priv(indio_dev);
 	DECLARE_BITMAP(values, 3);
 	int i;
 
@@ -236,7 +245,7 @@ static ssize_t pru_oversampling_ratio_avail(struct device *dev,
 					       char *buf)
 {
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
-	struct pru_state *st = iio_priv(indio_dev);
+	struct pru_priv *st = iio_priv(indio_dev);
 
 	return pru_show_avail(buf, st->oversampling_avail,
 				 st->num_os_ratios, false);
@@ -301,21 +310,19 @@ static const struct iio_chan_spec pru_channels[] = {
 	PRU_CHANNEL(3),
 	PRU_CHANNEL(4),
 	PRU_CHANNEL(5),
-	PRU_CHANNEL(6),
-	PRU_CHANNEL(7),
 };
 
 
 static const struct pru_chip_info pru_chip_info_tbl[] = {
 	[0] = {
 		.channels = pru_channels,
-		.num_channels = 9,
+		.num_channels = 7,
 		.oversampling_avail = pru_oversampling_avail,
 		.oversampling_num = ARRAY_SIZE(pru_oversampling_avail),
 	},
 };
 
-static int pru_request_gpios(struct pru_state *st)
+static int pru_request_gpios(struct pru_priv *st)
 {
 	struct device *dev = st->dev;
 
@@ -329,7 +336,7 @@ static int pru_request_gpios(struct pru_state *st)
 static int pru_validate_trigger(struct iio_dev *indio_dev,
 				   struct iio_trigger *trig)
 {
-	struct pru_state *st = iio_priv(indio_dev);
+	struct pru_priv *st = iio_priv(indio_dev);
 
 	if (st->trig != trig)
 		return -EINVAL;
@@ -339,7 +346,7 @@ static int pru_validate_trigger(struct iio_dev *indio_dev,
 
 static int pru_buffer_postenable(struct iio_dev *indio_dev)
 {
-	struct pru_state *st = iio_priv(indio_dev);
+	struct pru_priv *st = iio_priv(indio_dev);
 
 	iio_triggered_buffer_postenable(indio_dev);
 
@@ -348,7 +355,7 @@ static int pru_buffer_postenable(struct iio_dev *indio_dev)
 
 static int pru_buffer_predisable(struct iio_dev *indio_dev)
 {
-	struct pru_state *st = iio_priv(indio_dev);
+	struct pru_priv *st = iio_priv(indio_dev);
 
 	return iio_triggered_buffer_predisable(indio_dev);
 }
@@ -419,9 +426,19 @@ static int rpmsg_pru_probe(struct rpmsg_device *rpdev)
 	if (!prudev)
 		return -ENOMEM;
 
+	dev_set_drvdata(&rpdev->dev, prudev);
+
 	prudev->rpdev = rpdev;
+	p_st->rpdev = rpdev;
 
 	return 0;
+}
+
+static void rpmsg_pru_remove(struct rpmsg_device *rpdev)
+{
+	int ret;
+
+	printk("pru-adc-spi: rpmsg_pru_remove()\n");
 }
 
 MODULE_DEVICE_TABLE(of, of_pru_adc_spi_match);
@@ -435,16 +452,17 @@ static const struct rpmsg_device_id rpmsg_driver_pru_id_table[] = {
 MODULE_DEVICE_TABLE(rpmsg, rpmsg_driver_pru_id_table);
 
 static struct rpmsg_driver rpmsg_pru_driver = {
-	.drv.name	= KBUILD_MODNAME,
+	.drv.name	= "pru-adc-spi_rpmsg",
 	.id_table	= rpmsg_driver_pru_id_table,
 	.probe		= rpmsg_pru_probe,
 	.callback	= rpmsg_pru_cb,
+	.remove		= rpmsg_pru_remove,
 };
 
 static int pru_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct pru_state *st;
+	struct pru_priv *st;
 	int ret;
 	struct iio_dev *indio_dev;
 
@@ -457,19 +475,20 @@ static int pru_probe(struct platform_device *pdev)
 		return (ret);
 	}
 
-	ret = register_rpmsg_driver(&rpmsg_pru_driver);
-	if (ret) {
-		pr_err("Unable to register rpmsg driver");
-		class_destroy(rpmsg_pru_class);
-		return (ret);
-	}
-
 	indio_dev = devm_iio_device_alloc(dev, sizeof(*st));
 	if (!indio_dev)
 		return -ENOMEM;
 
 	st = iio_priv(indio_dev);
 	dev_set_drvdata(dev, indio_dev);
+
+	p_st = st;
+	ret = register_rpmsg_driver(&rpmsg_pru_driver);
+	if (ret) {
+		pr_err("Unable to register rpmsg driver");
+		class_destroy(rpmsg_pru_class);
+		return (ret);
+	}
 
 	st->dev = dev;
 	mutex_init(&st->lock);
@@ -533,7 +552,7 @@ static int pru_probe(struct platform_device *pdev)
 static int pru_suspend(struct device *dev)
 {
 	struct iio_dev *indio_dev = dev_get_drvdata(dev);
-	struct pru_state *st = iio_priv(indio_dev);
+	struct pru_priv *st = iio_priv(indio_dev);
 	st->state = 0;
 
 	return 0;
@@ -542,7 +561,7 @@ static int pru_suspend(struct device *dev)
 static int pru_resume(struct device *dev)
 {
 	struct iio_dev *indio_dev = dev_get_drvdata(dev);
-	struct pru_state *st = iio_priv(indio_dev);
+	struct pru_priv *st = iio_priv(indio_dev);
 	st->state = 1;
 
 	return 0;
@@ -555,7 +574,7 @@ EXPORT_SYMBOL_GPL(pru_pm_ops);
 
 static void pru_shutdown(struct platform_device *pdev)
 {
-
+	printk("pru-adc-spi: pru_shutdown\n");
 }
 
 static int pru_remove(struct platform_device *pdev)
