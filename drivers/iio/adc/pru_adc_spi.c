@@ -34,7 +34,7 @@
 /* Matches the definition in virtio_rpmsg_bus.c */
 #define RPMSG_BUF_SIZE				(512)
 
-#define DRIVER_VERSION "v1.3b"
+#define DRIVER_VERSION "v1.3c"
 
 static struct class *rpmsg_pru_class;
 
@@ -66,15 +66,21 @@ struct pru_priv {
 
 	struct mutex			lock; /* protect sensor state */
 	struct gpio_desc		*gpio_io_en;
+	struct gpio_desc		*gpio_mux_a[6];
+	struct gpio_desc		*gpio_mux_b[6];
+	struct gpio_desc		*gpio_gain0[6];
+	struct gpio_desc		*gpio_gain1[6];
+	struct gpio_desc		*gpio_gain2[6];
 	struct iio_trigger		*trig;
 	struct completion		completion;
 	struct rpmsg_device 	*rpdev;
+
 	/*
 	 * DMA (thus cache coherency maintenance) requires the
 	 * transfer buffers to live in their own cache lines.
-	 * 16 * 16-bit samples + 64-bit timestamp
+	 *  6 * 16-bit samples + 64-bit timestamp
 	 */
-	unsigned short			data[20] ____cacheline_aligned;
+	unsigned short			data[10] ____cacheline_aligned;
 };
 struct pru_priv *p_st;
 
@@ -92,11 +98,23 @@ static int pru_reset(struct pru_priv *st)
 	return 0;
 }
 
+static void debug_pins(int adc)
+{
+	printk("pru-adc-spi: adc %d: %d %d %d %d %d\n", adc,
+			gpiod_get_value_cansleep(p_st->gpio_mux_a[adc]),
+			gpiod_get_value_cansleep(p_st->gpio_mux_b[adc]),
+			gpiod_get_value_cansleep(p_st->gpio_gain0[adc]),
+			gpiod_get_value_cansleep(p_st->gpio_gain1[adc]),
+			gpiod_get_value_cansleep(p_st->gpio_gain2[adc]));
+}
+
 static int pru_read_samples(struct pru_priv *st)
 {
 	int ret = 0;
 	int count = 2;
 	static char rpmsg_pru_buf[RPMSG_BUF_SIZE];
+
+	printk("pru-adc-spi: %s()\n", __func__);
 
 	rpmsg_pru_buf[0] = 'C';
 
@@ -114,6 +132,8 @@ static irqreturn_t pru_trigger_handler(int irq, void *p)
 	struct iio_dev *indio_dev = pf->indio_dev;
 	struct pru_priv *st = iio_priv(indio_dev);
 	int ret;
+
+	printk("pru-adc-spi: %s()\n", __func__);
 
 	mutex_lock(&st->lock);
 
@@ -133,6 +153,9 @@ static int pru_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 	struct pru_priv *st = iio_priv(indio_dev);
 	int ret;
 
+	printk("pru-adc-spi: %s(%d)\n", __func__, ch);
+	debug_pins(ch);
+
 	ret = pru_read_samples(st);
 	if (ret == 0)
 		ret = st->data[ch];
@@ -149,7 +172,22 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 	int ret;
 	struct pru_priv *st = iio_priv(indio_dev);
 
+	printk("pru-adc-spi: %s(%ld %ld)\n", __func__, chan->address, m);
+
 	switch (m) {
+	case IIO_CHAN_INFO_PROCESSED:
+		ret = iio_device_claim_direct_mode(indio_dev);
+		if (ret)
+			return ret;
+
+		ret = pru_scan_direct(indio_dev, chan->address);
+		iio_device_release_direct_mode(indio_dev);
+
+		if (ret < 0)
+			return ret;
+		*val = (short)ret;
+		return IIO_VAL_INT;
+
 	case IIO_CHAN_INFO_RAW:
 		ret = iio_device_claim_direct_mode(indio_dev);
 		if (ret)
@@ -168,6 +206,22 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 		return IIO_VAL_INT_PLUS_MICRO;
 	case IIO_CHAN_INFO_OVERSAMPLING_RATIO:
 		*val = st->oversampling;
+		return IIO_VAL_INT;
+	case IIO_CHAN_INFO_HARDWAREGAIN:
+		*val = 0;
+		if (gpiod_get_value_cansleep(st->gpio_gain0[chan->address]))
+			*val |= (1<<0);
+		if (gpiod_get_value_cansleep(st->gpio_gain1[chan->address]))
+			*val |= (1<<1);
+		if (gpiod_get_value_cansleep(st->gpio_gain2[chan->address]))
+			*val |= (1<<2);
+		return IIO_VAL_INT;
+	case IIO_CHAN_INFO_ENABLE:
+		*val = 0;
+		if (gpiod_get_value_cansleep(st->gpio_mux_a[chan->address]))
+			*val |= (1<<0);
+		if (gpiod_get_value_cansleep(st->gpio_mux_b[chan->address]))
+			*val |= (1<<1);
 		return IIO_VAL_INT;
 	}
 	return -EINVAL;
@@ -210,6 +264,11 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 	DECLARE_BITMAP(values, 3);
 	int i;
 
+	printk("pru-adc-spi: %s(%ld)\n", __func__, chan->address);
+
+	if (val < 0 || val2 < 0)
+		return -EINVAL;
+
 	switch (mask) {
 	case IIO_CHAN_INFO_SCALE:
 		mutex_lock(&st->lock);
@@ -234,6 +293,30 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 		st->oversampling = st->oversampling_avail[i];
 		mutex_unlock(&st->lock);
 
+		return 0;
+	case IIO_CHAN_INFO_HARDWAREGAIN:
+		if (val & (1<<0))
+			gpiod_set_value_cansleep(st->gpio_gain0[chan->address], 1);
+		else
+			gpiod_set_value_cansleep(st->gpio_gain0[chan->address], 0);
+		if (val & (1<<1))
+			gpiod_set_value_cansleep(st->gpio_gain1[chan->address], 1);
+		else
+			gpiod_set_value_cansleep(st->gpio_gain1[chan->address], 0);
+		if (val & (1<<2))
+			gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 1);
+		else
+			gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 0);
+		return 0;
+	case IIO_CHAN_INFO_ENABLE:
+		if (val & (1<<0))
+			gpiod_set_value_cansleep(st->gpio_mux_a[chan->address], 1);
+		else
+			gpiod_set_value_cansleep(st->gpio_mux_a[chan->address], 0);
+		if (val & (1<<1))
+			gpiod_set_value_cansleep(st->gpio_mux_b[chan->address], 1);
+		else
+			gpiod_set_value_cansleep(st->gpio_mux_b[chan->address], 0);
 		return 0;
 	default:
 		return -EINVAL;
@@ -282,28 +365,31 @@ static const struct attribute_group pru_attribute_group_range = {
 	.attrs = pru_attributes_range,
 };
 
-#define PRUX_CHANNEL(num, mask) {				\
-		.type = IIO_VOLTAGE,				\
-		.indexed = 1,					\
-		.channel = num,					\
-		.address = num,					\
-		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),	\
-		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),\
-		.info_mask_shared_by_all = mask,		\
-		.scan_index = num,				\
-		.scan_type = {					\
-			.sign = 's',				\
-			.realbits = 16,				\
-			.storagebits = 16,			\
-			.endianness = IIO_CPU,			\
-		},						\
+#define PRUX_CHANNEL(num, mask) {								\
+		.type = IIO_VOLTAGE,									\
+		.indexed = 1,											\
+		.channel = num,											\
+		.address = num,											\
+		.info_mask_separate = BIT(IIO_CHAN_INFO_PROCESSED)		\
+							| BIT(IIO_CHAN_INFO_HARDWAREGAIN)	\
+							| BIT(IIO_CHAN_INFO_ENABLE)			\
+							| BIT(IIO_CHAN_INFO_RAW),			\
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),	\
+		.info_mask_shared_by_all = mask,						\
+		.scan_index = num,										\
+		.scan_type = {											\
+			.sign = 'u',										\
+			.realbits = 16,										\
+			.storagebits = 16,									\
+			.endianness = IIO_CPU,								\
+		},														\
 }
 
 #define PRU_CHANNEL(num)	\
 	PRUX_CHANNEL(num, BIT(IIO_CHAN_INFO_OVERSAMPLING_RATIO))
 
 static const struct iio_chan_spec pru_channels[] = {
-	IIO_CHAN_SOFT_TIMESTAMP(8),
+	IIO_CHAN_SOFT_TIMESTAMP(6),
 	PRU_CHANNEL(0),
 	PRU_CHANNEL(1),
 	PRU_CHANNEL(2),
@@ -324,12 +410,34 @@ static const struct pru_chip_info pru_chip_info_tbl[] = {
 
 static int pru_request_gpios(struct pru_priv *st)
 {
+	int i;
+	char pinpath[256];
 	struct device *dev = st->dev;
 
-	st->gpio_io_en = devm_gpiod_get(dev, "pru,io-enable",
-					 GPIOD_OUT_HIGH);
-	if (IS_ERR(st->gpio_io_en))
+	if (IS_ERR(st->gpio_io_en = devm_gpiod_get(dev, "pru,io-enable", GPIOD_OUT_HIGH)))
 		return PTR_ERR(st->gpio_io_en);
+
+	for (i = 0; i < 6; i++) {
+		sprintf(pinpath, "pru,adc-%d-mux-a", i + 1);
+		if (IS_ERR(st->gpio_mux_a[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
+			return PTR_ERR(st->gpio_mux_a[i]);
+
+		sprintf(pinpath, "pru,adc-%d-mux-b", i + 1);
+		if (IS_ERR(st->gpio_mux_b[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
+			return PTR_ERR(st->gpio_mux_b[i]);
+
+		sprintf(pinpath, "pru,adc-%d-gain0", i + 1);
+		if (IS_ERR(st->gpio_gain0[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
+			return PTR_ERR(st->gpio_gain0[i]);
+
+		sprintf(pinpath, "pru,adc-%d-gain1", i + 1);
+		if (IS_ERR(st->gpio_gain1[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
+			return PTR_ERR(st->gpio_gain1[i]);
+
+		sprintf(pinpath, "pru,adc-%d-gain2", i + 1);
+		if (IS_ERR(st->gpio_gain2[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
+			return PTR_ERR(st->gpio_gain2[i]);
+	}
 	return 0;
 }
 
@@ -337,6 +445,8 @@ static int pru_validate_trigger(struct iio_dev *indio_dev,
 				   struct iio_trigger *trig)
 {
 	struct pru_priv *st = iio_priv(indio_dev);
+
+	printk("pru-adc-spi: %s()\n", __func__);
 
 	if (st->trig != trig)
 		return -EINVAL;
@@ -346,7 +456,8 @@ static int pru_validate_trigger(struct iio_dev *indio_dev,
 
 static int pru_buffer_postenable(struct iio_dev *indio_dev)
 {
-	struct pru_priv *st = iio_priv(indio_dev);
+//	struct pru_priv *st = iio_priv(indio_dev);
+	printk("pru-adc-spi: %s()\n", __func__);
 
 	iio_triggered_buffer_postenable(indio_dev);
 
@@ -355,7 +466,8 @@ static int pru_buffer_postenable(struct iio_dev *indio_dev)
 
 static int pru_buffer_predisable(struct iio_dev *indio_dev)
 {
-	struct pru_priv *st = iio_priv(indio_dev);
+//	struct pru_priv *st = iio_priv(indio_dev);
+	printk("pru-adc-spi: %s()\n", __func__);
 
 	return iio_triggered_buffer_predisable(indio_dev);
 }
@@ -403,12 +515,15 @@ static const struct of_device_id of_pru_adc_spi_match[] = {
 static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 			void *priv, u32 src)
 {
-	u32 length;
-	struct rpmsg_pru_dev *prudev;
+	char *pdata = data;
 
+	struct rpmsg_pru_dev *prudev;
 	prudev = dev_get_drvdata(&rpdev->dev);
 
-	printk("pru-adc-spi: rpmsg_pru_cb src %d len %d\n", src, len);
+	printk("pru-adc-spi: %s src %d len %d: %hd %hd %hd %hd %hd %hd %hd\n", __func__, src, len,
+		pdata[1] << 8| pdata[0], pdata[3] << 8 | pdata[2], pdata[5] << 8| pdata[4],
+		pdata[7] << 8 | pdata[6], pdata[9] << 8| pdata[8], pdata[11] << 8 | pdata[10],
+		pdata[13] << 8| pdata[12]);
 
 //	wake_up_interruptible(&prudev->wait_list);
 
@@ -417,10 +532,8 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 static int rpmsg_pru_probe(struct rpmsg_device *rpdev)
 {
-	int ret;
 	struct rpmsg_pru_dev *prudev;
-	int minor_got;
-	printk("pru-adc-spi: rpmsg_pru_probe()\n");
+	printk("pru-adc-spi: %s()\n", __func__);
 
 	prudev = devm_kzalloc(&rpdev->dev, sizeof(*prudev), GFP_KERNEL);
 	if (!prudev)
@@ -436,9 +549,7 @@ static int rpmsg_pru_probe(struct rpmsg_device *rpdev)
 
 static void rpmsg_pru_remove(struct rpmsg_device *rpdev)
 {
-	int ret;
-
-	printk("pru-adc-spi: rpmsg_pru_remove()\n");
+	printk("pru-adc-spi: %s()\n", __func__);
 }
 
 MODULE_DEVICE_TABLE(of, of_pru_adc_spi_match);
@@ -466,7 +577,7 @@ static int pru_probe(struct platform_device *pdev)
 	int ret;
 	struct iio_dev *indio_dev;
 
-	printk("pru-adc-spi: probe() %s\n", DRIVER_VERSION);
+	printk("pru-adc-spi: %s() %s\n", __func__, DRIVER_VERSION);
 
 	rpmsg_pru_class = class_create(THIS_MODULE, "rpmsg_pru");
 	if (IS_ERR(rpmsg_pru_class)) {
@@ -574,12 +685,12 @@ EXPORT_SYMBOL_GPL(pru_pm_ops);
 
 static void pru_shutdown(struct platform_device *pdev)
 {
-	printk("pru-adc-spi: pru_shutdown\n");
+	printk("pru-adc-spi: %s()\n", __func__);
 }
 
 static int pru_remove(struct platform_device *pdev)
 {
-	printk("pru-adc-spi: remove\n");
+	printk("pru-adc-spi: %s()\n", __func__);
 
 	unregister_rpmsg_driver(&rpmsg_pru_driver);
 	class_destroy(rpmsg_pru_class);
