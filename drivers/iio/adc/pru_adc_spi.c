@@ -71,6 +71,7 @@ struct pru_priv {
 	struct gpio_desc		*gpio_gain0[6];
 	struct gpio_desc		*gpio_gain1[6];
 	struct gpio_desc		*gpio_gain2[6];
+	int						offset[6];
 	struct iio_trigger		*trig;
 	struct completion		completion;
 	struct rpmsg_device 	*rpdev;
@@ -204,6 +205,9 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 		*val = 0;
 		*val2 = st->scale_avail[st->range];
 		return IIO_VAL_INT_PLUS_MICRO;
+	case IIO_CHAN_INFO_OFFSET:
+		*val = st->offset[chan->address];
+		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_OVERSAMPLING_RATIO:
 		*val = st->oversampling;
 		return IIO_VAL_INT;
@@ -294,6 +298,9 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 		mutex_unlock(&st->lock);
 
 		return 0;
+	case IIO_CHAN_INFO_OFFSET:
+		st->offset[chan->address] = val;
+		return 0;
 	case IIO_CHAN_INFO_HARDWAREGAIN:
 		if (val & (1<<0))
 			gpiod_set_value_cansleep(st->gpio_gain0[chan->address], 1);
@@ -373,6 +380,7 @@ static const struct attribute_group pru_attribute_group_range = {
 		.info_mask_separate = BIT(IIO_CHAN_INFO_PROCESSED)		\
 							| BIT(IIO_CHAN_INFO_HARDWAREGAIN)	\
 							| BIT(IIO_CHAN_INFO_ENABLE)			\
+							| BIT(IIO_CHAN_INFO_OFFSET)			\
 							| BIT(IIO_CHAN_INFO_RAW),			\
 		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),	\
 		.info_mask_shared_by_all = mask,						\
