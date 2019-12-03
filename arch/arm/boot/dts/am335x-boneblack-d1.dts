@@ -17,7 +17,7 @@
 };
 
 / {
-	model = "TI AM335x BeagleBone Black D1 v0.27";
+	model = "TI AM335x BeagleBone Black D1 v0.28";
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
 	pru_adc_spi {
@@ -28,6 +28,42 @@
 
 		/* BONE_P8_26 gpio1_29 enable = Port Low  && SYS_RESET -> IO_EN*/
 		pru,io-enable-gpios = <&gpio1 29 GPIO_ACTIVE_HIGH>;
+
+		pru,adc-1-mux-a-gpios = <&pcf8575_21 0 GPIO_ACTIVE_HIGH>;
+		pru,adc-1-mux-b-gpios = <&pcf8575_21 1 GPIO_ACTIVE_HIGH>;
+		pru,adc-1-gain0-gpios = <&pcf8575_21 7 GPIO_ACTIVE_HIGH>;
+		pru,adc-1-gain1-gpios = <&pcf8575_21 6 GPIO_ACTIVE_HIGH>;
+		pru,adc-1-gain2-gpios = <&pcf8575_21 5 GPIO_ACTIVE_HIGH>;
+
+		pru,adc-2-mux-a-gpios = <&pcf8575_21 8 GPIO_ACTIVE_HIGH>;
+		pru,adc-2-mux-b-gpios = <&pcf8575_21 9 GPIO_ACTIVE_HIGH>;
+		pru,adc-2-gain0-gpios = <&pcf8575_21 15 GPIO_ACTIVE_HIGH>;
+		pru,adc-2-gain1-gpios =	<&pcf8575_21 14 GPIO_ACTIVE_HIGH>;
+		pru,adc-2-gain2-gpios = <&pcf8575_21 13 GPIO_ACTIVE_HIGH>;
+
+		pru,adc-3-mux-a-gpios = <&pcf8575_22 0 GPIO_ACTIVE_HIGH>;
+		pru,adc-3-mux-b-gpios = <&pcf8575_22 1 GPIO_ACTIVE_HIGH>;
+		pru,adc-3-gain0-gpios = <&pcf8575_22 7 GPIO_ACTIVE_HIGH>;
+		pru,adc-3-gain1-gpios = <&pcf8575_22 6 GPIO_ACTIVE_HIGH>;
+		pru,adc-3-gain2-gpios = <&pcf8575_22 5 GPIO_ACTIVE_HIGH>;
+
+		pru,adc-4-mux-a-gpios = <&pcf8575_22 8 GPIO_ACTIVE_HIGH>;
+		pru,adc-4-mux-b-gpios = <&pcf8575_22 9 GPIO_ACTIVE_HIGH>;
+		pru,adc-4-gain0-gpios = <&pcf8575_22 15 GPIO_ACTIVE_HIGH>;
+		pru,adc-4-gain1-gpios = <&pcf8575_22 14 GPIO_ACTIVE_HIGH>;
+		pru,adc-4-gain2-gpios = <&pcf8575_22 13 GPIO_ACTIVE_HIGH>;
+
+		pru,adc-5-mux-a-gpios = <&pcf8575_23 0 GPIO_ACTIVE_HIGH>;
+		pru,adc-5-mux-b-gpios = <&pcf8575_23 1 GPIO_ACTIVE_HIGH>;
+		pru,adc-5-gain0-gpios = <&pcf8575_23 7 GPIO_ACTIVE_HIGH>;
+		pru,adc-5-gain1-gpios = <&pcf8575_23 6 GPIO_ACTIVE_HIGH>;
+		pru,adc-5-gain2-gpios = <&pcf8575_23 5 GPIO_ACTIVE_HIGH>;
+
+		pru,adc-6-mux-a-gpios = <&pcf8575_23 8 GPIO_ACTIVE_HIGH>;
+		pru,adc-6-mux-b-gpios = <&pcf8575_23 9 GPIO_ACTIVE_HIGH>;
+		pru,adc-6-gain0-gpios = <&pcf8575_23 15 GPIO_ACTIVE_HIGH>;
+		pru,adc-6-gain1-gpios = <&pcf8575_23 14 GPIO_ACTIVE_HIGH>;
+		pru,adc-6-gain2-gpios = <&pcf8575_23 13 GPIO_ACTIVE_HIGH>;
 	};
 
 	leds {
