@@ -22,7 +22,7 @@
 
 	pru_adc_spi {
 		status = "okay";
-		compatible = "pru-adc-spi";
+		compatible = "pru-adc";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pru_adc_pins>;
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * a PRU ADC SPI driver via remoteproc
+ * a PRU ADC driver via remoteproc
  *
  * Copyright 2019 MIS (c) Robert Woerle rwoerle@mibtec.de
  * based on TI PRU Example codes and ad7606.c 
@@ -21,6 +21,7 @@
 #include <linux/util_macros.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/workqueue.h>
 
 #include <linux/iio/iio.h>
 #include <linux/iio/buffer.h>
@@ -54,6 +55,7 @@ struct rpmsg_pru_dev {
 struct pru_priv {
 	int 					state;
 	struct device			*dev;
+	struct iio_dev			*indio_dev;
 	const struct pru_chip_info	*chip_info;
 	struct regulator		*reg;
 	unsigned int			range;
@@ -75,6 +77,7 @@ struct pru_priv {
 	struct iio_trigger		*trig;
 	struct completion		completion;
 	struct rpmsg_device 	*rpdev;
+	struct work_struct		fetch_work;
 
 	/*
 	 * DMA (thus cache coherency maintenance) requires the
@@ -83,6 +86,7 @@ struct pru_priv {
 	 */
 	unsigned short			data[10] ____cacheline_aligned;
 };
+
 struct pru_priv *p_st;
 
 static const unsigned int pru_scale_avail[2] = {
@@ -101,7 +105,7 @@ static int pru_reset(struct pru_priv *st)
 
 static void debug_pins(int adc)
 {
-	printk("pru-adc-spi: adc %d: %d %d %d %d %d\n", adc,
+	printk("pru-adc: adc %d: %d %d %d %d %d\n", adc,
 			gpiod_get_value_cansleep(p_st->gpio_mux_a[adc]),
 			gpiod_get_value_cansleep(p_st->gpio_mux_b[adc]),
 			gpiod_get_value_cansleep(p_st->gpio_gain0[adc]),
@@ -115,7 +119,7 @@ static int pru_read_samples(struct pru_priv *st)
 	int count = 2;
 	static char rpmsg_pru_buf[RPMSG_BUF_SIZE];
 
-	printk("pru-adc-spi: %s()\n", __func__);
+	printk("pru-adc: %s()\n", __func__);
 
 	rpmsg_pru_buf[0] = 'C';
 
@@ -127,6 +131,49 @@ static int pru_read_samples(struct pru_priv *st)
 	return ret;
 }
 
+static void fetch_thread(struct work_struct *work_arg)
+{
+	struct pru_priv *st = container_of(work_arg, struct pru_priv, fetch_work);
+	struct device *pdev = st->dev;
+	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
+//	struct iio_chan_spec const *chan;
+//	int i, err, val1, sleeper;
+
+	//dev_info(&st->dev, "Starting prefetching on PID: [%d]\n",  current->pid);
+	printk("pru-adc: Starting prefetching on PID: [%d]\n",  current->pid);
+	set_current_state(TASK_INTERRUPTIBLE);
+
+	while(st->state) {
+
+		pru_read_samples(st);
+		iio_push_to_buffers_with_timestamp(indio_dev, st->data,
+						   iio_get_time_ns(indio_dev));
+		msleep(3000);
+	}
+/*
+	while (adc->prefetch) {
+		chan = indio_dev->channels;
+		for (i = 0; i < 9 && adc->prefetch; i++) {
+			if (adc->channels & (1 << i)) {
+				if (chan->type == IIO_TEMP)
+					sleeper = LTC2499_SLEEP_M0;
+				else
+					sleeper = adc->speedmode ? LTC2499_SLEEP_M1 : LTC2499_SLEEP_M0;
+
+				err = ltc2499_read_channel(adc, chan, &val1);
+				if (!err)
+					adc->fetched[i] = val1;
+
+				msleep(sleeper);
+			}
+			chan++;
+		}
+		msleep(adc->prefetch);
+	}*/
+
+	return;
+}
+
 static irqreturn_t pru_trigger_handler(int irq, void *p)
 {
 	struct iio_poll_func *pf = p;
@@ -134,14 +181,14 @@ static irqreturn_t pru_trigger_handler(int irq, void *p)
 	struct pru_priv *st = iio_priv(indio_dev);
 	int ret;
 
-	printk("pru-adc-spi: %s()\n", __func__);
+	printk("pru-adc: %s()\n", __func__);
 
 	mutex_lock(&st->lock);
 
 	ret = pru_read_samples(st);
-//	if (ret == 0)
-//		iio_push_to_buffers_with_timestamp(indio_dev, st->data,
-//						   iio_get_time_ns(indio_dev));
+	if (ret == 0)
+		iio_push_to_buffers_with_timestamp(indio_dev, st->data,
+						   iio_get_time_ns(indio_dev));
 
 	iio_trigger_notify_done(indio_dev->trig);
 	mutex_unlock(&st->lock);
@@ -154,7 +201,7 @@ static int pru_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 	struct pru_priv *st = iio_priv(indio_dev);
 	int ret;
 
-	printk("pru-adc-spi: %s(%d)\n", __func__, ch);
+	printk("pru-adc: %s(%d)\n", __func__, ch);
 	debug_pins(ch);
 
 	ret = pru_read_samples(st);
@@ -173,7 +220,7 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 	int ret;
 	struct pru_priv *st = iio_priv(indio_dev);
 
-	printk("pru-adc-spi: %s(%ld %ld)\n", __func__, chan->address, m);
+	printk("pru-adc: %s(%ld %ld)\n", __func__, chan->address, m);
 
 	switch (m) {
 	case IIO_CHAN_INFO_PROCESSED:
@@ -268,7 +315,7 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 	DECLARE_BITMAP(values, 3);
 	int i;
 
-	printk("pru-adc-spi: %s(%ld)\n", __func__, chan->address);
+	printk("pru-adc: %s(%ld)\n", __func__, chan->address);
 
 	if (val < 0 || val2 < 0)
 		return -EINVAL;
@@ -454,7 +501,7 @@ static int pru_validate_trigger(struct iio_dev *indio_dev,
 {
 	struct pru_priv *st = iio_priv(indio_dev);
 
-	printk("pru-adc-spi: %s()\n", __func__);
+	printk("pru-adc: %s()\n", __func__);
 
 	if (st->trig != trig)
 		return -EINVAL;
@@ -462,10 +509,20 @@ static int pru_validate_trigger(struct iio_dev *indio_dev,
 	return 0;
 }
 
+static int pru_buffer_preenable(struct iio_dev *indio_dev)
+{
+	struct pru_priv *st = iio_priv(indio_dev);
+
+	printk("pru-adc: %s()\n", __func__);
+
+	return 0;
+}
+
 static int pru_buffer_postenable(struct iio_dev *indio_dev)
 {
-//	struct pru_priv *st = iio_priv(indio_dev);
-	printk("pru-adc-spi: %s()\n", __func__);
+	struct pru_priv *st = iio_priv(indio_dev);
+
+	printk("pru-adc: %s()\n", __func__);
 
 	iio_triggered_buffer_postenable(indio_dev);
 
@@ -474,15 +531,34 @@ static int pru_buffer_postenable(struct iio_dev *indio_dev)
 
 static int pru_buffer_predisable(struct iio_dev *indio_dev)
 {
-//	struct pru_priv *st = iio_priv(indio_dev);
-	printk("pru-adc-spi: %s()\n", __func__);
+	struct pru_priv *st = iio_priv(indio_dev);
+	printk("pru-adc: %s()\n", __func__);
 
 	return iio_triggered_buffer_predisable(indio_dev);
 }
 
+static int pru_buffer_postdisable(struct iio_dev *indio_dev)
+{
+	struct pru_priv *st = iio_priv(indio_dev);
+	printk("pru-adc: %s()\n", __func__);
+	return 0;
+}
+
+static int pru_trigger_set_state(struct iio_trigger *trig, bool enable)
+{
+	struct iio_dev *indio_dev = iio_trigger_get_drvdata(trig);
+	struct pru_priv *st = iio_priv(indio_dev);
+
+	printk("pru-adc: %s(%d)\n", __func__, enable);
+
+	return 0;
+}
+
 static const struct iio_buffer_setup_ops pru_buffer_ops = {
+	.preenable = &pru_buffer_preenable,
 	.postenable = &pru_buffer_postenable,
 	.predisable = &pru_buffer_predisable,
+	.postdisable = &pru_buffer_postdisable,
 };
 
 static const struct iio_info pru_info_no_os_or_range = {
@@ -512,11 +588,12 @@ static const struct iio_info pru_info_range = {
 };
 
 static const struct iio_trigger_ops pru_trigger_ops = {
+    .set_trigger_state = pru_trigger_set_state,
 	.validate_device = iio_trigger_validate_own_device,
 };
 
-static const struct of_device_id of_pru_adc_spi_match[] = {
-	{ .compatible = "pru-adc-spi", },
+static const struct of_device_id of_pru_adc_match[] = {
+	{ .compatible = "pru-adc", },
 	{},
 };
 
@@ -524,14 +601,18 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 			void *priv, u32 src)
 {
 	char *pdata = data;
+	struct rpmsg_pru_dev *prudev = dev_get_drvdata(&rpdev->dev);
+	struct device *pdev = p_st->dev;
+	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
 
-	struct rpmsg_pru_dev *prudev;
-	prudev = dev_get_drvdata(&rpdev->dev);
-
-	printk("pru-adc-spi: %s src %d len %d: %hd %hd %hd %hd %hd %hd %hd\n", __func__, src, len,
-		pdata[1] << 8| pdata[0], pdata[3] << 8 | pdata[2], pdata[5] << 8| pdata[4],
-		pdata[7] << 8 | pdata[6], pdata[9] << 8| pdata[8], pdata[11] << 8 | pdata[10],
-		pdata[13] << 8| pdata[12]);
+	p_st->data[0] = 1;
+	p_st->data[1] = 2;
+	iio_push_to_buffers_with_timestamp(indio_dev, p_st->data,
+										iio_get_time_ns(indio_dev));
+//	printk("pru-adc: %s src %d len %d: %hd %hd %hd %hd %hd %hd %hd\n", __func__, src, len,
+//		pdata[1] << 8| pdata[0], pdata[3] << 8 | pdata[2], pdata[5] << 8| pdata[4],
+//		pdata[7] << 8 | pdata[6], pdata[9] << 8| pdata[8], pdata[11] << 8 | pdata[10],
+//		pdata[13] << 8| pdata[12]);
 
 //	wake_up_interruptible(&prudev->wait_list);
 
@@ -541,7 +622,7 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 static int rpmsg_pru_probe(struct rpmsg_device *rpdev)
 {
 	struct rpmsg_pru_dev *prudev;
-	printk("pru-adc-spi: %s()\n", __func__);
+	printk("pru-adc: %s()\n", __func__);
 
 	prudev = devm_kzalloc(&rpdev->dev, sizeof(*prudev), GFP_KERNEL);
 	if (!prudev)
@@ -557,10 +638,10 @@ static int rpmsg_pru_probe(struct rpmsg_device *rpdev)
 
 static void rpmsg_pru_remove(struct rpmsg_device *rpdev)
 {
-	printk("pru-adc-spi: %s()\n", __func__);
+	printk("pru-adc: %s()\n", __func__);
 }
 
-MODULE_DEVICE_TABLE(of, of_pru_adc_spi_match);
+MODULE_DEVICE_TABLE(of, of_pru_adc_match);
 
 /* .name matches on RPMsg Channels and causes a probe */
 static const struct rpmsg_device_id rpmsg_driver_pru_id_table[] = {
@@ -571,7 +652,7 @@ static const struct rpmsg_device_id rpmsg_driver_pru_id_table[] = {
 MODULE_DEVICE_TABLE(rpmsg, rpmsg_driver_pru_id_table);
 
 static struct rpmsg_driver rpmsg_pru_driver = {
-	.drv.name	= "pru-adc-spi_rpmsg",
+	.drv.name	= "pru-adc_rpmsg",
 	.id_table	= rpmsg_driver_pru_id_table,
 	.probe		= rpmsg_pru_probe,
 	.callback	= rpmsg_pru_cb,
@@ -585,7 +666,7 @@ static int pru_probe(struct platform_device *pdev)
 	int ret;
 	struct iio_dev *indio_dev;
 
-	printk("pru-adc-spi: %s() %s\n", __func__, DRIVER_VERSION);
+	printk("pru-adc: %s() %s\n", __func__, DRIVER_VERSION);
 
 	rpmsg_pru_class = class_create(THIS_MODULE, "rpmsg_pru");
 	if (IS_ERR(rpmsg_pru_class)) {
@@ -630,7 +711,7 @@ static int pru_probe(struct platform_device *pdev)
 	indio_dev->dev.parent = dev;
 	indio_dev->info = &pru_info_range;
 	indio_dev->modes = INDIO_DIRECT_MODE;
-	indio_dev->name = "pru-adc-spi";
+	indio_dev->name = "pru-adc";
 	indio_dev->channels = st->chip_info->channels;
 	indio_dev->num_channels = st->chip_info->num_channels;
 
@@ -663,6 +744,10 @@ static int pru_probe(struct platform_device *pdev)
 
 	gpiod_set_value(st->gpio_io_en, 0);
 
+	INIT_WORK(&st->fetch_work, fetch_thread);
+	st->state = 1;
+	schedule_work(&st->fetch_work);
+
 	return devm_iio_device_register(dev, indio_dev);
 }
 
@@ -693,31 +778,36 @@ EXPORT_SYMBOL_GPL(pru_pm_ops);
 
 static void pru_shutdown(struct platform_device *pdev)
 {
-	printk("pru-adc-spi: %s()\n", __func__);
+	printk("pru-adc: %s()\n", __func__);
 }
 
 static int pru_remove(struct platform_device *pdev)
 {
-	printk("pru-adc-spi: %s()\n", __func__);
+	struct device *dev = &pdev->dev;
+	struct iio_dev *indio_dev = dev_get_drvdata(dev);
+	struct pru_priv *st = iio_priv(indio_dev);
 
+	printk("pru-adc: %s()\n", __func__);
+	st->state = 0;
+	cancel_work_sync(&st->fetch_work);
 	unregister_rpmsg_driver(&rpmsg_pru_driver);
 	class_destroy(rpmsg_pru_class);
 	return 0;
 }
 
-static struct platform_driver pru_adc_spi = {
+static struct platform_driver pru_adc = {
 	.probe		= pru_probe,
 	.shutdown	= pru_shutdown,
 	.remove		= pru_remove,
 	.driver		= {
-		.name	= "pru-adc-spi",
-		.of_match_table = of_pru_adc_spi_match,
+		.name	= "pru-adc",
+		.of_match_table = of_pru_adc_match,
 	},
 };
 
-module_platform_driver(pru_adc_spi);
+module_platform_driver(pru_adc);
 
 MODULE_AUTHOR("Robert Woerle <rwoerle@mibtec.de>");
-MODULE_DESCRIPTION("PRU ADC SPI remoteproc skeleton");
+MODULE_DESCRIPTION("PRU ADC remoteproc skeleton");
 MODULE_LICENSE("GPL v2");
-MODULE_ALIAS("platform:pru-adc-spi");
+MODULE_ALIAS("platform:pru-adc");
