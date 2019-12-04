@@ -20,7 +20,7 @@
 	model = "TI AM335x BeagleBone Black D1 v0.28";
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
-	pru_adc_spi {
+	pru_adc {
 		status = "okay";
 		compatible = "pru-adc";
 		pinctrl-names = "default";
