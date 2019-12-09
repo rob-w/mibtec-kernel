@@ -25,6 +25,7 @@
 		compatible = "pru-adc";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pru_adc_pins>;
+		ti,rproc = <&pru1>;
 
 		/* BONE_P8_26 gpio1_29 enable = Port Low  && SYS_RESET -> IO_EN*/
 		pru,io-enable-gpios = <&gpio1 29 GPIO_ACTIVE_HIGH>;
