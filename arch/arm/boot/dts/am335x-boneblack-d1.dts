@@ -17,7 +17,7 @@
 };
 
 / {
-	model = "TI AM335x BeagleBone Black D1 v0.28";
+	model = "TI AM335x BeagleBone Black D1 v0.29";
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
 	pru_adc {
@@ -405,6 +405,14 @@
 						  "ADAPT_VAR_0", "ADAPT_VAR_1", "ADAPT_VAR_2", "ADAPT_VAR_3",
 						  "P5", "P3", "P1", "P2", "P4", "P6", "", "";
 	};
+};
+
+&pru0 {
+	firmware-name = "pru/d850-pru-bus.out";
+};
+
+&pru1 {
+	firmware-name = "pru/d850-pru-adc.out";
 };
 
 &epwmss0 {
