@@ -22,6 +22,7 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/workqueue.h>
+#include <linux/remoteproc.h>
 
 #include <linux/iio/iio.h>
 #include <linux/iio/buffer.h>
@@ -53,10 +54,11 @@ struct rpmsg_pru_dev {
 };
 
 struct pru_priv {
-	int 					state, buff;
+	int 					state, buff, thr_trig;
 	struct device			*dev;
 	struct iio_dev			*indio_dev;
 	const struct pru_chip_info	*chip_info;
+	struct rproc			*rproc;
 	struct regulator		*reg;
 	unsigned int			range;
 	unsigned int			oversampling;
@@ -84,7 +86,8 @@ struct pru_priv {
 	 * transfer buffers to live in their own cache lines.
 	 *  6 * 16-bit samples + 64-bit timestamp
 	 */
-	unsigned short			data[10] ____cacheline_aligned;
+//	unsigned short			data[10] ____cacheline_aligned;
+	unsigned short			data[452] ____cacheline_aligned;
 };
 
 struct pru_priv *p_st;
@@ -121,7 +124,7 @@ static int pru_read_samples(struct pru_priv *st, int async)
 
 	dev_info(st->dev, "%s(%d)\n", __func__, async);
 
-	rpmsg_pru_buf[0] = 'C';
+	rpmsg_pru_buf[0] = 'F';
 
 	ret = rpmsg_send(st->rpdev->ept, (void *)rpmsg_pru_buf, count);
 	if (ret)
@@ -129,6 +132,12 @@ static int pru_read_samples(struct pru_priv *st, int async)
 
 	if (!async)
 		msleep(5);
+
+	rpmsg_pru_buf[0] = '1';
+
+	ret = rpmsg_send(st->rpdev->ept, (void *)rpmsg_pru_buf, count);
+	if (ret)
+		dev_err(st->dev, "rpmsg_send failed: %d\n", ret);
 
 	return ret;
 }
@@ -145,7 +154,11 @@ static void fetch_thread(struct work_struct *work_arg)
 	while(st->state) {
 		if (st->buff)
 			pru_read_samples(st, 1);
-		msleep(500);
+	//	else if (st->thr_trig) {
+	//		st->thr_trig = 0;
+	//		pru_read_samples(st, 1);
+	//	}// else
+			msleep(500);
 	}
 
 	return;
@@ -580,26 +593,36 @@ static const struct of_device_id of_pru_adc_match[] = {
 static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 			void *priv, u32 src)
 {
+	int i, y;
 	char *pdata = data;
 	struct device *pdev = p_st->dev;
 	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
 
-	p_st->data[0] = pdata[3]  << 8| pdata[2];
-	p_st->data[1] = pdata[5]  << 8| pdata[4];
-	p_st->data[2] = pdata[7]  << 8| pdata[6];
-	p_st->data[3] = pdata[9]  << 8| pdata[8];
-	p_st->data[4] = pdata[11] << 8| pdata[10];
-	p_st->data[5] = pdata[13] << 8| pdata[12];
+	y = 2;
+	for (i = 0; i < len; i++) {
+		p_st->data[i] = pdata[y + 1]  << 8| pdata[y];
+		y += 2;
+	}
+
+//	p_st->data[0] = pdata[3]  << 8| pdata[2];
+//	p_st->data[1] = pdata[5]  << 8| pdata[4];
+//	p_st->data[2] = pdata[7]  << 8| pdata[6];
+//	p_st->data[3] = pdata[9]  << 8| pdata[8];
+//	p_st->data[4] = pdata[11] << 8| pdata[10];
+//	p_st->data[5] = pdata[13] << 8| pdata[12];
 
 	if (p_st->buff)
 		iio_push_to_buffers_with_timestamp(indio_dev, p_st->data,
 										iio_get_time_ns(indio_dev));
 
-	dev_dbg(p_st->dev, "%s src %d len %d: %hd %hd %hd %hd %hd %hd %hd\n", __func__, src, len,
-		pdata[1] << 8| pdata[0], p_st->data[0], p_st->data[1], p_st->data[2], p_st->data[3],
-		p_st->data[4], p_st->data[5]);
+//	pru_read_samples(p_st, 1);
 
-//	wake_up_interruptible(&prudev->wait_list);
+	dev_dbg(p_st->dev, "%s src %d len %d: %hd %hd %hd %hd %hd %hd %hd - %hd %hd %hd %hd %hd %hd %hd\n", __func__, src, len,
+		pdata[1] << 8| pdata[0],
+		p_st->data[0], p_st->data[1], p_st->data[2], p_st->data[3], p_st->data[4], p_st->data[5],
+		pdata[15] << 8| pdata[14], pdata[17] << 8| pdata[16], pdata[19] << 8| pdata[18],
+		pdata[21] << 8| pdata[20], pdata[23] << 8| pdata[22], pdata[25] << 8| pdata[24],
+		pdata[27] << 8| pdata[26]);
 
 	return 0;
 }
@@ -647,6 +670,7 @@ static int pru_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct pru_priv *st;
+	phandle rproc_phandle;
 	int ret;
 	struct iio_dev *indio_dev;
 
@@ -671,6 +695,21 @@ static int pru_probe(struct platform_device *pdev)
 	if (ret) {
 		pr_err("Unable to register rpmsg driver");
 		class_destroy(rpmsg_pru_class);
+		return (ret);
+	}
+
+	if (of_property_read_u32(dev->of_node, "ti,rproc", &rproc_phandle)) {
+		dev_err(&pdev->dev, "could not get rproc phandle\n");
+		class_destroy(rpmsg_pru_class);
+		unregister_rpmsg_driver(&rpmsg_pru_driver);
+		return (ret);
+	}
+
+	st->rproc = rproc_get_by_phandle(rproc_phandle);
+	if (!st->rproc) {
+		dev_err(&pdev->dev, "could not get rproc handle\n");
+		class_destroy(rpmsg_pru_class);
+		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		return (ret);
 	}
 
@@ -728,6 +767,8 @@ static int pru_probe(struct platform_device *pdev)
 
 	gpiod_set_value(st->gpio_io_en, 0);
 
+	rproc_boot(st->rproc);
+
 	INIT_WORK(&st->fetch_work, fetch_thread);
 	st->state = 1;
 	st->buff = 0;
@@ -772,6 +813,8 @@ static int pru_remove(struct platform_device *pdev)
 	cancel_work_sync(&st->fetch_work);
 	unregister_rpmsg_driver(&rpmsg_pru_driver);
 	class_destroy(rpmsg_pru_class);
+
+	rproc_shutdown(st->rproc);
 
 	return 0;
 }
