@@ -599,30 +599,16 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
 
 	y = 2;
+
+	/// need protection
 	for (i = 0; i < len; i++) {
 		p_st->data[i] = pdata[y + 1]  << 8| pdata[y];
 		y += 2;
 	}
 
-//	p_st->data[0] = pdata[3]  << 8| pdata[2];
-//	p_st->data[1] = pdata[5]  << 8| pdata[4];
-//	p_st->data[2] = pdata[7]  << 8| pdata[6];
-//	p_st->data[3] = pdata[9]  << 8| pdata[8];
-//	p_st->data[4] = pdata[11] << 8| pdata[10];
-//	p_st->data[5] = pdata[13] << 8| pdata[12];
-
 	if (p_st->buff)
 		iio_push_to_buffers_with_timestamp(indio_dev, p_st->data,
 										iio_get_time_ns(indio_dev));
-
-//	pru_read_samples(p_st, 1);
-
-	dev_dbg(p_st->dev, "%s src %d len %d: %hd %hd %hd %hd %hd %hd %hd - %hd %hd %hd %hd %hd %hd %hd\n", __func__, src, len,
-		pdata[1] << 8| pdata[0],
-		p_st->data[0], p_st->data[1], p_st->data[2], p_st->data[3], p_st->data[4], p_st->data[5],
-		pdata[15] << 8| pdata[14], pdata[17] << 8| pdata[16], pdata[19] << 8| pdata[18],
-		pdata[21] << 8| pdata[20], pdata[23] << 8| pdata[22], pdata[25] << 8| pdata[24],
-		pdata[27] << 8| pdata[26]);
 
 	return 0;
 }
@@ -767,6 +753,7 @@ static int pru_probe(struct platform_device *pdev)
 
 	gpiod_set_value(st->gpio_io_en, 0);
 
+	/// start pru execution
 	rproc_boot(st->rproc);
 
 	INIT_WORK(&st->fetch_work, fetch_thread);
@@ -814,6 +801,7 @@ static int pru_remove(struct platform_device *pdev)
 	unregister_rpmsg_driver(&rpmsg_pru_driver);
 	class_destroy(rpmsg_pru_class);
 
+	/// stop pru execution
 	rproc_shutdown(st->rproc);
 
 	return 0;
