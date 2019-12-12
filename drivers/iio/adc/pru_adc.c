@@ -26,6 +26,7 @@
 
 #include <linux/iio/iio.h>
 #include <linux/iio/buffer.h>
+#include <linux/iio/buffer_impl.h>
 #include <linux/iio/sysfs.h>
 #include <linux/iio/trigger.h>
 #include <linux/iio/triggered_buffer.h>
@@ -55,6 +56,7 @@ struct rpmsg_pru_dev {
 
 struct pru_priv {
 	int 					state, buff, thr_trig;
+	int						samplecnt;
 	struct device			*dev;
 	struct iio_dev			*indio_dev;
 	const struct pru_chip_info	*chip_info;
@@ -92,13 +94,13 @@ struct pru_priv {
 
 struct pru_priv *p_st;
 
-static const unsigned int pru_scale_avail[2] = {
-	152588, 305176
-};
+//static const unsigned int pru_scale_avail[2] = {
+//	152588, 305176
+//};
 
-static const unsigned int pru_oversampling_avail[7] = {
-	1, 2, 4, 8, 16, 32, 64,
-};
+//static const unsigned int pru_oversampling_avail[7] = {
+//	1, 2, 4, 8, 16, 32, 64,
+//};
 
 static int pru_reset(struct pru_priv *st)
 {
@@ -116,28 +118,23 @@ static void debug_pins(struct pru_priv *st, int adc)
 			gpiod_get_value_cansleep(p_st->gpio_gain2[adc]));
 }
 
-static int pru_read_samples(struct pru_priv *st, int async)
+static int pru_read_samples(struct iio_dev *indio_dev, int async)
 {
-	int ret = 0;
-	int count = 2;
 	static char rpmsg_pru_buf[RPMSG_BUF_SIZE];
+	struct pru_priv *st = iio_priv(indio_dev);
+	int ret = 0;
 
-	dev_info(st->dev, "%s(%d)\n", __func__, async);
+	dev_info(st->dev, "%s(%d %d)\n", __func__, st->samplecnt, async);
 
-	rpmsg_pru_buf[0] = 'F';
+	rpmsg_pru_buf[0] = st->samplecnt;
+	rpmsg_pru_buf[1] = st->samplecnt >> 8;
 
-	ret = rpmsg_send(st->rpdev->ept, (void *)rpmsg_pru_buf, count);
+	ret = rpmsg_send(st->rpdev->ept, (void *)rpmsg_pru_buf, 2);
 	if (ret)
 		dev_err(st->dev, "rpmsg_send failed: %d\n", ret);
 
 	if (!async)
 		msleep(5);
-
-	rpmsg_pru_buf[0] = '1';
-
-	ret = rpmsg_send(st->rpdev->ept, (void *)rpmsg_pru_buf, count);
-	if (ret)
-		dev_err(st->dev, "rpmsg_send failed: %d\n", ret);
 
 	return ret;
 }
@@ -153,12 +150,8 @@ static void fetch_thread(struct work_struct *work_arg)
 
 	while(st->state) {
 		if (st->buff)
-			pru_read_samples(st, 1);
-	//	else if (st->thr_trig) {
-	//		st->thr_trig = 0;
-	//		pru_read_samples(st, 1);
-	//	}// else
-			msleep(500);
+			pru_read_samples(indio_dev, 1);
+		msleep(500);
 	}
 
 	return;
@@ -175,7 +168,7 @@ static irqreturn_t pru_trigger_handler(int irq, void *p)
 
 	mutex_lock(&st->lock);
 
-	ret = pru_read_samples(st, 1);
+	ret = pru_read_samples(indio_dev, 1);
 	if (ret == 0)
 		iio_push_to_buffers_with_timestamp(indio_dev, st->data,
 						   iio_get_time_ns(indio_dev));
@@ -194,7 +187,7 @@ static int pru_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 	dev_dbg(st->dev, "%s(%d)\n", __func__, ch);
 	debug_pins(st, ch);
 
-	ret = pru_read_samples(st, 0);
+	ret = pru_read_samples(indio_dev, 0);
 	if (ret == 0)
 		ret = st->data[ch];
 
@@ -367,37 +360,53 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 	}
 }
 
-static ssize_t pru_oversampling_ratio_avail(struct device *dev,
-					       struct device_attribute *attr,
-					       char *buf)
+static ssize_t pru_show_samplecnt(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
-	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
-	struct pru_priv *st = iio_priv(indio_dev);
+	struct pru_priv *st = iio_priv(dev_to_iio_dev(dev));
 
-	return pru_show_avail(buf, st->oversampling_avail,
-				 st->num_os_ratios, false);
+	return sprintf(buf, "%d\n", st->samplecnt);
 }
 
-static IIO_DEVICE_ATTR(oversampling_ratio_available, 0444,
-		       pru_oversampling_ratio_avail, NULL, 0);
+static ssize_t pru_set_samplecnt(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	struct pru_priv *st = iio_priv(dev_to_iio_dev(dev));
+	unsigned int val;
+	int ret;
 
-static struct attribute *pru_attributes_os_and_range[] = {
-	&iio_dev_attr_in_voltage_scale_available.dev_attr.attr,
-	&iio_dev_attr_oversampling_ratio_available.dev_attr.attr,
+	ret = kstrtouint(buf, 0, &val);
+	if (ret)
+		goto error_ret;
+
+	if (val < 0)
+		return -EINVAL;
+
+	st->samplecnt = val;
+
+error_ret:
+	return ret ? ret : len;
+}
+
+static IIO_DEVICE_ATTR(samplecnt, (S_IWUSR | S_IRUGO),
+		pru_show_samplecnt, pru_set_samplecnt, 0);
+
+
+static struct attribute *pru_attributes[] = {
+	&iio_dev_attr_samplecnt.dev_attr.attr,
 	NULL,
 };
 
-static const struct attribute_group pru_attribute_group_os_and_range = {
-	.attrs = pru_attributes_os_and_range,
+static const struct attribute_group pru_attribute_group = {
+	.attrs = pru_attributes,
 };
 
-static struct attribute *pru_attributes_os[] = {
-	&iio_dev_attr_oversampling_ratio_available.dev_attr.attr,
-	NULL,
-};
-
-static const struct attribute_group pru_attribute_group_os = {
-	.attrs = pru_attributes_os,
+static const struct iio_info pru_info = {
+	.read_raw = pru_read_raw,
+	.write_raw = pru_write_raw,
+	.attrs = &pru_attribute_group,
 };
 
 static struct attribute *pru_attributes_range[] = {
@@ -419,7 +428,7 @@ static const struct attribute_group pru_attribute_group_range = {
 							| BIT(IIO_CHAN_INFO_ENABLE)			\
 							| BIT(IIO_CHAN_INFO_OFFSET)			\
 							| BIT(IIO_CHAN_INFO_RAW),			\
-		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),	\
+		.info_mask_shared_by_type = mask,						\
 		.info_mask_shared_by_all = mask,						\
 		.scan_index = num,										\
 		.scan_type = {											\
@@ -448,8 +457,6 @@ static const struct pru_chip_info pru_chip_info_tbl[] = {
 	[0] = {
 		.channels = pru_channels,
 		.num_channels = 7,
-		.oversampling_avail = pru_oversampling_avail,
-		.oversampling_num = ARRAY_SIZE(pru_oversampling_avail),
 	},
 };
 
@@ -483,19 +490,6 @@ static int pru_request_gpios(struct pru_priv *st)
 		if (IS_ERR(st->gpio_gain2[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
 			return PTR_ERR(st->gpio_gain2[i]);
 	}
-	return 0;
-}
-
-static int pru_validate_trigger(struct iio_dev *indio_dev,
-				   struct iio_trigger *trig)
-{
-	struct pru_priv *st = iio_priv(indio_dev);
-
-	dev_dbg(st->dev, "%s()\n", __func__);
-
-	if (st->trig != trig)
-		return -EINVAL;
-
 	return 0;
 }
 
@@ -552,32 +546,6 @@ static const struct iio_buffer_setup_ops pru_buffer_ops = {
 	.postenable = &pru_buffer_postenable,
 	.predisable = &pru_buffer_predisable,
 	.postdisable = &pru_buffer_postdisable,
-};
-
-static const struct iio_info pru_info_no_os_or_range = {
-	.read_raw = &pru_read_raw,
-	.validate_trigger = &pru_validate_trigger,
-};
-
-static const struct iio_info pru_info_os_and_range = {
-	.read_raw = &pru_read_raw,
-	.write_raw = &pru_write_raw,
-	.attrs = &pru_attribute_group_os_and_range,
-	.validate_trigger = &pru_validate_trigger,
-};
-
-static const struct iio_info pru_info_os = {
-	.read_raw = &pru_read_raw,
-	.write_raw = &pru_write_raw,
-	.attrs = &pru_attribute_group_os,
-	.validate_trigger = &pru_validate_trigger,
-};
-
-static const struct iio_info pru_info_range = {
-	.read_raw = &pru_read_raw,
-	.write_raw = &pru_write_raw,
-	.attrs = &pru_attribute_group_range,
-	.validate_trigger = &pru_validate_trigger,
 };
 
 static const struct iio_trigger_ops pru_trigger_ops = {
@@ -701,24 +669,14 @@ static int pru_probe(struct platform_device *pdev)
 
 	st->dev = dev;
 	mutex_init(&st->lock);
-	st->range = 0;
-	st->oversampling = 1;
-	st->scale_avail = pru_scale_avail;
-	st->num_scales = ARRAY_SIZE(pru_scale_avail);
-
-	st->chip_info = &pru_chip_info_tbl[0];
-
-	if (st->chip_info->oversampling_num) {
-		st->oversampling_avail = st->chip_info->oversampling_avail;
-		st->num_os_ratios = st->chip_info->oversampling_num;
-	}
-
 	ret = pru_request_gpios(st);
 	if (ret)
 		return ret;
 
+	st->chip_info = &pru_chip_info_tbl[0];
+
 	indio_dev->dev.parent = dev;
-	indio_dev->info = &pru_info_range;
+	indio_dev->info = &pru_info;
 	indio_dev->modes = INDIO_DIRECT_MODE;
 	indio_dev->name = "pru-adc";
 	indio_dev->channels = st->chip_info->channels;
