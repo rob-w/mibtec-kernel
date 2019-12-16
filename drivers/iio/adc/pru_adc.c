@@ -36,8 +36,6 @@
 
 #define DRIVER_VERSION "v1.3d"
 
-static struct class *rpmsg_pru_class;
-
 struct pru_chip_info {
 	const struct iio_chan_spec	*channels;
 	unsigned int			num_channels;
@@ -90,14 +88,6 @@ struct pru_priv {
 };
 
 struct pru_priv *p_st;
-
-//static const unsigned int pru_scale_avail[2] = {
-//	152588, 305176
-//};
-
-//static const unsigned int pru_oversampling_avail[7] = {
-//	1, 2, 4, 8, 16, 32, 64,
-//};
 
 static int pru_reset(struct pru_priv *st)
 {
@@ -627,13 +617,6 @@ static int pru_probe(struct platform_device *pdev)
 
 	dev_info(dev, "%s() %s\n", __func__, DRIVER_VERSION);
 
-	rpmsg_pru_class = class_create(THIS_MODULE, "rpmsg_pru");
-	if (IS_ERR(rpmsg_pru_class)) {
-		pr_err("Unable to create class\n");
-		ret = PTR_ERR(rpmsg_pru_class);
-		return (ret);
-	}
-
 	indio_dev = devm_iio_device_alloc(dev, sizeof(*st));
 	if (!indio_dev)
 		return -ENOMEM;
@@ -645,13 +628,11 @@ static int pru_probe(struct platform_device *pdev)
 	ret = register_rpmsg_driver(&rpmsg_pru_driver);
 	if (ret) {
 		pr_err("Unable to register rpmsg driver");
-		class_destroy(rpmsg_pru_class);
 		return (ret);
 	}
 
 	if (of_property_read_u32(dev->of_node, "ti,rproc", &rproc_phandle)) {
 		dev_err(&pdev->dev, "could not get rproc phandle\n");
-		class_destroy(rpmsg_pru_class);
 		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		return (ret);
 	}
@@ -659,7 +640,6 @@ static int pru_probe(struct platform_device *pdev)
 	st->rproc = rproc_get_by_phandle(rproc_phandle);
 	if (!st->rproc) {
 		dev_err(&pdev->dev, "could not get rproc handle\n");
-		class_destroy(rpmsg_pru_class);
 		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		return (ret);
 	}
@@ -754,7 +734,6 @@ static int pru_remove(struct platform_device *pdev)
 	st->state = 0;
 	cancel_work_sync(&st->fetch_work);
 	unregister_rpmsg_driver(&rpmsg_pru_driver);
-	class_destroy(rpmsg_pru_class);
 
 	/// stop pru execution
 	rproc_shutdown(st->rproc);
