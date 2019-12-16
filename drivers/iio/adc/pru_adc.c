@@ -34,9 +34,6 @@
 
 #include <linux/rpmsg/virtio_rpmsg.h>
 
-/* Matches the definition in virtio_rpmsg_bus.c */
-#define RPMSG_BUF_SIZE				(512)
-
 #define DRIVER_VERSION "v1.3d"
 
 static struct class *rpmsg_pru_class;
@@ -120,7 +117,7 @@ static void debug_pins(struct pru_priv *st, int adc)
 
 static int pru_read_samples(struct iio_dev *indio_dev, int async)
 {
-	static char rpmsg_pru_buf[RPMSG_BUF_SIZE];
+	static char rpmsg_pru_buf[MAX_RPMSG_BUF_SIZE];
 	struct pru_priv *st = iio_priv(indio_dev);
 	int ret = 0;
 
