@@ -34,7 +34,8 @@
 
 #include <linux/rpmsg/virtio_rpmsg.h>
 
-#define DRIVER_VERSION "v1.3d"
+#define PRU_ADC_MODULE_VERSION "1.5"
+#define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 struct pru_chip_info {
 	const struct iio_chan_spec	*channels;
@@ -615,7 +616,7 @@ static int pru_probe(struct platform_device *pdev)
 	int ret;
 	struct iio_dev *indio_dev;
 
-	dev_info(dev, "%s() %s\n", __func__, DRIVER_VERSION);
+	dev_info(dev, "%s() %s\n", __func__, PRU_ADC_MODULE_VERSION);
 
 	indio_dev = devm_iio_device_alloc(dev, sizeof(*st));
 	if (!indio_dev)
@@ -632,16 +633,16 @@ static int pru_probe(struct platform_device *pdev)
 	}
 
 	if (of_property_read_u32(dev->of_node, "ti,rproc", &rproc_phandle)) {
-		dev_err(&pdev->dev, "could not get rproc phandle\n");
+		dev_err(&pdev->dev, "could not get of property\n");
 		unregister_rpmsg_driver(&rpmsg_pru_driver);
-		return (ret);
+		return -ENXIO;
 	}
 
 	st->rproc = rproc_get_by_phandle(rproc_phandle);
 	if (!st->rproc) {
 		dev_err(&pdev->dev, "could not get rproc handle\n");
 		unregister_rpmsg_driver(&rpmsg_pru_driver);
-		return (ret);
+		return -ENXIO;
 	}
 
 	st->dev = dev;
@@ -751,7 +752,8 @@ static struct platform_driver pru_adc = {
 };
 
 module_platform_driver(pru_adc);
-
+MODULE_SOFTDEP("pruss");
+MODULE_SOFTDEP("pru-rproc");
 MODULE_AUTHOR("Robert Woerle <rwoerle@mibtec.de>");
 MODULE_DESCRIPTION("PRU ADC remoteproc skeleton");
 MODULE_LICENSE("GPL v2");
