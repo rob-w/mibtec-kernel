@@ -23,6 +23,7 @@
 #include <linux/platform_device.h>
 #include <linux/workqueue.h>
 #include <linux/remoteproc.h>
+#include <linux/pruss.h>
 
 #include <linux/iio/iio.h>
 #include <linux/iio/buffer.h>
@@ -53,9 +54,11 @@ struct rpmsg_pru_dev {
 struct pru_priv {
 	int 					state, buff, thr_trig;
 	int						samplecnt;
+	int						id;
 	struct device			*dev;
 	struct iio_dev			*indio_dev;
 	const struct pru_chip_info	*chip_info;
+	struct pruss			*pruss;
 	struct rproc			*rproc;
 	struct regulator		*reg;
 	unsigned int			range;
@@ -689,6 +692,12 @@ static int pru_probe(struct platform_device *pdev)
 
 	gpiod_set_value(st->gpio_io_en, 0);
 
+	st->pruss = pruss_get(st->rproc);
+	if (!st->pruss)
+		return -ENOMEM;
+
+	st->id = pru_rproc_get_id(st->rproc);
+
 	/// start pru execution
 	rproc_boot(st->rproc);
 
@@ -720,8 +729,8 @@ static int pru_resume(struct device *dev)
 	return 0;
 }
 
-SIMPLE_DEV_PM_OPS(pru_pm_ops, pru_suspend, pru_resume);
-EXPORT_SYMBOL_GPL(pru_pm_ops);
+SIMPLE_DEV_PM_OPS(pru_adc_pm_ops, pru_suspend, pru_resume);
+EXPORT_SYMBOL_GPL(pru_adc_pm_ops);
 
 #endif
 
@@ -736,6 +745,7 @@ static int pru_remove(struct platform_device *pdev)
 	cancel_work_sync(&st->fetch_work);
 	unregister_rpmsg_driver(&rpmsg_pru_driver);
 
+	pruss_put(st->pruss);
 	/// stop pru execution
 	rproc_shutdown(st->rproc);
 
@@ -752,8 +762,6 @@ static struct platform_driver pru_adc = {
 };
 
 module_platform_driver(pru_adc);
-MODULE_SOFTDEP("pruss");
-MODULE_SOFTDEP("pru-rproc");
 MODULE_AUTHOR("Robert Woerle <rwoerle@mibtec.de>");
 MODULE_DESCRIPTION("PRU ADC remoteproc skeleton");
 MODULE_LICENSE("GPL v2");
