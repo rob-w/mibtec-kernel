@@ -20,8 +20,8 @@
  * processor.
  */
 
-#define MAX_RPMSG_NUM_BUFS	(512)
-#define MAX_RPMSG_BUF_SIZE	(512)
+#define MAX_RPMSG_NUM_BUFS	(2048)
+#define MAX_RPMSG_BUF_SIZE	(2048)
 
 /**
  * struct rpmsg_hdr - common header for all virtio rpmsg messages
