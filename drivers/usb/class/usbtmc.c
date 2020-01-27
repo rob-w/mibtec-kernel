@@ -110,6 +110,7 @@ struct usbtmc_ID_rigol_quirk {
 static const struct usbtmc_ID_rigol_quirk usbtmc_id_quirk[] = {
 	{ 0x1ab1, 0x0588 },
 	{ 0xf4ec, 0xee38 }, /* Siglent SDG2042X */
+	{ 0xf4ec, 0x1102 }, /* Siglent SDG2082X */
 	{ 0, 0 }
 };
 
