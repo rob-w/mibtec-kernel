@@ -10,6 +10,14 @@ config SENSORS_LIS3LV02D
 	select INPUT_POLLDEV
 	default n
 
+config PRU_BUS
+	tristate "PRU-BUS-Remoteproc Driver"
+	help
+	  Say yes here to build support for a remoteproc driver for pruss bus.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called pru_bus.
+
 config AD525X_DPOT
 	tristate "Analog Devices Digital Potentiometers"
 	depends on (I2C || SPI) && SYSFS
