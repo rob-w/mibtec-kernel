@@ -35,7 +35,7 @@
 
 #include <linux/rpmsg/virtio_rpmsg.h>
 
-#define PRU_ADC_MODULE_VERSION "1.5"
+#define PRU_ADC_MODULE_VERSION "1.6"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 struct pru_chip_info {
@@ -597,7 +597,7 @@ MODULE_DEVICE_TABLE(of, of_pru_adc_match);
 
 /* .name matches on RPMsg Channels and causes a probe */
 static const struct rpmsg_device_id rpmsg_driver_pru_id_table[] = {
-	{ .name	= "rpmsg-pru" },
+	{ .name	= "pru-adc" },
 	{ },
 };
 
