@@ -19,6 +19,23 @@
 / {
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
+/****** LATER USE
+	pps_t6 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&timer6_pin>;
+		timer = <&timer6>;
+		compatible = "pps-gmtimer";
+		status = "okay";
+	};
+
+	pps_t7 {
+		inctrl-names = "default";
+		pinctrl-0 = <&timer7_pin>;
+		timer = <&timer7>;
+		compatible = "pps-gmtimer";
+		status = "okay";
+	};
+*/
 	leds {
 		compatible = "gpio-leds";
 
@@ -66,20 +83,20 @@
 
 	basis_pins: basis_pins {
 		pinctrl-single,pins = <
-			AM33XX_IOPAD(BONE_P8_07, PIN_INPUT | MUX_MODE2)					/* timer4 */
-			AM33XX_IOPAD(BONE_P8_08, PIN_INPUT | MUX_MODE2)					/* timer7 */
-			AM33XX_IOPAD(BONE_P8_09, PIN_INPUT | MUX_MODE2)					/* timer5 */
-			AM33XX_IOPAD(BONE_P8_10, PIN_INPUT | MUX_MODE2)					/* timer6 */
+			AM33XX_IOPAD(BONE_P8_07, PIN_OUTPUT | MUX_MODE7)				/* timer4.gpio2_2 DO_1 */
+			AM33XX_IOPAD(BONE_P8_08, PIN_INPUT | MUX_MODE7)					/* timer7.gpio2_3 DI_1 CHECK LATER USE */
+			AM33XX_IOPAD(BONE_P8_09, PIN_OUTPUT | MUX_MODE7)				/* timer5.gpio2_5 DO_2 */
+			AM33XX_IOPAD(BONE_P8_10, PIN_INPUT | MUX_MODE7)					/* timer6.gpio2_4 DI_2 CHECK LATER USE */
 			AM33XX_IOPAD(BONE_P8_18, PIN_INPUT | MUX_MODE7)					/* gpio2_1 IN SYNC */
-//			AM33XX_IOPAD(BONE_P8_22, PIN_INPUT | MUX_MODE7)					/*  */
-//			AM33XX_IOPAD(BONE_P8_23, PIN_INPUT | MUX_MODE7)					/* gpio1_4 */
-//			AM33XX_IOPAD(BONE_P8_24, PIN_INPUT | MUX_MODE7)					/*  */
-//			AM33XX_IOPAD(BONE_P8_25, PIN_INPUT | MUX_MODE7)					/* gpio1_0 */
-			AM33XX_IOPAD(BONE_P8_27, PIN_INPUT | MUX_MODE7)					/* gpio2_22 */
+			AM33XX_IOPAD(BONE_P8_22, PIN_INPUT | MUX_MODE7)					/* gpio1_5.gpio1_5 DI_3 */
+			AM33XX_IOPAD(BONE_P8_23, PIN_INPUT | MUX_MODE7)					/* gpio1_4.gpio1_4 DO_3 */
+			AM33XX_IOPAD(BONE_P8_24, PIN_INPUT | MUX_MODE7)					/* gpio1_1.gpio1_1 DI_4 */
+			AM33XX_IOPAD(BONE_P8_25, PIN_INPUT | MUX_MODE7)					/* gpio1_0.gpio1_0 DO_4 */
+			AM33XX_IOPAD(BONE_P8_27, PIN_INPUT | MUX_MODE7)					/* gpio2_22.gpio2_22 DI_6 */
 			AM33XX_IOPAD(BONE_P8_30, PIN_INPUT | MUX_MODE7)					/* gpio2_25 */
 			AM33XX_IOPAD(BONE_P8_33, PIN_INPUT | MUX_MODE7)					/* gpio0_9 */
 			AM33XX_IOPAD(BONE_P8_35, PIN_INPUT | MUX_MODE7)					/* gpio0_8 */
-			AM33XX_IOPAD(BONE_P8_39, PIN_INPUT | MUX_MODE7)					/* gpio2_12 */
+			AM33XX_IOPAD(BONE_P8_39, PIN_INPUT | MUX_MODE7)					/* gpio2_12.gpio2_12 DI_5 */
 
 			AM33XX_IOPAD(BONE_P9_12, PIN_INPUT | MUX_MODE7)					/* gpio1_28 OUT SYNC */
 			AM33XX_IOPAD(BONE_P9_14, PIN_INPUT | MUX_MODE7)					/* gpio1_18 RTC IRQ */
@@ -95,6 +112,7 @@
 
 	pru_bus_pins: pru_bus_pins {
 		pinctrl-single,pins = <
+			/// TX SIDE
 			AM33XX_IOPAD(BONE_P8_11, PIN_INPUT | MUX_MODE6)					/* gpio1_13.pr1_pru0_pru_r30_15 PRU0 TX_D1 */
 			AM33XX_IOPAD(BONE_P8_12, PIN_INPUT | MUX_MODE6)					/* gpio1_12.pr1_pru0_pru_r30_14 PRU0 TX_D2 */
 			AM33XX_IOPAD(BONE_P8_14, PIN_INPUT | MUX_MODE7)					/* gpio0_26 PRU0 TX_EN */
@@ -102,7 +120,9 @@
 			AM33XX_IOPAD(BONE_P8_16, PIN_INPUT | MUX_MODE6)					/* gpio1_14.pr1_pru0_pru_r31_14 PRU0 TX_D0 */
 			AM33XX_IOPAD(BONE_P8_17, PIN_INPUT | MUX_MODE7)					/* gpio0_27.gpio0_27 PRU0 TX D3 */
 			AM33XX_IOPAD(BONE_P8_19, PIN_INPUT | MUX_MODE7)					/* gpio2_22.gpio0_22 PRU0 TX_CLK */
-			AM33XX_IOPAD(BONE_P8_28, PIN_INPUT | MUX_MODE7)					/* gpio2_24.gpio2_24 ?  PRU0 PRU0 CTS */
+			AM33XX_IOPAD(BONE_P8_28, PIN_INPUT | MUX_MODE7)					/* gpio2_24.gpio2_24 PRU0 PRU0 CTS */
+
+			/// RX SIDE
 			AM33XX_IOPAD(BONE_P8_31, PIN_INPUT | MUX_MODE7)					/* uart5.ctsn.gpio0_10 PRU0 RX_CLK */
 			AM33XX_IOPAD(BONE_P8_32, PIN_INPUT | MUX_MODE7)					/* uart5.rtsn.gpio0_11 PRU0 RX DV */
 			AM33XX_IOPAD(BONE_P8_34, PIN_INPUT | MUX_MODE7)					/* uart3_rtsn.gpio2_17 PRU0 RX D0 */
@@ -128,6 +148,19 @@
 		>;
 	};
 
+/***** LATER USE 
+	timer6_pin: timer6_pin {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P8_10, PIN_INPUT | MUX_MODE2)
+		>;
+	};
+
+	timer7_pin: timer7_pin {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P8_08, PIN_INPUT | MUX_MODE2)
+		>;
+	};
+*/
 	adc0_pins: adc0_pins {
 		pinctrl-single,pins = <
 			AM33XX_IOPAD(BONE_P9_15, PIN_INPUT | MUX_MODE7)					/* gpio1_16 ADC BASIS BUSY */
