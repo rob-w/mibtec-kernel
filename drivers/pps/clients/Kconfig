@@ -34,3 +34,8 @@ config PPS_CLIENT_GPIO
 	  GPIO. To be useful you must also register a platform device
 	  specifying the GPIO pin and other options, usually in your board
 	  setup.
+
+config PPS_CLIENT_GMTIMER
+	tristate "PPS client using DM GMTIMER"
+	help
+	  If you say yes here you get support for using dmtimer hardware as input.
