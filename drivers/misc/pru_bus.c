@@ -241,7 +241,7 @@ static int rpmsg_pru_probe(struct rpmsg_device *rpdev)
 	}
 
 	prudev->dev = device_create(rpmsg_pru_class, &rpdev->dev, prudev->devt,
-				    NULL, "rpmsg_pru%d", rpdev->dst);
+				    NULL, "pru_bus");
 	if (IS_ERR(prudev->dev)) {
 		dev_err(&rpdev->dev, "Unable to create the rpmsg_pru device\n");
 		ret = PTR_ERR(prudev->dev);
@@ -261,7 +261,7 @@ static int rpmsg_pru_probe(struct rpmsg_device *rpdev)
 
 	dev_set_drvdata(&rpdev->dev, prudev);
 
-	dev_info(&rpdev->dev, "new pru_bus device: /dev/pru_bus%d",
+	dev_info(&rpdev->dev, "new pru_bus device id %d: /dev/pru_bus",
 		 rpdev->dst);
 
 	return 0;
