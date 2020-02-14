@@ -9,7 +9,7 @@
 
 #include <dt-bindings/board/am335x-bbw-bbb-base.h>
 #include <dt-bindings/interrupt-controller/irq.h>
-#include "am335x-dalog-basis.dtsi"
+#include "am335x-d850basis053.dtsi"
 
 &sgx {
 	status = "okay";
@@ -17,7 +17,7 @@
 
 / {
 
-	model = "TI AM335x BeagleBone Black Dalog ADC6 v0.31";
+	model = "D850BASIS053 D850ANPASS060 v0.33";
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
 	pru_adc {
@@ -130,6 +130,11 @@
 	clock-frequency = <100000>;
 
 	/* from here we have a ANPASSKARTE */
+
+	eeprom@52 {
+		compatible = "at,24c256";
+		reg = <0x52>;
+	};
 
 	pcf8575_21: gpio@21 {
 		compatible = "nxp,pcf8575";

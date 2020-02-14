@@ -9,14 +9,14 @@
 
 #include <dt-bindings/board/am335x-bbw-bbb-base.h>
 #include <dt-bindings/interrupt-controller/irq.h>
-#include "am335x-dalog-basis.dtsi"
+#include "am335x-d850basis053.dtsi"
 
 &sgx {
 	status = "okay";
 };
 
 / {
-	model = "TI AM335x BeagleBone Black Dalog BASIS v0.29";
+	model = "D850BASIS053 v0.33";
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
 };
