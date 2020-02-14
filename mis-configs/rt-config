@@ -3835,6 +3835,7 @@ CONFIG_IIO_SW_TRIGGER=y
 # CONFIG_AD7887 is not set
 # CONFIG_AD7923 is not set
 # CONFIG_AD799X is not set
+CONFIG_ADS1018=m
 # CONFIG_CC10001_ADC is not set
 # CONFIG_ENVELOPE_DETECTOR is not set
 # CONFIG_HI8435 is not set
@@ -4079,6 +4080,7 @@ CONFIG_IIO_HRTIMER_TRIGGER=y
 # Pressure sensors
 #
 # CONFIG_ABP060MG is not set
+CONFIG_AP4A=m
 # CONFIG_BMP280 is not set
 # CONFIG_HP03 is not set
 # CONFIG_MPL115_I2C is not set
