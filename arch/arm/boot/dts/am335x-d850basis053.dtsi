@@ -43,7 +43,7 @@
 		basis_led_1 {
 			label = "basis_led_1";
 			gpios = <&gpio1 6 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "cpu0";
+			linux,default-trigger = "mmc0";
 		};
 		/// BONE_P8_04
 		basis_led_2 {
