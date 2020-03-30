@@ -35,7 +35,7 @@
 
 #include <linux/rpmsg/virtio_rpmsg.h>
 
-#define PRU_ADC_MODULE_VERSION "1.6"
+#define PRU_ADC_MODULE_VERSION "1.7"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 struct pru_chip_info {
@@ -70,7 +70,6 @@ struct pru_priv {
 	unsigned int			num_os_ratios;
 
 	struct mutex			lock; /* protect sensor state */
-	struct gpio_desc		*gpio_io_en;
 	struct gpio_desc		*gpio_mux_a[6];
 	struct gpio_desc		*gpio_mux_b[6];
 	struct gpio_desc		*gpio_gain0[6];
@@ -114,8 +113,6 @@ static int pru_read_samples(struct iio_dev *indio_dev, int async)
 	static char rpmsg_pru_buf[MAX_RPMSG_BUF_SIZE];
 	struct pru_priv *st = iio_priv(indio_dev);
 	int ret = 0;
-
-	dev_info(st->dev, "%s(%d %d)\n", __func__, st->samplecnt, async);
 
 	rpmsg_pru_buf[0] = st->samplecnt;
 	rpmsg_pru_buf[1] = st->samplecnt >> 8;
@@ -457,8 +454,8 @@ static int pru_request_gpios(struct pru_priv *st)
 	char pinpath[256];
 	struct device *dev = st->dev;
 
-	if (IS_ERR(st->gpio_io_en = devm_gpiod_get(dev, "pru,io-enable", GPIOD_OUT_HIGH)))
-		return PTR_ERR(st->gpio_io_en);
+//	if (IS_ERR(st->gpio_io_en = devm_gpiod_get(dev, "pru,io-enable", GPIOD_OUT_HIGH)))
+//		return PTR_ERR(st->gpio_io_en);
 
 	for (i = 0; i < 6; i++) {
 		sprintf(pinpath, "pru,adc-%d-mux-a", i + 1);
@@ -552,22 +549,26 @@ static const struct of_device_id of_pru_adc_match[] = {
 static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 			void *priv, u32 src)
 {
-	int i, y;
+	int i, idx, offset;
 	char *pdata = data;
 	struct device *pdev = p_st->dev;
 	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
 
-	y = 2;
-
-	/// need protection
-	for (i = 0; i < len; i++) {
-		p_st->data[i] = pdata[y + 1]  << 8| pdata[y];
-		y += 2;
-	}
-
-	if (p_st->buff)
-		iio_push_to_buffers_with_timestamp(indio_dev, p_st->data,
+	idx = len / 14;
+	for (i = 0; i < idx; i++) {
+		offset = i * 14;
+		p_st->data[0] = pdata[offset + 3]   << 8 | pdata[offset + 2];
+		p_st->data[1] = pdata[offset + 5]   << 8 | pdata[offset + 4];
+		p_st->data[2] = pdata[offset + 7]   << 8 | pdata[offset + 6];
+		p_st->data[3] = pdata[offset + 9]   << 8 | pdata[offset + 8];
+		p_st->data[4] = pdata[offset + 11]  << 8 | pdata[offset + 10];
+		p_st->data[5] = pdata[offset + 13]  << 8 | pdata[offset + 12];
+		if (p_st->buff)
+			iio_push_to_buffers_with_timestamp(indio_dev, p_st->data,
 										iio_get_time_ns(indio_dev));
+		dev_dbg(p_st->dev, "ID_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", pdata[offset + 1] << 8 | pdata[offset],
+			p_st->data[0], p_st->data[1], p_st->data[2], p_st->data[3], p_st->data[4], p_st->data[5]);
+	}
 
 	return 0;
 }
@@ -689,8 +690,6 @@ static int pru_probe(struct platform_device *pdev)
 					      &pru_buffer_ops);
 	if (ret)
 		return ret;
-
-	gpiod_set_value(st->gpio_io_en, 0);
 
 	st->pruss = pruss_get(st->rproc);
 	if (!st->pruss)
