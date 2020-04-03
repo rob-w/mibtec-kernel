@@ -4,6 +4,8 @@
  *
  * Copyright 2011 Analog Devices Inc.
  */
+/// RANGE PIN ???
+/// AI6
 
 #include <linux/delay.h>
 #include <linux/device.h>
@@ -64,8 +66,13 @@ static int ad7606_reset(struct ad7606_state *st)
 static int ad7606_read_samples(struct ad7606_state *st)
 {
 	unsigned int num = st->chip_info->num_channels -1;
+	bool is_curr_n_volt = st->chip_info->is_curr_n_volt;
 	u16 *data = st->data;
 	int ret;
+
+	///HARDCODE FOR NOW FOR US
+	if (is_curr_n_volt)
+		num = 8;
 
 	/*
 	 * The frstdata signal is set to high while and after reading the sample
@@ -155,10 +162,27 @@ static int ad7606_read_raw(struct iio_dev *indio_dev,
 			   int *val2,
 			   long m)
 {
-	int ret;
+	uint64_t ret;
 	struct ad7606_state *st = iio_priv(indio_dev);
 
 	switch (m) {
+	case IIO_CHAN_INFO_PROCESSED:
+
+		ret = iio_device_claim_direct_mode(indio_dev);
+		if (ret)
+			return ret;
+
+		ret = ad7606_scan_direct(indio_dev, chan->address);
+		iio_device_release_direct_mode(indio_dev);
+
+		if (ret < 0)
+			return ret;
+		ret -= st->offset[chan->address];
+		ret = ret * st->scale_avail[st->range];
+		do_div(ret, 1000000);
+		*val = (short)ret;
+		return IIO_VAL_INT;
+
 	case IIO_CHAN_INFO_RAW:
 		ret = iio_device_claim_direct_mode(indio_dev);
 		if (ret)
@@ -171,6 +195,11 @@ static int ad7606_read_raw(struct iio_dev *indio_dev,
 			return ret;
 		*val = (short)ret;
 		return IIO_VAL_INT;
+
+	case IIO_CHAN_INFO_OFFSET:
+		*val = st->offset[chan->address];
+		return IIO_VAL_INT;
+
 	case IIO_CHAN_INFO_SCALE:
 		*val = 0;
 		*val2 = st->scale_avail[st->range];
@@ -197,7 +226,7 @@ static ssize_t ad7606_show_avail(char *buf, const unsigned int *vals,
 	return len;
 }
 
-static ssize_t in_voltage_scale_available_show(struct device *dev,
+static ssize_t scale_available_show(struct device *dev,
 					       struct device_attribute *attr,
 					       char *buf)
 {
@@ -207,7 +236,7 @@ static ssize_t in_voltage_scale_available_show(struct device *dev,
 	return ad7606_show_avail(buf, st->scale_avail, st->num_scales, true);
 }
 
-static IIO_DEVICE_ATTR_RO(in_voltage_scale_available, 0);
+static IIO_DEVICE_ATTR_RO(scale_available, 0);
 
 static int ad7606_write_raw(struct iio_dev *indio_dev,
 			    struct iio_chan_spec const *chan,
@@ -216,7 +245,7 @@ static int ad7606_write_raw(struct iio_dev *indio_dev,
 			    long mask)
 {
 	struct ad7606_state *st = iio_priv(indio_dev);
-	DECLARE_BITMAP(values, 3);
+	int values[3];
 	int i;
 
 	switch (mask) {
@@ -231,17 +260,25 @@ static int ad7606_write_raw(struct iio_dev *indio_dev,
 		mutex_unlock(&st->lock);
 
 		return 0;
+	case IIO_CHAN_INFO_OFFSET:
+		st->offset[chan->address] = val;
+		return 0;
 	case IIO_CHAN_INFO_OVERSAMPLING_RATIO:
 		if (val2)
 			return -EINVAL;
-		i = find_closest(val, st->oversampling_avail,
+
+		if (val == 2)
+			i = 1;
+		else
+			i = find_closest(val, st->oversampling_avail,
 				 st->num_os_ratios);
 
-		values[0] = i;
+		values[0] = (i & 0x01);
+		values[1] = (i & 0x02) >> 1;
+		values[2] = (i & 0x04) >> 2;
 
 		mutex_lock(&st->lock);
-//		gpiod_set_array_value(ARRAY_SIZE(values), st->gpio_os->desc,
-//				      st->gpio_os->info, values);
+		gpiod_set_array_value_cansleep(ARRAY_SIZE(values), st->gpio_os->desc, values);
 
 		/* AD7616 requires a reset to update value */
 		if (st->chip_info->os_req_reset)
@@ -270,9 +307,177 @@ static ssize_t ad7606_oversampling_ratio_avail(struct device *dev,
 static IIO_DEVICE_ATTR(oversampling_ratio_available, 0444,
 		       ad7606_oversampling_ratio_avail, NULL, 0);
 
+
+static ssize_t ai1b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%d\n", st->aixb[0]);
+}
+
+static ssize_t ai2b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%d\n", st->aixb[1]);
+}
+
+static ssize_t ai3b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%d\n", st->aixb[2]);
+}
+
+static ssize_t ai4b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%d\n", st->aixb[3]);
+}
+
+static ssize_t ai5b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%d\n", st->aixb[4]);
+}
+
+static ssize_t ai6b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%d\n", st->aixb[5]);
+}
+
+static ssize_t ai7b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%d\n", st->aixb[6]);
+}
+
+static ssize_t ai8b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%d\n", st->aixb[7]);
+}
+
+static ssize_t aixb_set(struct device *dev,
+		const char *buf, int id,
+		size_t len)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	unsigned int val;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &val);
+	if (ret)
+		goto error_ret;
+
+	if (val < 0)
+		return -EINVAL;
+
+	st->aixb[id] = val;
+	gpiod_set_array_value_cansleep(ARRAY_SIZE(st->aixb), st->gpio_aixb->desc, st->aixb);
+
+error_ret:
+	return ret ? ret : len;
+}
+
+static ssize_t ai1b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 0, len);
+}
+
+static ssize_t ai2b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 1, len);
+}
+
+static ssize_t ai3b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 2, len);
+}
+
+static ssize_t ai4b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 3, len);
+}
+
+static ssize_t ai5b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 4, len);
+}
+
+static ssize_t ai6b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 5, len);
+}
+
+static ssize_t ai7b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 6, len);
+}
+
+static ssize_t ai8b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 7, len);
+}
+
+static IIO_DEVICE_ATTR(ai1b, (S_IWUSR | S_IRUGO),
+		ai1b_show, ai1b_set, 0);
+static IIO_DEVICE_ATTR(ai2b, (S_IWUSR | S_IRUGO),
+		ai2b_show, ai2b_set, 0);
+static IIO_DEVICE_ATTR(ai3b, (S_IWUSR | S_IRUGO),
+		ai3b_show, ai3b_set, 0);
+static IIO_DEVICE_ATTR(ai4b, (S_IWUSR | S_IRUGO),
+		ai4b_show, ai4b_set, 0);
+static IIO_DEVICE_ATTR(ai5b, (S_IWUSR | S_IRUGO),
+		ai5b_show, ai5b_set, 0);
+static IIO_DEVICE_ATTR(ai6b, (S_IWUSR | S_IRUGO),
+		ai6b_show, ai6b_set, 0);
+static IIO_DEVICE_ATTR(ai7b, (S_IWUSR | S_IRUGO),
+		ai7b_show, ai7b_set, 0);
+static IIO_DEVICE_ATTR(ai8b, (S_IWUSR | S_IRUGO),
+		ai8b_show, ai8b_set, 0);
+
 static struct attribute *ad7606_attributes_os_and_range[] = {
-	&iio_dev_attr_in_voltage_scale_available.dev_attr.attr,
+	&iio_dev_attr_scale_available.dev_attr.attr,
 	&iio_dev_attr_oversampling_ratio_available.dev_attr.attr,
+	&iio_dev_attr_ai1b.dev_attr.attr,
+	&iio_dev_attr_ai2b.dev_attr.attr,
+	&iio_dev_attr_ai3b.dev_attr.attr,
+	&iio_dev_attr_ai4b.dev_attr.attr,
+	&iio_dev_attr_ai5b.dev_attr.attr,
+	&iio_dev_attr_ai6b.dev_attr.attr,
+	&iio_dev_attr_ai7b.dev_attr.attr,
+	&iio_dev_attr_ai8b.dev_attr.attr,
 	NULL,
 };
 
@@ -290,7 +495,7 @@ static const struct attribute_group ad7606_attribute_group_os = {
 };
 
 static struct attribute *ad7606_attributes_range[] = {
-	&iio_dev_attr_in_voltage_scale_available.dev_attr.attr,
+	&iio_dev_attr_scale_available.dev_attr.attr,
 	NULL,
 };
 
@@ -298,47 +503,58 @@ static const struct attribute_group ad7606_attribute_group_range = {
 	.attrs = ad7606_attributes_range,
 };
 
-#define AD760X_CHANNEL(num, mask) {				\
-		.type = IIO_VOLTAGE,				\
-		.indexed = 1,					\
-		.channel = num,					\
-		.address = num,					\
-		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),	\
-		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),\
-		.info_mask_shared_by_all = mask,		\
-		.scan_index = num,				\
-		.scan_type = {					\
-			.sign = 's',				\
-			.realbits = 16,				\
-			.storagebits = 16,			\
-			.endianness = IIO_CPU,			\
-		},						\
+#define AD760X_CHANNEL(num, idx, typ, mask) {		\
+		.type = typ,							\
+		.indexed = 1,							\
+		.channel = num,							\
+		.address = num,							\
+		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW)					\
+							| BIT(IIO_CHAN_INFO_PROCESSED)				\
+							| BIT(IIO_CHAN_INFO_CALIBSCALE)				\
+							| BIT(IIO_CHAN_INFO_OFFSET),				\
+		.info_mask_shared_by_type = mask,								\
+		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_SCALE),			\
+		.scan_index = idx,						\
+		.scan_type = {							\
+			.sign = 's',						\
+			.realbits = 16,						\
+			.storagebits = 16,					\
+			.endianness = IIO_CPU,				\
+		},										\
 }
 
-#define AD7605_CHANNEL(num)	\
-	AD760X_CHANNEL(num, 0)
+#define AD7605_CHANNEL(num, idx, typ)	\
+	AD760X_CHANNEL(num, idx, typ, 0)
 
-#define AD7606_CHANNEL(num)	\
-	AD760X_CHANNEL(num, BIT(IIO_CHAN_INFO_OVERSAMPLING_RATIO))
+#define AD7606_CHANNEL(num, idx, typ)	\
+	AD760X_CHANNEL(num, idx, typ, BIT(IIO_CHAN_INFO_OVERSAMPLING_RATIO))
 
 static const struct iio_chan_spec ad7605_channels[] = {
 	IIO_CHAN_SOFT_TIMESTAMP(4),
-	AD7605_CHANNEL(0),
-	AD7605_CHANNEL(1),
-	AD7605_CHANNEL(2),
-	AD7605_CHANNEL(3),
+	AD7605_CHANNEL(0, 0, IIO_VOLTAGE),
+	AD7605_CHANNEL(1, 1, IIO_VOLTAGE),
+	AD7605_CHANNEL(2, 2, IIO_VOLTAGE),
+	AD7605_CHANNEL(3, 3, IIO_VOLTAGE),
 };
 
 static const struct iio_chan_spec ad7606_channels[] = {
-	IIO_CHAN_SOFT_TIMESTAMP(8),
-	AD7606_CHANNEL(0),
-	AD7606_CHANNEL(1),
-	AD7606_CHANNEL(2),
-	AD7606_CHANNEL(3),
-	AD7606_CHANNEL(4),
-	AD7606_CHANNEL(5),
-	AD7606_CHANNEL(6),
-	AD7606_CHANNEL(7),
+	IIO_CHAN_SOFT_TIMESTAMP(16),
+	AD7606_CHANNEL(0, 0, IIO_VOLTAGE),
+	AD7606_CHANNEL(1, 1, IIO_VOLTAGE),
+	AD7606_CHANNEL(2, 2, IIO_VOLTAGE),
+	AD7606_CHANNEL(3, 3, IIO_VOLTAGE),
+	AD7606_CHANNEL(4, 4, IIO_VOLTAGE),
+	AD7606_CHANNEL(5, 5, IIO_VOLTAGE),
+	AD7606_CHANNEL(6, 6, IIO_VOLTAGE),
+	AD7606_CHANNEL(7, 7, IIO_VOLTAGE),
+	AD7606_CHANNEL(0, 8, IIO_CURRENT),
+	AD7606_CHANNEL(1, 9, IIO_CURRENT),
+	AD7606_CHANNEL(2, 10, IIO_CURRENT),
+	AD7606_CHANNEL(3, 11, IIO_CURRENT),
+	AD7606_CHANNEL(4, 12, IIO_CURRENT),
+	AD7606_CHANNEL(5, 13, IIO_CURRENT),
+	AD7606_CHANNEL(6, 14, IIO_CURRENT),
+	AD7606_CHANNEL(7, 15, IIO_CURRENT),
 };
 
 /*
@@ -353,22 +569,22 @@ static const struct iio_chan_spec ad7606_channels[] = {
  */
 static const struct iio_chan_spec ad7616_channels[] = {
 	IIO_CHAN_SOFT_TIMESTAMP(16),
-	AD7606_CHANNEL(0),
-	AD7606_CHANNEL(1),
-	AD7606_CHANNEL(2),
-	AD7606_CHANNEL(3),
-	AD7606_CHANNEL(4),
-	AD7606_CHANNEL(5),
-	AD7606_CHANNEL(6),
-	AD7606_CHANNEL(7),
-	AD7606_CHANNEL(8),
-	AD7606_CHANNEL(9),
-	AD7606_CHANNEL(10),
-	AD7606_CHANNEL(11),
-	AD7606_CHANNEL(12),
-	AD7606_CHANNEL(13),
-	AD7606_CHANNEL(14),
-	AD7606_CHANNEL(15),
+	AD7606_CHANNEL(0, 0, IIO_VOLTAGE),
+	AD7606_CHANNEL(1, 1, IIO_VOLTAGE),
+	AD7606_CHANNEL(2, 2, IIO_VOLTAGE),
+	AD7606_CHANNEL(3, 3, IIO_VOLTAGE),
+	AD7606_CHANNEL(4, 4, IIO_VOLTAGE),
+	AD7606_CHANNEL(5, 5, IIO_VOLTAGE),
+	AD7606_CHANNEL(6, 6, IIO_VOLTAGE),
+	AD7606_CHANNEL(7, 7, IIO_VOLTAGE),
+	AD7606_CHANNEL(8, 8, IIO_VOLTAGE),
+	AD7606_CHANNEL(9, 9, IIO_VOLTAGE),
+	AD7606_CHANNEL(10, 10, IIO_VOLTAGE),
+	AD7606_CHANNEL(11, 11, IIO_VOLTAGE),
+	AD7606_CHANNEL(12, 12, IIO_VOLTAGE),
+	AD7606_CHANNEL(13, 13, IIO_VOLTAGE),
+	AD7606_CHANNEL(14, 14, IIO_VOLTAGE),
+	AD7606_CHANNEL(15, 15, IIO_VOLTAGE),
 };
 
 static const struct ad7606_chip_info ad7606_chip_info_tbl[] = {
@@ -379,9 +595,10 @@ static const struct ad7606_chip_info ad7606_chip_info_tbl[] = {
 	},
 	[ID_AD7606_8] = {
 		.channels = ad7606_channels,
-		.num_channels = 9,
+		.num_channels = 17,
 		.oversampling_avail = ad7606_oversampling_avail,
 		.oversampling_num = ARRAY_SIZE(ad7606_oversampling_avail),
+		.is_curr_n_volt = true,
 	},
 	[ID_AD7606_6] = {
 		.channels = ad7606_channels,
@@ -417,8 +634,7 @@ static int ad7606_request_gpios(struct ad7606_state *st)
 	if (IS_ERR(st->gpio_reset))
 		return PTR_ERR(st->gpio_reset);
 
-	st->gpio_range = devm_gpiod_get_optional(dev, "adi,range",
-						 GPIOD_OUT_LOW);
+	st->gpio_range = devm_gpiod_get_optional(dev, "adi,range", GPIOD_OUT_LOW);
 	if (IS_ERR(st->gpio_range))
 		return PTR_ERR(st->gpio_range);
 
@@ -438,7 +654,13 @@ static int ad7606_request_gpios(struct ad7606_state *st)
 	st->gpio_os = devm_gpiod_get_array_optional(dev,
 						    "adi,oversampling-ratio",
 						    GPIOD_OUT_LOW);
-	return PTR_ERR_OR_ZERO(st->gpio_os);
+	if (IS_ERR(st->gpio_os))
+		return PTR_ERR(st->gpio_os);
+
+	st->gpio_aixb = devm_gpiod_get_array_optional(dev,
+						    "adi,aixb-i",
+						    GPIOD_OUT_LOW);
+	return PTR_ERR_OR_ZERO(st->gpio_aixb);
 }
 
 /*
@@ -644,6 +866,8 @@ int ad7606_probe(struct device *dev, int irq, void __iomem *base_address,
 					      &ad7606_buffer_ops);
 	if (ret)
 		return ret;
+
+	ad7606_reset(st);
 
 	return devm_iio_device_register(dev, indio_dev);
 }
