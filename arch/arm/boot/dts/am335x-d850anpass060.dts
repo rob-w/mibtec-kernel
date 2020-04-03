@@ -17,7 +17,7 @@
 
 / {
 
-	model = "D850BASIS053 D850ANPASS060 v0.35";
+	model = "D850BASIS053 D850ANPASS060 v0.36";
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
 	pru_adc {
