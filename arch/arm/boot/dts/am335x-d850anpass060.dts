@@ -17,7 +17,7 @@
 
 / {
 
-	model = "D850BASIS053 D850ANPASS060 v0.33";
+	model = "D850BASIS053 D850ANPASS060 v0.35";
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
 	pru_adc {
@@ -141,8 +141,6 @@
 		reg = <0x21>;
 		gpio-controller;
 		#gpio-cells = <2>;
-		interrupt-controller;
-		#interrupt-cells = <2>;
 		lines-initial-states = <0xF3F3>;
 		gpio-line-names = "MUX_A_1", "MUX_B_1", "", "", "LED_1", "MAIN_G2_1", "MAIN_G1_1", "MAIN_G0_1",
 						  "MUX_A_2", "MUX_B_2", "", "", "LED_2", "MAIN_G2_2", "MAIN_G1_2", "MAIN_G0_2";
@@ -153,8 +151,6 @@
 		reg = <0x22>;
 		gpio-controller;
 		#gpio-cells = <2>;
-		interrupt-controller;
-		#interrupt-cells = <2>;
 		lines-initial-states = <0xF3F3>;
 		gpio-line-names = "MUX_A_3", "MUX_B_3", "", "", "LED_3", "MAIN_G2_3", "MAIN_G1_3", "MAIN_G0_3",
 						  "MUX_A_4", "MUX_B_4", "", "", "LED_4", "MAIN_G2_4", "MAIN_G1_4", "MAIN_G0_4";
@@ -165,8 +161,6 @@
 		reg = <0x23>;
 		gpio-controller;
 		#gpio-cells = <2>;
-		interrupt-controller;
-		#interrupt-cells = <2>;
 		lines-initial-states = <0xF3F3>;
 		gpio-line-names = "MUX_A_5", "MUX_B_5", "", "", "LED_5", "MAIN_G2_5", "MAIN_G1_5", "MAIN_G0_5",
 						  "MUX_A_6", "MUX_B_6", "", "", "LED_6", "MAIN_G2_6", "MAIN_G1_6", "MAIN_G0_6";
@@ -177,8 +171,6 @@
 		reg = <0x27>;
 		gpio-controller;
 		#gpio-cells = <2>;
-		interrupt-controller;
-		#interrupt-cells = <2>;
 		lines-initial-states = <0x0000>;
 		gpio-line-names = "ADAPT_ID_0", "ADAPT_ID_1", "ADAPT_ID_2", "ADAPT_ID_3",
 						  "ADAPT_VAR_0", "ADAPT_VAR_1", "ADAPT_VAR_2", "ADAPT_VAR_3",

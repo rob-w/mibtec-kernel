@@ -258,13 +258,22 @@
 		spi-max-frequency = <20000000>;
 		spi-cpol;
 
+		adi,range-gpios = <&pcf8575_26 3 GPIO_ACTIVE_HIGH>;
 		adi,conversion-start-gpios = <&gpio0 23 GPIO_ACTIVE_HIGH>;
 		reset-gpios = <&pcf8575_26 4 GPIO_ACTIVE_HIGH>;
 		adi,oversampling-ratio-gpios = <&pcf8575_26 0 GPIO_ACTIVE_HIGH
 						&pcf8575_26 1 GPIO_ACTIVE_HIGH
 						&pcf8575_26 2 GPIO_ACTIVE_HIGH>;
-	};
 
+		adi,aixb-i-gpios = <&pcf8575_26 8 GPIO_ACTIVE_HIGH
+						&pcf8575_26 9 GPIO_ACTIVE_HIGH
+						&pcf8575_26 10 GPIO_ACTIVE_HIGH
+						&pcf8575_26 11 GPIO_ACTIVE_HIGH
+						&pcf8575_26 12 GPIO_ACTIVE_HIGH
+						&pcf8575_26 13 GPIO_ACTIVE_HIGH
+						&pcf8575_26 14 GPIO_ACTIVE_HIGH
+						&pcf8575_26 15 GPIO_ACTIVE_HIGH>;
+	};
 };
 
 &i2c1 {
@@ -294,8 +303,6 @@
 		reg = <0x20>;
 		gpio-controller;
 		#gpio-cells = <2>;
-		interrupt-controller;
-		#interrupt-cells = <2>;
 		lines-initial-states = <0xF100>;
 		gpio-line-names = "BASIS_ID_0", "BASIS_ID_1", "BASIS_ID_2", "BASIS_ID_3",
 						  "BASIS_VAR_0", "BASIS_VAR_1", "BASIS_VAR_2", "BASIS_VAR_3",
@@ -307,8 +314,6 @@
 		reg = <0x26>;
 		gpio-controller;
 		#gpio-cells = <2>;
-		interrupt-controller;
-		#interrupt-cells = <2>;
 		lines-initial-states = <0xFF1F>;
 		gpio-line-names = "OS_0", "OS_1", "OS_2", "RANGE", "AD_RES", "", "", "",
 						  "AI1B", "AI2B", "AI3B", "AI4B", "AI5B", "AI6B", "AI7B", "AI8B";
