@@ -23,6 +23,7 @@ struct ad7606_chip_info {
 	const unsigned int		*oversampling_avail;
 	unsigned int			oversampling_num;
 	bool				os_req_reset;
+	bool				is_curr_n_volt;
 };
 
 /**
@@ -72,9 +73,11 @@ struct ad7606_state {
 	struct gpio_desc		*gpio_standby;
 	struct gpio_desc		*gpio_frstdata;
 	struct gpio_descs		*gpio_os;
+	struct gpio_descs		*gpio_aixb;
 	struct iio_trigger		*trig;
 	struct completion		completion;
-
+	int						aixb[8];
+	short					offset[16];
 	/*
 	 * DMA (thus cache coherency maintenance) requires the
 	 * transfer buffers to live in their own cache lines.
