@@ -39,6 +39,9 @@
 	leds {
 		compatible = "gpio-leds";
 
+		pinctrl-names = "default";
+		pinctrl-0 = <&basis_led_pins>;
+
 		/// BONE_P8_03
 		basis_led_1 {
 			label = "basis_led_1";
@@ -145,6 +148,15 @@
 			AM33XX_IOPAD(BONE_P8_44, PIN_INPUT | MUX_MODE6)					/* gpio2_9.pr1_pru1_pru_r31_3 ADS DOUT_4 via IO_EN */
 			AM33XX_IOPAD(BONE_P8_41, PIN_INPUT | MUX_MODE6)					/* gpio2_10.pr1_pru1_pru_r31_4 ADS DOUT_5 via IO_EN */
 			AM33XX_IOPAD(BONE_P8_42, PIN_INPUT | MUX_MODE6)					/* gpio2_11.pr1_pru1_pru_r31_5 ADS DOUT_6 via IO_EN */
+		>;
+	};
+
+	basis_led_pins: basis_led_pins {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P8_03, PIN_OUTPUT | MUX_MODE7)					/* gpmc_ad6.gpio1_6 BASIS_LED 1 */
+			AM33XX_IOPAD(BONE_P8_04, PIN_OUTPUT | MUX_MODE7)					/* gpmc_ad7.gpio1_7 BASIS_LED 2 */
+			AM33XX_IOPAD(BONE_P8_05, PIN_OUTPUT | MUX_MODE7)					/* gpmc.ad8.gpio1_2 BASIS_LED 3 */
+			AM33XX_IOPAD(BONE_P8_06, PIN_OUTPUT | MUX_MODE7)					/* gpmc.ad9.gpio1_3 BASIS_LED 4 RED */
 		>;
 	};
 
