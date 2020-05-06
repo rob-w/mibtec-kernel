@@ -33,10 +33,19 @@
 #include <linux/iio/triggered_buffer.h>
 #include <linux/iio/trigger_consumer.h>
 
+#include <linux/dma-mapping.h>
+
 #include <linux/rpmsg/virtio_rpmsg.h>
 
 #define PRU_ADC_MODULE_VERSION "1.7"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
+
+#define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
+
+struct pru_prepare{
+	uint16_t size;
+	uint32_t buffer_addr;
+} __attribute__((__packed__));
 
 struct pru_chip_info {
 	const struct iio_chan_spec	*channels;
@@ -50,6 +59,8 @@ struct rpmsg_pru_dev {
 	struct rpmsg_device *rpdev;
 	wait_queue_head_t wait_list;
 };
+
+#define DATA_BUF_SZ 4096
 
 struct pru_priv {
 	int 					state, buff, thr_trig;
@@ -68,6 +79,8 @@ struct pru_priv {
 	unsigned int			num_scales;
 	const unsigned int		*oversampling_avail;
 	unsigned int			num_os_ratios;
+	uint32_t				*cpu_addr_dma[2];
+	dma_addr_t				dma_handle[2];
 
 	struct mutex			lock; /* protect sensor state */
 	struct gpio_desc		*gpio_mux_a[6];
@@ -113,11 +126,16 @@ static int pru_read_samples(struct iio_dev *indio_dev, int async)
 	static char rpmsg_pru_buf[MAX_RPMSG_BUF_SIZE];
 	struct pru_priv *st = iio_priv(indio_dev);
 	int ret = 0;
+	struct pru_prepare prepare;
+
+	prepare.buffer_addr = st->dma_handle[0];
+	prepare.size = st->samplecnt;
 
 	rpmsg_pru_buf[0] = st->samplecnt;
 	rpmsg_pru_buf[1] = st->samplecnt >> 8;
+//	ret = rpmsg_send(st->rpdev->ept, (void *)rpmsg_pru_buf, 2);
 
-	ret = rpmsg_send(st->rpdev->ept, (void *)rpmsg_pru_buf, 2);
+	ret = rpmsg_send(st->rpdev->ept, &prepare, sizeof(prepare));
 	if (ret)
 		dev_err(st->dev, "rpmsg_send failed: %d\n", ret);
 
@@ -198,13 +216,10 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 		ret = iio_device_claim_direct_mode(indio_dev);
 		if (ret)
 			return ret;
-
 		ret = pru_scan_direct(indio_dev, chan->address);
 		iio_device_release_direct_mode(indio_dev);
 
-		if (ret < 0)
-			return ret;
-		*val = (short)ret;
+		*val = (unsigned short)ret;
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_RAW:
@@ -214,10 +229,7 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 
 		ret = pru_scan_direct(indio_dev, chan->address);
 		iio_device_release_direct_mode(indio_dev);
-
-		if (ret < 0)
-			return ret;
-		*val = (short)ret;
+		*val = (unsigned short)ret;
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_SCALE:
 		*val = 0;
@@ -554,6 +566,8 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 	struct device *pdev = p_st->dev;
 	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
 
+	dev_info(p_st->dev, "cb() len %d\n", len);
+
 	idx = len / 14;
 	for (i = 0; i < idx; i++) {
 		offset = i * 14;
@@ -566,8 +580,16 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 		if (p_st->buff)
 			iio_push_to_buffers_with_timestamp(indio_dev, p_st->data,
 										iio_get_time_ns(indio_dev));
-		dev_dbg(p_st->dev, "ID_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", pdata[offset + 1] << 8 | pdata[offset],
+		dev_info(p_st->dev, "IDR_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", pdata[offset + 1] << 8 | pdata[offset],
 			p_st->data[0], p_st->data[1], p_st->data[2], p_st->data[3], p_st->data[4], p_st->data[5]);
+		dev_info(p_st->dev, "IDD_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n",
+					p_st->cpu_addr_dma[0][0],
+					p_st->cpu_addr_dma[0][1],
+					p_st->cpu_addr_dma[0][2],
+					p_st->cpu_addr_dma[0][3],
+					p_st->cpu_addr_dma[0][4],
+					p_st->cpu_addr_dma[0][5],
+					p_st->cpu_addr_dma[0][6]);
 	}
 
 	return 0;
@@ -612,6 +634,14 @@ static struct rpmsg_driver rpmsg_pru_driver = {
 	.remove		= rpmsg_pru_remove,
 };
 
+static void free_dma(struct pru_priv *st)
+{
+	dma_free_coherent(st->dev, DATA_BUF_SZ,
+			st->cpu_addr_dma[0], st->dma_handle[0]);
+	dma_free_coherent(st->dev, DATA_BUF_SZ,
+			st->cpu_addr_dma[1], st->dma_handle[1]);
+}
+
 static int pru_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -630,15 +660,26 @@ static int pru_probe(struct platform_device *pdev)
 	dev_set_drvdata(dev, indio_dev);
 
 	p_st = st;
+
+	if (!dma_set_mask(dev, SND_RCV_ADDR_BITS)) {
+		dev_info(dev, "dma mask available\n");
+	} else
+		return -ENOMEM;
+
+	st->cpu_addr_dma[0] = dma_alloc_coherent(dev, DATA_BUF_SZ, &st->dma_handle[0], GFP_KERNEL);
+	st->cpu_addr_dma[1] = dma_alloc_coherent(dev, DATA_BUF_SZ, &st->dma_handle[1], GFP_KERNEL);
+
 	ret = register_rpmsg_driver(&rpmsg_pru_driver);
 	if (ret) {
 		pr_err("Unable to register rpmsg driver");
+		free_dma(st);
 		return (ret);
 	}
 
 	if (of_property_read_u32(dev->of_node, "ti,rproc", &rproc_phandle)) {
 		dev_err(&pdev->dev, "could not get of property\n");
 		unregister_rpmsg_driver(&rpmsg_pru_driver);
+		free_dma(st);
 		return -ENXIO;
 	}
 
@@ -646,14 +687,17 @@ static int pru_probe(struct platform_device *pdev)
 	if (!st->rproc) {
 		dev_err(&pdev->dev, "could not get rproc handle\n");
 		unregister_rpmsg_driver(&rpmsg_pru_driver);
+		free_dma(st);
 		return -ENXIO;
 	}
 
 	st->dev = dev;
 	mutex_init(&st->lock);
 	ret = pru_request_gpios(st);
-	if (ret)
+	if (ret) {
+		free_dma(st);
 		return ret;
+	}
 
 	st->chip_info = &pru_chip_info_tbl[0];
 
@@ -672,15 +716,19 @@ static int pru_probe(struct platform_device *pdev)
 
 	st->trig = devm_iio_trigger_alloc(dev, "%s-dev%d",
 					  indio_dev->name, indio_dev->id);
-	if (!st->trig)
+	if (!st->trig) {
+		free_dma(st);
 		return -ENOMEM;
+	}
 
 	st->trig->ops = &pru_trigger_ops;
 	st->trig->dev.parent = dev;
 	iio_trigger_set_drvdata(st->trig, indio_dev);
 	ret = devm_iio_trigger_register(dev, st->trig);
-	if (ret)
+	if (ret) {
+		free_dma(st);
 		return ret;
+	}
 
 	indio_dev->trig = iio_trigger_get(st->trig);
 
@@ -688,14 +736,18 @@ static int pru_probe(struct platform_device *pdev)
 					      &iio_pollfunc_store_time,
 					      &pru_trigger_handler,
 					      &pru_buffer_ops);
-	if (ret)
+	if (ret){
+		free_dma(st);
 		return ret;
+	}
 
 	st->pruss = pruss_get(st->rproc);
-	if (!st->pruss)
+	if (!st->pruss) {
+		free_dma(st);
 		return -ENOMEM;
-
+	}
 	st->id = pru_rproc_get_id(st->rproc);
+
 
 	/// start pru execution
 	rproc_boot(st->rproc);
@@ -743,6 +795,8 @@ static int pru_remove(struct platform_device *pdev)
 	st->state = 0;
 	cancel_work_sync(&st->fetch_work);
 	unregister_rpmsg_driver(&rpmsg_pru_driver);
+
+	free_dma(st);
 
 	pruss_put(st->pruss);
 	/// stop pru execution

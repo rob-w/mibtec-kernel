@@ -152,6 +152,8 @@ static int pcf857x_get(struct gpio_chip *chip, unsigned offset)
 	int		value;
 
 	value = gpio->read(gpio->client);
+
+	dev_dbg(&gpio->client->dev, "get offset %d value %d\n", offset, value);
 	return (value < 0) ? value : !!(value & (1 << offset));
 }
 
@@ -161,6 +163,7 @@ static int pcf857x_output(struct gpio_chip *chip, unsigned offset, int value)
 	unsigned	bit = 1 << offset;
 	int		status;
 
+	dev_dbg(&gpio->client->dev, "output offset %d value %d\n", offset, value);
 	mutex_lock(&gpio->lock);
 	if (value)
 		gpio->out |= bit;
