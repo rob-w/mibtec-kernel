@@ -37,14 +37,16 @@
 
 #include <linux/rpmsg/virtio_rpmsg.h>
 
-#define PRU_ADC_MODULE_VERSION "1.7"
+#define PRU_ADC_MODULE_VERSION "1.9"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
 
 struct pru_prepare{
-	uint16_t size;
-	uint32_t buffer_addr;
+	uint32_t size;
+	uint32_t buffer_addr0;
+	uint32_t buffer_addr1;
+	uint32_t buffer_addr2;
 } __attribute__((__packed__));
 
 struct pru_chip_info {
@@ -60,10 +62,10 @@ struct rpmsg_pru_dev {
 	wait_queue_head_t wait_list;
 };
 
-#define DATA_BUF_SZ 4096
+#define DATA_BUF_SZ 4096000
 
 struct pru_priv {
-	int 					state, buff, thr_trig;
+	int 					state, bufferd, thr_trig;
 	int						samplecnt;
 	int						id;
 	struct device			*dev;
@@ -79,8 +81,8 @@ struct pru_priv {
 	unsigned int			num_scales;
 	const unsigned int		*oversampling_avail;
 	unsigned int			num_os_ratios;
-	uint32_t				*cpu_addr_dma[2];
-	dma_addr_t				dma_handle[2];
+	uint32_t				*cpu_addr_dma[3];
+	dma_addr_t				dma_handle[3];
 
 	struct mutex			lock; /* protect sensor state */
 	struct gpio_desc		*gpio_mux_a[6];
@@ -123,17 +125,19 @@ static void debug_pins(struct pru_priv *st, int adc)
 
 static int pru_read_samples(struct iio_dev *indio_dev, int async)
 {
-	static char rpmsg_pru_buf[MAX_RPMSG_BUF_SIZE];
 	struct pru_priv *st = iio_priv(indio_dev);
 	int ret = 0;
 	struct pru_prepare prepare;
 
-	prepare.buffer_addr = st->dma_handle[0];
+	if (st->samplecnt == 0)
+		return 0;
+
+	prepare.buffer_addr0 = st->dma_handle[0];
+	prepare.buffer_addr1 = st->dma_handle[1];
+	prepare.buffer_addr2 = st->dma_handle[2];
 	prepare.size = st->samplecnt;
 
-	rpmsg_pru_buf[0] = st->samplecnt;
-	rpmsg_pru_buf[1] = st->samplecnt >> 8;
-//	ret = rpmsg_send(st->rpdev->ept, (void *)rpmsg_pru_buf, 2);
+	dev_info(st->dev, "addr0 0x%x  addr1 0x%x  addr2 0x%x\n", st->dma_handle[0], st->dma_handle[1], st->dma_handle[2]);
 
 	ret = rpmsg_send(st->rpdev->ept, &prepare, sizeof(prepare));
 	if (ret)
@@ -155,7 +159,7 @@ static void fetch_thread(struct work_struct *work_arg)
 	set_current_state(TASK_INTERRUPTIBLE);
 
 	while(st->state) {
-		if (st->buff)
+		if (st->bufferd)
 			pru_read_samples(indio_dev, 1);
 		msleep(500);
 	}
@@ -536,7 +540,7 @@ static int pru_trigger_set_state(struct iio_trigger *trig, bool enable)
 	struct pru_priv *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s()\n", __func__);
-	st->buff = enable;
+	st->bufferd = enable;
 
 	return 0;
 }
@@ -561,35 +565,42 @@ static const struct of_device_id of_pru_adc_match[] = {
 static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 			void *priv, u32 src)
 {
-	int i, idx, offset;
+	int i, datlen, offset, dma_id;
 	char *pdata = data;
 	struct device *pdev = p_st->dev;
 	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
 
-	dev_info(p_st->dev, "cb() len %d\n", len);
+	dma_id = pdata[0];
+	datlen = pdata[4] << 24 | pdata[3] << 16 | pdata[2] << 8 | pdata[1];
 
-	idx = len / 14;
-	for (i = 0; i < idx; i++) {
-		offset = i * 14;
-		p_st->data[0] = pdata[offset + 3]   << 8 | pdata[offset + 2];
-		p_st->data[1] = pdata[offset + 5]   << 8 | pdata[offset + 4];
-		p_st->data[2] = pdata[offset + 7]   << 8 | pdata[offset + 6];
-		p_st->data[3] = pdata[offset + 9]   << 8 | pdata[offset + 8];
-		p_st->data[4] = pdata[offset + 11]  << 8 | pdata[offset + 10];
-		p_st->data[5] = pdata[offset + 13]  << 8 | pdata[offset + 12];
-		if (p_st->buff)
-			iio_push_to_buffers_with_timestamp(indio_dev, p_st->data,
+	dev_info(p_st->dev, "cb() len %d dma_id %d datlen %d\n", len, dma_id, datlen);
+
+	if (dma_id != 0 && dma_id != 1 && dma_id != 2)
+		return 0;
+
+	if (p_st->bufferd) {
+		iio_push_to_buffers_with_timestamp(indio_dev, p_st->cpu_addr_dma[dma_id],
 										iio_get_time_ns(indio_dev));
-		dev_info(p_st->dev, "IDR_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", pdata[offset + 1] << 8 | pdata[offset],
-			p_st->data[0], p_st->data[1], p_st->data[2], p_st->data[3], p_st->data[4], p_st->data[5]);
-		dev_info(p_st->dev, "IDD_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n",
-					p_st->cpu_addr_dma[0][0],
-					p_st->cpu_addr_dma[0][1],
-					p_st->cpu_addr_dma[0][2],
-					p_st->cpu_addr_dma[0][3],
-					p_st->cpu_addr_dma[0][4],
-					p_st->cpu_addr_dma[0][5],
-					p_st->cpu_addr_dma[0][6]);
+		return 0;
+	}
+
+	for (i = 0; i < datlen; i++) {
+		offset = i * 7;
+		p_st->data[0] = p_st->cpu_addr_dma[dma_id][offset + 1];
+		p_st->data[1] = p_st->cpu_addr_dma[dma_id][offset + 2];
+		p_st->data[2] = p_st->cpu_addr_dma[dma_id][offset + 3];
+		p_st->data[3] = p_st->cpu_addr_dma[dma_id][offset + 4];
+		p_st->data[4] = p_st->cpu_addr_dma[dma_id][offset + 5];
+		p_st->data[5] = p_st->cpu_addr_dma[dma_id][offset + 6];
+
+		dev_dbg(p_st->dev, "IDD_%d_%03d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", dma_id,
+					p_st->cpu_addr_dma[dma_id][offset + 0],
+					p_st->cpu_addr_dma[dma_id][offset + 1],
+					p_st->cpu_addr_dma[dma_id][offset + 2],
+					p_st->cpu_addr_dma[dma_id][offset + 3],
+					p_st->cpu_addr_dma[dma_id][offset + 4],
+					p_st->cpu_addr_dma[dma_id][offset + 5],
+					p_st->cpu_addr_dma[dma_id][offset + 6]);
 	}
 
 	return 0;
@@ -640,6 +651,8 @@ static void free_dma(struct pru_priv *st)
 			st->cpu_addr_dma[0], st->dma_handle[0]);
 	dma_free_coherent(st->dev, DATA_BUF_SZ,
 			st->cpu_addr_dma[1], st->dma_handle[1]);
+	dma_free_coherent(st->dev, DATA_BUF_SZ,
+			st->cpu_addr_dma[2], st->dma_handle[2]);
 }
 
 static int pru_probe(struct platform_device *pdev)
@@ -668,6 +681,7 @@ static int pru_probe(struct platform_device *pdev)
 
 	st->cpu_addr_dma[0] = dma_alloc_coherent(dev, DATA_BUF_SZ, &st->dma_handle[0], GFP_KERNEL);
 	st->cpu_addr_dma[1] = dma_alloc_coherent(dev, DATA_BUF_SZ, &st->dma_handle[1], GFP_KERNEL);
+	st->cpu_addr_dma[2] = dma_alloc_coherent(dev, DATA_BUF_SZ, &st->dma_handle[2], GFP_KERNEL);
 
 	ret = register_rpmsg_driver(&rpmsg_pru_driver);
 	if (ret) {
@@ -754,7 +768,7 @@ static int pru_probe(struct platform_device *pdev)
 
 	INIT_WORK(&st->fetch_work, fetch_thread);
 	st->state = 1;
-	st->buff = 0;
+	st->bufferd = 0;
 	schedule_work(&st->fetch_work);
 
 	return devm_iio_device_register(dev, indio_dev);
