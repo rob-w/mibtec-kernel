@@ -29,6 +29,8 @@
 
 #include "ad7606.h"
 
+#define AD7606_MODULE_VERSION "1.1"
+
 /*
  * Scales are computed as 5000/32768 and 10000/32768 respectively,
  * so that when applied to the raw values they provide mV values
@@ -180,6 +182,8 @@ static int ad7606_read_raw(struct iio_dev *indio_dev,
 		ret -= st->offset[chan->address];
 		ret = ret * st->scale_avail[st->range];
 		do_div(ret, 1000000);
+		/// factor with calibscale
+
 		*val = (short)ret;
 		return IIO_VAL_INT;
 
@@ -206,6 +210,9 @@ static int ad7606_read_raw(struct iio_dev *indio_dev,
 		return IIO_VAL_INT_PLUS_MICRO;
 	case IIO_CHAN_INFO_OVERSAMPLING_RATIO:
 		*val = st->oversampling;
+		return IIO_VAL_INT;
+	case IIO_CHAN_INFO_CALIBSCALE:
+		*val = st->calibscale[chan->address];
 		return IIO_VAL_INT;
 	}
 	return -EINVAL;
@@ -259,6 +266,9 @@ static int ad7606_write_raw(struct iio_dev *indio_dev,
 		st->range = i;
 		mutex_unlock(&st->lock);
 
+		return 0;
+	case IIO_CHAN_INFO_CALIBSCALE:
+		st->calibscale[chan->address] = val;
 		return 0;
 	case IIO_CHAN_INFO_OFFSET:
 		st->offset[chan->address] = val;
@@ -772,6 +782,8 @@ int ad7606_probe(struct device *dev, int irq, void __iomem *base_address,
 	struct ad7606_state *st;
 	int ret;
 	struct iio_dev *indio_dev;
+
+	dev_info(dev, "%s() %s\n", __func__, AD7606_MODULE_VERSION);
 
 	indio_dev = devm_iio_device_alloc(dev, sizeof(*st));
 	if (!indio_dev)

@@ -78,6 +78,8 @@ struct ad7606_state {
 	struct completion		completion;
 	int						aixb[8];
 	short					offset[16];
+	short					calibscale[16];
+
 	/*
 	 * DMA (thus cache coherency maintenance) requires the
 	 * transfer buffers to live in their own cache lines.
