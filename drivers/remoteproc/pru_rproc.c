@@ -630,7 +630,7 @@ static irqreturn_t pru_rproc_vring_interrupt(int irq, void *data)
 {
 	struct pru_rproc *pru = data;
 
-	dev_dbg(&pru->rproc->dev, "got vring irq\n");
+	dev_dbg(&pru->rproc->dev, "got vring irq %d\n", irq);
 
 	/* process incoming buffers on both the Rx and Tx vrings */
 	rproc_vq_interrupt(pru->rproc, 0);
@@ -640,7 +640,7 @@ static irqreturn_t pru_rproc_vring_interrupt(int irq, void *data)
 }
 
 /* kick a virtqueue */
-static void pru_rproc_kick(struct rproc *rproc, int vq_id)
+void pru_rproc_kick(struct rproc *rproc, int vq_id)
 {
 	struct device *dev = &rproc->dev;
 	struct pru_rproc *pru = rproc->priv;
@@ -664,6 +664,7 @@ static void pru_rproc_kick(struct rproc *rproc, int vq_id)
 			dev_err(dev, "mbox_send_message failed: %d\n", ret);
 	}
 }
+EXPORT_SYMBOL_GPL(pru_rproc_kick);
 
 /* start a PRU core */
 static int pru_rproc_start(struct rproc *rproc)

@@ -182,7 +182,7 @@ struct rproc *pru_rproc_get(struct device_node *node, int index);
 void pru_rproc_put(struct rproc *rproc);
 enum pruss_pru_id pru_rproc_get_id(struct rproc *rproc);
 int pru_rproc_set_ctable(struct rproc *rproc, enum pru_ctable_idx c, u32 addr);
-
+void pru_rproc_kick(struct rproc *rproc, int vq_id);
 #else
 
 static inline struct pruss *pruss_get(struct rproc *rproc)
