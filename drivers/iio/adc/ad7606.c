@@ -29,7 +29,7 @@
 
 #include "ad7606.h"
 
-#define AD7606_MODULE_VERSION "1.1"
+#define AD7606_MODULE_VERSION "1.3"
 
 /*
  * Scales are computed as 5000/32768 and 10000/32768 respectively,
@@ -167,6 +167,7 @@ static int ad7606_read_raw(struct iio_dev *indio_dev,
 {
 	uint64_t ret;
 	int pin_range;
+	int is_neg = 0;
 	struct ad7606_state *st = iio_priv(indio_dev);
 
 	switch (m) {
@@ -178,9 +179,6 @@ static int ad7606_read_raw(struct iio_dev *indio_dev,
 
 		ret = ad7606_scan_direct(indio_dev, chan->address);
 		iio_device_release_direct_mode(indio_dev);
-
-		if (ret < 0)
-			return ret;
 
 		/// if we are set to CURRENT we zero a voltage read and vice versa
 		if ((st->aixb[chan->address] && chan->type == IIO_CURRENT)
@@ -198,6 +196,11 @@ static int ad7606_read_raw(struct iio_dev *indio_dev,
 
 		if (chan->type == IIO_CURRENT)
 			pin_range += 2;
+
+		if ((short) ret < 0)
+			is_neg = 1;
+		ret = abs((short) ret);
+
 		ret = ret * st->scale_avail[pin_range];
 		do_div(ret, 1000000);
 
@@ -205,7 +208,10 @@ static int ad7606_read_raw(struct iio_dev *indio_dev,
 		ret = ret * st->calibscale[chan->scan_index];
 		do_div(ret, 100000);
 
-		*val = (short)ret;
+		if (is_neg)
+			*val = ((short) ret) * -1;
+		else
+			*val = (short)ret;
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_RAW:
@@ -216,8 +222,6 @@ static int ad7606_read_raw(struct iio_dev *indio_dev,
 		ret = ad7606_scan_direct(indio_dev, chan->address);
 		iio_device_release_direct_mode(indio_dev);
 
-		if (ret < 0)
-			return ret;
 		*val = (short)ret;
 		return IIO_VAL_INT;
 
