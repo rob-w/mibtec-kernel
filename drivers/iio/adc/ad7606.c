@@ -34,9 +34,10 @@
 /*
  * Scales are computed as 5000/32768 and 10000/32768 respectively,
  * so that when applied to the raw values they provide mV values
+ * also increase to have 2 factors for current meassured vals
  */
-static const unsigned int ad7606_scale_avail[2] = {
-	152588, 305176
+static const unsigned int ad7606_scale_avail[4] = {
+	152588, 305176, 615192, 1230384,
 };
 
 static const unsigned int ad7606_oversampling_avail[7] = {
@@ -165,6 +166,7 @@ static int ad7606_read_raw(struct iio_dev *indio_dev,
 			   long m)
 {
 	uint64_t ret;
+	int pin_range;
 	struct ad7606_state *st = iio_priv(indio_dev);
 
 	switch (m) {
@@ -179,10 +181,29 @@ static int ad7606_read_raw(struct iio_dev *indio_dev,
 
 		if (ret < 0)
 			return ret;
-		ret -= st->offset[chan->address];
-		ret = ret * st->scale_avail[st->range];
+
+		/// if we are set to CURRENT we zero a voltage read and vice versa
+		if ((st->aixb[chan->address] && chan->type == IIO_CURRENT)
+			|| (!st->aixb[chan->address] && chan->type == IIO_VOLTAGE) ) {
+			*val = 0;
+			return IIO_VAL_INT;
+		}
+
+		if (gpiod_cansleep(st->gpio_range))
+			pin_range = gpiod_get_value_cansleep(st->gpio_range);
+		else
+			pin_range = gpiod_get_value(st->gpio_range);
+
+		ret -= st->offset[chan->scan_index];
+
+		if (chan->type == IIO_CURRENT)
+			pin_range += 2;
+		ret = ret * st->scale_avail[pin_range];
 		do_div(ret, 1000000);
+
 		/// factor with calibscale
+		ret = ret * st->calibscale[chan->scan_index];
+		do_div(ret, 100000);
 
 		*val = (short)ret;
 		return IIO_VAL_INT;
@@ -201,7 +222,7 @@ static int ad7606_read_raw(struct iio_dev *indio_dev,
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_OFFSET:
-		*val = st->offset[chan->address];
+		*val = st->offset[chan->scan_index];
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_SCALE:
@@ -212,7 +233,7 @@ static int ad7606_read_raw(struct iio_dev *indio_dev,
 		*val = st->oversampling;
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_CALIBSCALE:
-		*val = st->calibscale[chan->address];
+		*val = st->calibscale[chan->scan_index];
 		return IIO_VAL_INT;
 	}
 	return -EINVAL;
@@ -233,18 +254,6 @@ static ssize_t ad7606_show_avail(char *buf, const unsigned int *vals,
 	return len;
 }
 
-static ssize_t scale_available_show(struct device *dev,
-					       struct device_attribute *attr,
-					       char *buf)
-{
-	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
-	struct ad7606_state *st = iio_priv(indio_dev);
-
-	return ad7606_show_avail(buf, st->scale_avail, st->num_scales, true);
-}
-
-static IIO_DEVICE_ATTR_RO(scale_available, 0);
-
 static int ad7606_write_raw(struct iio_dev *indio_dev,
 			    struct iio_chan_spec const *chan,
 			    int val,
@@ -256,22 +265,11 @@ static int ad7606_write_raw(struct iio_dev *indio_dev,
 	int i;
 
 	switch (mask) {
-	case IIO_CHAN_INFO_SCALE:
-		mutex_lock(&st->lock);
-		i = find_closest(val2, st->scale_avail, st->num_scales);
-		if (gpiod_cansleep(st->gpio_range))
-			gpiod_set_value_cansleep(st->gpio_range, i);
-		else
-			gpiod_set_value(st->gpio_range, i);
-		st->range = i;
-		mutex_unlock(&st->lock);
-
-		return 0;
 	case IIO_CHAN_INFO_CALIBSCALE:
-		st->calibscale[chan->address] = val;
+		st->calibscale[chan->scan_index] = val;
 		return 0;
 	case IIO_CHAN_INFO_OFFSET:
-		st->offset[chan->address] = val;
+		st->offset[chan->scan_index] = val;
 		return 0;
 	case IIO_CHAN_INFO_OVERSAMPLING_RATIO:
 		if (val2)
@@ -460,6 +458,43 @@ static ssize_t ai8b_set(struct device *dev,
 	return aixb_set(dev, buf, 7, len);
 }
 
+static ssize_t range_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	int val = 0;
+
+	if (gpiod_cansleep(st->gpio_range))
+		val = gpiod_get_value_cansleep(st->gpio_range);
+	else
+		val = gpiod_get_value(st->gpio_range);
+
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t range_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	unsigned int val;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &val);
+	if (ret)
+		goto error_ret;
+
+	if (val < 0)
+		return -EINVAL;
+
+	if (gpiod_cansleep(st->gpio_range))
+		gpiod_set_value_cansleep(st->gpio_range, val);
+
+error_ret:
+	return ret ? ret : len;
+}
+
 static IIO_DEVICE_ATTR(ai1b, (S_IWUSR | S_IRUGO),
 		ai1b_show, ai1b_set, 0);
 static IIO_DEVICE_ATTR(ai2b, (S_IWUSR | S_IRUGO),
@@ -476,9 +511,10 @@ static IIO_DEVICE_ATTR(ai7b, (S_IWUSR | S_IRUGO),
 		ai7b_show, ai7b_set, 0);
 static IIO_DEVICE_ATTR(ai8b, (S_IWUSR | S_IRUGO),
 		ai8b_show, ai8b_set, 0);
+static IIO_DEVICE_ATTR(range, (S_IWUSR | S_IRUGO),
+		range_show, range_set, 0);
 
 static struct attribute *ad7606_attributes_os_and_range[] = {
-	&iio_dev_attr_scale_available.dev_attr.attr,
 	&iio_dev_attr_oversampling_ratio_available.dev_attr.attr,
 	&iio_dev_attr_ai1b.dev_attr.attr,
 	&iio_dev_attr_ai2b.dev_attr.attr,
@@ -488,6 +524,7 @@ static struct attribute *ad7606_attributes_os_and_range[] = {
 	&iio_dev_attr_ai6b.dev_attr.attr,
 	&iio_dev_attr_ai7b.dev_attr.attr,
 	&iio_dev_attr_ai8b.dev_attr.attr,
+	&iio_dev_attr_range.dev_attr.attr,
 	NULL,
 };
 
@@ -504,15 +541,6 @@ static const struct attribute_group ad7606_attribute_group_os = {
 	.attrs = ad7606_attributes_os,
 };
 
-static struct attribute *ad7606_attributes_range[] = {
-	&iio_dev_attr_scale_available.dev_attr.attr,
-	NULL,
-};
-
-static const struct attribute_group ad7606_attribute_group_range = {
-	.attrs = ad7606_attributes_range,
-};
-
 #define AD760X_CHANNEL(num, idx, typ, mask) {		\
 		.type = typ,							\
 		.indexed = 1,							\
@@ -523,10 +551,10 @@ static const struct attribute_group ad7606_attribute_group_range = {
 							| BIT(IIO_CHAN_INFO_CALIBSCALE)				\
 							| BIT(IIO_CHAN_INFO_OFFSET),				\
 		.info_mask_shared_by_type = mask,								\
-		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_SCALE),			\
+		.info_mask_shared_by_all = mask,								\
 		.scan_index = idx,						\
 		.scan_type = {							\
-			.sign = 's',						\
+			.sign = 'u',						\
 			.realbits = 16,						\
 			.storagebits = 16,					\
 			.endianness = IIO_CPU,				\
@@ -760,7 +788,7 @@ static const struct iio_info ad7606_info_os = {
 static const struct iio_info ad7606_info_range = {
 	.read_raw = &ad7606_read_raw,
 	.write_raw = &ad7606_write_raw,
-	.attrs = &ad7606_attribute_group_range,
+	.attrs = &ad7606_attribute_group_os,
 	.validate_trigger = &ad7606_validate_trigger,
 };
 
@@ -780,7 +808,7 @@ int ad7606_probe(struct device *dev, int irq, void __iomem *base_address,
 		 const struct ad7606_bus_ops *bops)
 {
 	struct ad7606_state *st;
-	int ret;
+	int ret, i;
 	struct iio_dev *indio_dev;
 
 	dev_info(dev, "%s() %s\n", __func__, AD7606_MODULE_VERSION);
@@ -800,7 +828,6 @@ int ad7606_probe(struct device *dev, int irq, void __iomem *base_address,
 	st->range = 0;
 	st->oversampling = 1;
 	st->scale_avail = ad7606_scale_avail;
-	st->num_scales = ARRAY_SIZE(ad7606_scale_avail);
 
 	st->reg = devm_regulator_get(dev, "avcc");
 	if (IS_ERR(st->reg))
@@ -822,6 +849,9 @@ int ad7606_probe(struct device *dev, int irq, void __iomem *base_address,
 		st->oversampling_avail = st->chip_info->oversampling_avail;
 		st->num_os_ratios = st->chip_info->oversampling_num;
 	}
+
+	for (i = 0; i < 16; i++)
+		st->calibscale[i] = 100000;
 
 	ret = ad7606_request_gpios(st);
 	if (ret)
