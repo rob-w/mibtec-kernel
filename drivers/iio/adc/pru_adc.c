@@ -37,7 +37,7 @@
 
 #include <linux/rpmsg/virtio_rpmsg.h>
 
-#define PRU_ADC_MODULE_VERSION "1.9"
+#define PRU_ADC_MODULE_VERSION "1.11"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -51,10 +51,10 @@ struct pru_prepare{
 
 struct pru_chip_info {
 	const struct iio_chan_spec	*channels;
-	unsigned int			num_channels;
-	const unsigned int		*oversampling_avail;
-	unsigned int			oversampling_num;
-	bool				os_req_reset;
+	unsigned int				num_channels;
+	const unsigned int			*oversampling_avail;
+	unsigned int				oversampling_num;
+	bool					os_req_reset;
 };
 
 struct rpmsg_pru_dev {
@@ -77,8 +77,6 @@ struct pru_priv {
 	unsigned int			range;
 	unsigned int			oversampling;
 	void __iomem			*base_address;
-	const unsigned int		*scale_avail;
-	unsigned int			num_scales;
 	const unsigned int		*oversampling_avail;
 	unsigned int			num_os_ratios;
 	uint32_t				*cpu_addr_dma[3];
@@ -90,7 +88,8 @@ struct pru_priv {
 	struct gpio_desc		*gpio_gain0[6];
 	struct gpio_desc		*gpio_gain1[6];
 	struct gpio_desc		*gpio_gain2[6];
-	int						offset[6];
+	short					offset[12];
+	int						calibscale[12];
 	struct iio_trigger		*trig;
 	struct completion		completion;
 	struct rpmsg_device 	*rpdev;
@@ -102,7 +101,7 @@ struct pru_priv {
 	 *  6 * 16-bit samples + 64-bit timestamp
 	 */
 //	unsigned short			data[10] ____cacheline_aligned;
-	unsigned short			data[452] ____cacheline_aligned;
+	unsigned int			data[452] ____cacheline_aligned;
 };
 
 struct pru_priv *p_st;
@@ -137,14 +136,14 @@ static int pru_read_samples(struct iio_dev *indio_dev, int async)
 	prepare.buffer_addr2 = st->dma_handle[2];
 	prepare.size = st->samplecnt;
 
-	dev_info(st->dev, "addr0 0x%x  addr1 0x%x  addr2 0x%x\n", st->dma_handle[0], st->dma_handle[1], st->dma_handle[2]);
+	dev_dbg(st->dev, "addr0 0x%x  addr1 0x%x  addr2 0x%x\n", st->dma_handle[0], st->dma_handle[1], st->dma_handle[2]);
 
 	ret = rpmsg_send(st->rpdev->ept, &prepare, sizeof(prepare));
 	if (ret)
 		dev_err(st->dev, "rpmsg_send failed: %d\n", ret);
 
 	if (!async)
-		msleep(5);
+		msleep(10);
 
 	return ret;
 }
@@ -159,8 +158,8 @@ static void fetch_thread(struct work_struct *work_arg)
 	set_current_state(TASK_INTERRUPTIBLE);
 
 	while(st->state) {
-		if (st->bufferd)
-			pru_read_samples(indio_dev, 1);
+//		if (!st->bufferd)
+//			pru_read_samples(indio_dev, 0);
 		msleep(500);
 	}
 
@@ -172,17 +171,11 @@ static irqreturn_t pru_trigger_handler(int irq, void *p)
 	struct iio_poll_func *pf = p;
 	struct iio_dev *indio_dev = pf->indio_dev;
 	struct pru_priv *st = iio_priv(indio_dev);
-	int ret;
-
 	dev_dbg(st->dev, "%s()\n", __func__);
 
 	mutex_lock(&st->lock);
-
-	ret = pru_read_samples(indio_dev, 1);
-	if (ret == 0)
-		iio_push_to_buffers_with_timestamp(indio_dev, st->data,
-						   iio_get_time_ns(indio_dev));
-
+	st->bufferd = 1;
+	pru_read_samples(indio_dev, 1);
 	iio_trigger_notify_done(indio_dev->trig);
 	mutex_unlock(&st->lock);
 
@@ -223,7 +216,7 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 		ret = pru_scan_direct(indio_dev, chan->address);
 		iio_device_release_direct_mode(indio_dev);
 
-		*val = (unsigned short)ret;
+		*val = (short)ret;
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_RAW:
@@ -233,14 +226,13 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 
 		ret = pru_scan_direct(indio_dev, chan->address);
 		iio_device_release_direct_mode(indio_dev);
-		*val = (unsigned short)ret;
+		*val = (short)ret;
 		return IIO_VAL_INT;
-	case IIO_CHAN_INFO_SCALE:
-		*val = 0;
-		*val2 = st->scale_avail[st->range];
-		return IIO_VAL_INT_PLUS_MICRO;
+	case IIO_CHAN_INFO_CALIBSCALE:
+		*val = st->calibscale[chan->scan_index];
+		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_OFFSET:
-		*val = st->offset[chan->address];
+		*val = st->offset[chan->scan_index];
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_OVERSAMPLING_RATIO:
 		*val = st->oversampling;
@@ -265,33 +257,6 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 	return -EINVAL;
 }
 
-static ssize_t pru_show_avail(char *buf, const unsigned int *vals,
-				 unsigned int n, bool micros)
-{
-	size_t len = 0;
-	int i;
-
-	for (i = 0; i < n; i++) {
-		len += scnprintf(buf + len, PAGE_SIZE - len,
-			micros ? "0.%06u " : "%u ", vals[i]);
-	}
-	buf[len - 1] = '\n';
-
-	return len;
-}
-
-static ssize_t in_voltage_scale_available_show(struct device *dev,
-					       struct device_attribute *attr,
-					       char *buf)
-{
-	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
-	struct pru_priv *st = iio_priv(indio_dev);
-
-	return pru_show_avail(buf, st->scale_avail, st->num_scales, true);
-}
-
-static IIO_DEVICE_ATTR_RO(in_voltage_scale_available, 0);
-
 static int pru_write_raw(struct iio_dev *indio_dev,
 			    struct iio_chan_spec const *chan,
 			    int val,
@@ -308,13 +273,6 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 		return -EINVAL;
 
 	switch (mask) {
-	case IIO_CHAN_INFO_SCALE:
-		mutex_lock(&st->lock);
-		i = find_closest(val2, st->scale_avail, st->num_scales);
-		st->range = i;
-		mutex_unlock(&st->lock);
-
-		return 0;
 	case IIO_CHAN_INFO_OVERSAMPLING_RATIO:
 		if (val2)
 			return -EINVAL;
@@ -333,7 +291,10 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 
 		return 0;
 	case IIO_CHAN_INFO_OFFSET:
-		st->offset[chan->address] = val;
+		st->offset[chan->scan_index] = val;
+		return 0;
+	case IIO_CHAN_INFO_CALIBSCALE:
+		st->calibscale[chan->scan_index] = val;
 		return 0;
 	case IIO_CHAN_INFO_HARDWAREGAIN:
 		if (val & (1<<0))
@@ -413,47 +374,39 @@ static const struct iio_info pru_info = {
 	.attrs = &pru_attribute_group,
 };
 
-static struct attribute *pru_attributes_range[] = {
-	&iio_dev_attr_in_voltage_scale_available.dev_attr.attr,
-	NULL,
-};
-
-static const struct attribute_group pru_attribute_group_range = {
-	.attrs = pru_attributes_range,
-};
-
-#define PRUX_CHANNEL(num, mask) {								\
-		.type = IIO_VOLTAGE,									\
+#define PRUX_CHANNEL(num, idx, typ, mask) {						\
+		.type = typ,									\
 		.indexed = 1,											\
 		.channel = num,											\
 		.address = num,											\
 		.info_mask_separate = BIT(IIO_CHAN_INFO_PROCESSED)		\
+							| BIT(IIO_CHAN_INFO_CALIBSCALE)		\
 							| BIT(IIO_CHAN_INFO_HARDWAREGAIN)	\
 							| BIT(IIO_CHAN_INFO_ENABLE)			\
 							| BIT(IIO_CHAN_INFO_OFFSET)			\
 							| BIT(IIO_CHAN_INFO_RAW),			\
 		.info_mask_shared_by_type = mask,						\
 		.info_mask_shared_by_all = mask,						\
-		.scan_index = num,										\
+		.scan_index = idx,										\
 		.scan_type = {											\
-			.sign = 'u',										\
+			.sign = 's',										\
 			.realbits = 16,										\
 			.storagebits = 16,									\
 			.endianness = IIO_CPU,								\
 		},														\
 }
 
-#define PRU_CHANNEL(num)	\
-	PRUX_CHANNEL(num, BIT(IIO_CHAN_INFO_OVERSAMPLING_RATIO))
+#define PRU_CHANNEL(num, idx, typ)	\
+	PRUX_CHANNEL(num, idx, typ, BIT(IIO_CHAN_INFO_OVERSAMPLING_RATIO))
 
 static const struct iio_chan_spec pru_channels[] = {
+	PRU_CHANNEL(0, 0, IIO_VOLTAGE),
+	PRU_CHANNEL(1, 1, IIO_VOLTAGE),
+	PRU_CHANNEL(2, 2, IIO_VOLTAGE),
+	PRU_CHANNEL(3, 3, IIO_VOLTAGE),
+	PRU_CHANNEL(4, 4, IIO_VOLTAGE),
+	PRU_CHANNEL(5, 5, IIO_VOLTAGE),
 	IIO_CHAN_SOFT_TIMESTAMP(6),
-	PRU_CHANNEL(0),
-	PRU_CHANNEL(1),
-	PRU_CHANNEL(2),
-	PRU_CHANNEL(3),
-	PRU_CHANNEL(4),
-	PRU_CHANNEL(5),
 };
 
 
@@ -469,9 +422,6 @@ static int pru_request_gpios(struct pru_priv *st)
 	int i;
 	char pinpath[256];
 	struct device *dev = st->dev;
-
-//	if (IS_ERR(st->gpio_io_en = devm_gpiod_get(dev, "pru,io-enable", GPIOD_OUT_HIGH)))
-//		return PTR_ERR(st->gpio_io_en);
 
 	for (i = 0; i < 6; i++) {
 		sprintf(pinpath, "pru,adc-%d-mux-a", i + 1);
@@ -521,6 +471,7 @@ static int pru_buffer_predisable(struct iio_dev *indio_dev)
 	struct pru_priv *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s()\n", __func__);
+	st->bufferd = 0;
 
 	return iio_triggered_buffer_predisable(indio_dev);
 }
@@ -539,8 +490,10 @@ static int pru_trigger_set_state(struct iio_trigger *trig, bool enable)
 	struct iio_dev *indio_dev = iio_trigger_get_drvdata(trig);
 	struct pru_priv *st = iio_priv(indio_dev);
 
-	dev_dbg(st->dev, "%s()\n", __func__);
+	dev_info(st->dev, "%s()\n", __func__);
 	st->bufferd = enable;
+	if (st->bufferd)
+		pru_read_samples(indio_dev, 1);
 
 	return 0;
 }
@@ -565,44 +518,51 @@ static const struct of_device_id of_pru_adc_match[] = {
 static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 			void *priv, u32 src)
 {
-	int i, datlen, offset, dma_id;
+	int i, reg_cnt, s_cnt, dma_id;
 	char *pdata = data;
 	struct device *pdev = p_st->dev;
 	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
 
 	dma_id = pdata[0];
-	datlen = pdata[4] << 24 | pdata[3] << 16 | pdata[2] << 8 | pdata[1];
-
-	dev_info(p_st->dev, "cb() len %d dma_id %d datlen %d\n", len, dma_id, datlen);
+	reg_cnt = pdata[4] << 24 | pdata[3] << 16 | pdata[2] << 8 | pdata[1];
 
 	if (dma_id != 0 && dma_id != 1 && dma_id != 2)
 		return 0;
 
+	s_cnt = p_st->cpu_addr_dma[dma_id][0];
+
+	dev_dbg(p_st->dev, "cb() len %d dma_id %d regs %d scnt %d\n", len, dma_id, reg_cnt, s_cnt);
+
 	if (p_st->bufferd) {
-		iio_push_to_buffers_with_timestamp(indio_dev, p_st->cpu_addr_dma[dma_id],
-										iio_get_time_ns(indio_dev));
+
+		for (i = 0; i < s_cnt; i++)
+			iio_push_to_buffers(indio_dev, p_st->cpu_addr_dma[dma_id] + 1 + (i * 3));
+		dev_dbg(p_st->dev, "cb() done");
+
+		/// re-kick the pruss to make 2 more
+		if (dma_id == 1) {
+//			pru_read_samples(indio_dev, 1);
+			pru_rproc_kick(p_st->rproc, 1);
+		}
+
+		/// clear this buffer
+		p_st->cpu_addr_dma[dma_id][0] = 0;
 		return 0;
 	}
 
-	for (i = 0; i < datlen; i++) {
-		offset = i * 7;
-		p_st->data[0] = p_st->cpu_addr_dma[dma_id][offset + 1];
-		p_st->data[1] = p_st->cpu_addr_dma[dma_id][offset + 2];
-		p_st->data[2] = p_st->cpu_addr_dma[dma_id][offset + 3];
-		p_st->data[3] = p_st->cpu_addr_dma[dma_id][offset + 4];
-		p_st->data[4] = p_st->cpu_addr_dma[dma_id][offset + 5];
-		p_st->data[5] = p_st->cpu_addr_dma[dma_id][offset + 6];
+	p_st->data[0] = p_st->cpu_addr_dma[dma_id][reg_cnt - 3] & 0xFFFF;
+	p_st->data[1] = p_st->cpu_addr_dma[dma_id][reg_cnt - 3] >> 16;
+	p_st->data[2] = p_st->cpu_addr_dma[dma_id][reg_cnt - 2] & 0xFFFF;
+	p_st->data[3] = p_st->cpu_addr_dma[dma_id][reg_cnt - 2] >> 16;
+	p_st->data[4] = p_st->cpu_addr_dma[dma_id][reg_cnt - 1] & 0xFFFF;
+	p_st->data[5] = p_st->cpu_addr_dma[dma_id][reg_cnt - 1] >> 16;
 
-		dev_dbg(p_st->dev, "IDD_%d_%03d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", dma_id,
-					p_st->cpu_addr_dma[dma_id][offset + 0],
-					p_st->cpu_addr_dma[dma_id][offset + 1],
-					p_st->cpu_addr_dma[dma_id][offset + 2],
-					p_st->cpu_addr_dma[dma_id][offset + 3],
-					p_st->cpu_addr_dma[dma_id][offset + 4],
-					p_st->cpu_addr_dma[dma_id][offset + 5],
-					p_st->cpu_addr_dma[dma_id][offset + 6]);
-	}
 
+	dev_dbg(p_st->dev, "IDD_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", dma_id,
+			p_st->data[0], p_st->data[1], p_st->data[2], p_st->data[3], p_st->data[4], p_st->data[5]);
+
+	/// clear this buffer
+	p_st->cpu_addr_dma[dma_id][0] = 0;
 	return 0;
 }
 
@@ -660,7 +620,7 @@ static int pru_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct pru_priv *st;
 	phandle rproc_phandle;
-	int ret;
+	int ret, i;
 	struct iio_dev *indio_dev;
 
 	dev_info(dev, "%s() %s\n", __func__, PRU_ADC_MODULE_VERSION);
@@ -682,6 +642,11 @@ static int pru_probe(struct platform_device *pdev)
 	st->cpu_addr_dma[0] = dma_alloc_coherent(dev, DATA_BUF_SZ, &st->dma_handle[0], GFP_KERNEL);
 	st->cpu_addr_dma[1] = dma_alloc_coherent(dev, DATA_BUF_SZ, &st->dma_handle[1], GFP_KERNEL);
 	st->cpu_addr_dma[2] = dma_alloc_coherent(dev, DATA_BUF_SZ, &st->dma_handle[2], GFP_KERNEL);
+
+	/// clr all buffers
+	st->cpu_addr_dma[0][0] = 0;
+	st->cpu_addr_dma[1][0] = 0;
+	st->cpu_addr_dma[2][0] = 0;
 
 	ret = register_rpmsg_driver(&rpmsg_pru_driver);
 	if (ret) {
@@ -762,9 +727,11 @@ static int pru_probe(struct platform_device *pdev)
 	}
 	st->id = pru_rproc_get_id(st->rproc);
 
-
 	/// start pru execution
 	rproc_boot(st->rproc);
+
+	for (i = 0; i < 12; i++)
+		st->calibscale[i] = 100000;
 
 	INIT_WORK(&st->fetch_work, fetch_thread);
 	st->state = 1;
