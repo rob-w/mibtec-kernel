@@ -88,8 +88,8 @@ struct pru_priv {
 	struct gpio_desc		*gpio_gain0[6];
 	struct gpio_desc		*gpio_gain1[6];
 	struct gpio_desc		*gpio_gain2[6];
-	short					offset[12];
-	int						calibscale[12];
+	short					offset[6];
+	int						calibscale[6];
 	struct iio_trigger		*trig;
 	struct completion		completion;
 	struct rpmsg_device 	*rpdev;
@@ -201,7 +201,7 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 			   int *val2,
 			   long m)
 {
-	int ret;
+	uint64_t ret;
 	struct pru_priv *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s(%ld %ld)\n", __func__, chan->address, m);
@@ -213,6 +213,12 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 			return ret;
 		ret = pru_scan_direct(indio_dev, chan->address);
 		iio_device_release_direct_mode(indio_dev);
+
+		ret -= st->offset[chan->scan_index];
+
+		/// factor with calibscale
+		ret = ret * st->calibscale[chan->scan_index];
+		do_div(ret, 100000);
 
 		*val = (short)ret;
 		return IIO_VAL_INT;
@@ -732,7 +738,7 @@ static int pru_probe(struct platform_device *pdev)
 	/// start pru execution
 	rproc_boot(st->rproc);
 
-	for (i = 0; i < 12; i++)
+	for (i = 0; i <indio_dev->num_channels - 1; i++)
 		st->calibscale[i] = 100000;
 
 	INIT_WORK(&st->fetch_work, fetch_thread);
