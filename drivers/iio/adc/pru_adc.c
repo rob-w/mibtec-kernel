@@ -122,28 +122,22 @@ static void debug_pins(struct pru_priv *st, int adc)
 			gpiod_get_value_cansleep(p_st->gpio_gain2[adc]));
 }
 
-static int pru_read_samples(struct iio_dev *indio_dev, int async)
+static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
 {
 	struct pru_priv *st = iio_priv(indio_dev);
 	int ret = 0;
 	struct pru_prepare prepare;
 
-	if (st->samplecnt == 0)
-		return 0;
-
 	prepare.buffer_addr0 = st->dma_handle[0];
 	prepare.buffer_addr1 = st->dma_handle[1];
 	prepare.buffer_addr2 = st->dma_handle[2];
-	prepare.size = st->samplecnt;
+	prepare.size = cnt;
 
 	dev_dbg(st->dev, "addr0 0x%x  addr1 0x%x  addr2 0x%x\n", st->dma_handle[0], st->dma_handle[1], st->dma_handle[2]);
 
 	ret = rpmsg_send(st->rpdev->ept, &prepare, sizeof(prepare));
 	if (ret)
 		dev_err(st->dev, "rpmsg_send failed: %d\n", ret);
-
-	if (!async)
-		msleep(10);
 
 	return ret;
 }
@@ -175,7 +169,7 @@ static irqreturn_t pru_trigger_handler(int irq, void *p)
 
 	mutex_lock(&st->lock);
 	st->bufferd = 1;
-	pru_read_samples(indio_dev, 1);
+	pru_read_samples(indio_dev, st->samplecnt);
 	iio_trigger_notify_done(indio_dev->trig);
 	mutex_unlock(&st->lock);
 
@@ -186,14 +180,18 @@ static int pru_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 {
 	struct pru_priv *st = iio_priv(indio_dev);
 	int ret;
+	int sleep_ms = 0;
 
 	dev_dbg(st->dev, "%s(%d)\n", __func__, ch);
 	debug_pins(st, ch);
 
-	ret = pru_read_samples(indio_dev, 0);
-	if (ret == 0)
+	ret = pru_read_samples(indio_dev, st->samplecnt);
+	if (ret == 0) {
+		/// approx 303 samples/ms
+		sleep_ms = (st->samplecnt / 305) + 1;
+		msleep(sleep_ms);
 		ret = st->data[ch];
-
+	}
 	return ret;
 }
 
@@ -493,7 +491,7 @@ static int pru_trigger_set_state(struct iio_trigger *trig, bool enable)
 	dev_info(st->dev, "%s()\n", __func__);
 	st->bufferd = enable;
 	if (st->bufferd)
-		pru_read_samples(indio_dev, 1);
+		pru_read_samples(indio_dev, st->samplecnt);
 
 	return 0;
 }
@@ -541,8 +539,10 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 		/// re-kick the pruss to make 2 more
 		if (dma_id == 1) {
-//			pru_read_samples(indio_dev, 1);
-			pru_rproc_kick(p_st->rproc, 1);
+			if (!p_st->samplecnt)
+				pru_read_samples(indio_dev, 0);
+			else
+				pru_rproc_kick(p_st->rproc, 1);
 		}
 
 		/// clear this buffer
@@ -563,6 +563,8 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 	/// clear this buffer
 	p_st->cpu_addr_dma[dma_id][0] = 0;
+	pru_read_samples(indio_dev, 0);
+
 	return 0;
 }
 
