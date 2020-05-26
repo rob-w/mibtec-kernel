@@ -37,8 +37,8 @@
 
 #include <linux/rpmsg/virtio_rpmsg.h>
 
-#define CREATE_TRACE_POINTS
-#include <trace/events/pru.h>
+//#define CREATE_TRACE_POINTS
+//#include <trace/events/gpio.h>
 
 #define PRU_ADC_MODULE_VERSION "1.11"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
@@ -537,7 +537,8 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 		return 0;
 
 	s_cnt = p_st->cpu_addr_dma[dma_id][0];
-	trace_pru_call(dma_id, "start");
+//	trace_pru_call(dma_id, "start");
+//	trace_gpio_value(1, 0, 0);
 
 	dev_dbg(p_st->dev, "cb() len %d dma_id %d regs %d scnt %d\n", len, dma_id, reg_cnt, s_cnt);
 
@@ -546,7 +547,8 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 		for (i = 0; i < s_cnt; i++)
 			iio_push_to_buffers(indio_dev, p_st->cpu_addr_dma[dma_id] + 1 + (i * 3));
 		dev_dbg(p_st->dev, "cb() done");
-		trace_pru_call(dma_id, "end");
+//		trace_pru_call(dma_id, "end");
+//		trace_gpio_value(1, 1, 1);
 
 		/// re-kick the pruss to make 2 more
 		if (dma_id == 1) {
