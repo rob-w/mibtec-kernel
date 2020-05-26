@@ -11,7 +11,7 @@ TRACE_EVENT(
     pru_call,
 
     /* tracepoint function prototype */
-    TP_PROTO(int foo, int bar),
+    TP_PROTO(int foo, const char* bar),
 
     /* arguments for this tracepoint */
     TP_ARGS(foo, bar),
