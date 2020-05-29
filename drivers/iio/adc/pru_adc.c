@@ -40,7 +40,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.11"
+#define PRU_ADC_MODULE_VERSION "1.12"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -163,6 +163,11 @@ static void fetch_thread(struct work_struct *work_arg)
 	return;
 }
 
+static uint64_t pru_calc_units(uint64_t val)
+{
+
+}
+
 static irqreturn_t pru_trigger_handler(int irq, void *p)
 {
 	struct iio_poll_func *pf = p;
@@ -218,6 +223,8 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 		iio_device_release_direct_mode(indio_dev);
 
 		ret -= st->offset[chan->scan_index];
+
+//		ret = pru_calc_units(ret);
 
 		/// factor with calibscale
 		ret = ret * st->calibscale[chan->scan_index];
@@ -275,9 +282,6 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 	int i;
 
 	dev_dbg(st->dev, "%s(%ld)\n", __func__, chan->address);
-
-	if (val < 0 || val2 < 0)
-		return -EINVAL;
 
 	switch (mask) {
 	case IIO_CHAN_INFO_OVERSAMPLING_RATIO:
@@ -497,7 +501,7 @@ static int pru_trigger_set_state(struct iio_trigger *trig, bool enable)
 	struct iio_dev *indio_dev = iio_trigger_get_drvdata(trig);
 	struct pru_priv *st = iio_priv(indio_dev);
 
-	dev_info(st->dev, "%s()\n", __func__);
+	dev_dbg(st->dev, "%s(%d)\n", __func__, enable);
 	st->bufferd = enable;
 	if (st->bufferd)
 		pru_read_samples(indio_dev, st->samplecnt);
