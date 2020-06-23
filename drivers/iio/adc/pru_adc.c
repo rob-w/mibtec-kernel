@@ -21,7 +21,6 @@
 #include <linux/util_macros.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
-#include <linux/workqueue.h>
 #include <linux/remoteproc.h>
 #include <linux/pruss.h>
 
@@ -40,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.12"
+#define PRU_ADC_MODULE_VERSION "1.14"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -68,8 +67,9 @@ struct rpmsg_pru_dev {
 #define DATA_BUF_SZ 4096000
 
 struct pru_priv {
-	int 					state, bufferd, thr_trig;
+	int 					state, bufferd;
 	int						samplecnt;
+	int						cnted;
 	int						id;
 	struct device			*dev;
 	struct iio_dev			*indio_dev;
@@ -96,7 +96,6 @@ struct pru_priv {
 	struct iio_trigger		*trig;
 	struct completion		completion;
 	struct rpmsg_device 	*rpdev;
-	struct work_struct		fetch_work;
 
 	/*
 	 * DMA (thus cache coherency maintenance) requires the
@@ -135,8 +134,10 @@ static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
 	prepare.buffer_addr1 = st->dma_handle[1];
 	prepare.buffer_addr2 = st->dma_handle[2];
 	prepare.size = cnt;
+	st->cnted = 0;
 
-	dev_dbg(st->dev, "addr0 0x%x  addr1 0x%x  addr2 0x%x\n", st->dma_handle[0], st->dma_handle[1], st->dma_handle[2]);
+	dev_dbg(st->dev, "cnt %d addr0 0x%x  addr1 0x%x addr2 0x%x\n",
+		cnt, st->dma_handle[0], st->dma_handle[1], st->dma_handle[2]);
 
 	ret = rpmsg_send(st->rpdev->ept, &prepare, sizeof(prepare));
 	if (ret)
@@ -145,27 +146,10 @@ static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
 	return ret;
 }
 
-static void fetch_thread(struct work_struct *work_arg)
-{
-	struct pru_priv *st = container_of(work_arg, struct pru_priv, fetch_work);
-	struct device *pdev = st->dev;
-	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
-
-	dev_info(st->dev, "Starting buffer thread on PID: [%d]\n",  current->pid);
-	set_current_state(TASK_INTERRUPTIBLE);
-
-	while(st->state) {
-//		if (!st->bufferd)
-//			pru_read_samples(indio_dev, 0);
-		msleep(500);
-	}
-
-	return;
-}
-
 static uint64_t pru_calc_units(uint64_t val)
 {
 
+	return 0;
 }
 
 static irqreturn_t pru_trigger_handler(int irq, void *p)
@@ -188,19 +172,20 @@ static int pru_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 {
 	struct pru_priv *st = iio_priv(indio_dev);
 	int ret;
-	int sleep_ms = 0;
 
 	dev_dbg(st->dev, "%s(%d)\n", __func__, ch);
 	debug_pins(st, ch);
 
-	ret = pru_read_samples(indio_dev, st->samplecnt);
-	if (ret == 0) {
-		/// approx 303 samples/ms
-		sleep_ms = (st->samplecnt / 305) + 1;
-		msleep(sleep_ms);
-		ret = st->data[ch];
-	}
-	return ret;
+	ret = pru_read_samples(indio_dev, 1000);
+	if (ret != 0)
+		return -EINVAL;
+
+	ret = wait_for_completion_timeout(&st->completion,
+					msecs_to_jiffies(1000));
+	if (!ret)
+		return -ETIMEDOUT;
+
+	return st->data[ch];
 }
 
 static int pru_read_raw(struct iio_dev *indio_dev,
@@ -222,6 +207,9 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 		ret = pru_scan_direct(indio_dev, chan->address);
 		iio_device_release_direct_mode(indio_dev);
 
+		if (ret == -ETIMEDOUT || ret == -EINVAL)
+			return ret;
+
 		ret -= st->offset[chan->scan_index];
 
 //		ret = pru_calc_units(ret);
@@ -240,6 +228,9 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 
 		ret = pru_scan_direct(indio_dev, chan->address);
 		iio_device_release_direct_mode(indio_dev);
+		if (ret == -ETIMEDOUT)
+			return ret;
+
 		*val = (short)ret;
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_CALIBSCALE:
@@ -537,33 +528,33 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 	dma_id = pdata[0];
 	reg_cnt = pdata[4] << 24 | pdata[3] << 16 | pdata[2] << 8 | pdata[1];
 
-	if (dma_id != 0 && dma_id != 1 && dma_id != 2)
+	if (dma_id != 0 && dma_id != 1 && dma_id != 2) {
+		pru_read_samples(indio_dev, 0);
 		return 0;
+	}
 
 	s_cnt = p_st->cpu_addr_dma[dma_id][0];
 //	trace_pru_call(dma_id, "start");
 //	trace_gpio_value(1, 0, 0);
 
-	dev_dbg(p_st->dev, "cb() len %d dma_id %d regs %d scnt %d\n", len, dma_id, reg_cnt, s_cnt);
-
 	if (p_st->bufferd) {
+
+		p_st->cnted += s_cnt;
+
+		dev_dbg(p_st->dev, "cb() len %d dma_id %d regs %d scnt %d\n", len, dma_id, reg_cnt, s_cnt);
+
+		if (p_st->cnted >= p_st->samplecnt)
+			pru_read_samples(indio_dev, 0);
 
 		for (i = 0; i < s_cnt; i++)
 			iio_push_to_buffers(indio_dev, p_st->cpu_addr_dma[dma_id] + 1 + (i * 3));
-		dev_dbg(p_st->dev, "cb() done");
-//		trace_pru_call(dma_id, "end");
-//		trace_gpio_value(1, 1, 1);
-
-		/// re-kick the pruss to make 2 more
-		if (dma_id == 1) {
-			if (!p_st->samplecnt)
-				pru_read_samples(indio_dev, 0);
-			else
-				pru_rproc_kick(p_st->rproc, 1);
-		}
 
 		/// clear this buffer
 		p_st->cpu_addr_dma[dma_id][0] = 0;
+
+//		trace_pru_call(dma_id, "end");
+//		trace_gpio_value(1, 1, 1);
+
 		return 0;
 	}
 
@@ -580,6 +571,7 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 	/// clear this buffer
 	p_st->cpu_addr_dma[dma_id][0] = 0;
+	complete(&p_st->completion);
 	pru_read_samples(indio_dev, 0);
 
 	return 0;
@@ -752,10 +744,10 @@ static int pru_probe(struct platform_device *pdev)
 	for (i = 0; i <indio_dev->num_channels - 1; i++)
 		st->calibscale[i] = 100000;
 
-	INIT_WORK(&st->fetch_work, fetch_thread);
+	init_completion(&st->completion);
+
 	st->state = 1;
 	st->bufferd = 0;
-	schedule_work(&st->fetch_work);
 
 	return devm_iio_device_register(dev, indio_dev);
 }
@@ -793,7 +785,6 @@ static int pru_remove(struct platform_device *pdev)
 
 	dev_dbg(st->dev, "%s()\n", __func__);
 	st->state = 0;
-	cancel_work_sync(&st->fetch_work);
 	unregister_rpmsg_driver(&rpmsg_pru_driver);
 
 	free_dma(st);
