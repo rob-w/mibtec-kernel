@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.14"
+#define PRU_ADC_MODULE_VERSION "1.15"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -547,7 +547,9 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 			pru_read_samples(indio_dev, 0);
 
 		for (i = 0; i < s_cnt; i++)
-			iio_push_to_buffers(indio_dev, p_st->cpu_addr_dma[dma_id] + 1 + (i * 3));
+			iio_push_to_buffers_with_timestamp(indio_dev,
+				p_st->cpu_addr_dma[dma_id] + 1 + (i * 3),
+				iio_get_time_ns(indio_dev));
 
 		/// clear this buffer
 		p_st->cpu_addr_dma[dma_id][0] = 0;
