@@ -50,6 +50,8 @@ static const unsigned int ad7616_oversampling_avail[8] = {
 
 static int ad7606_reset(struct ad7606_state *st)
 {
+	dev_dbg(st->dev, "%s()\n", __func__);
+
 	if (st->gpio_reset) {
 		if (gpiod_cansleep(st->gpio_reset))
 			gpiod_set_value_cansleep(st->gpio_reset, 1);
@@ -72,6 +74,8 @@ static int ad7606_read_samples(struct ad7606_state *st)
 	bool is_curr_n_volt = st->chip_info->is_curr_n_volt;
 	u16 *data = st->data;
 	int ret;
+
+	dev_dbg(st->dev, "%s()\n", __func__);
 
 	///HARDCODE FOR NOW FOR US
 	if (is_curr_n_volt)
@@ -111,6 +115,8 @@ static irqreturn_t ad7606_trigger_handler(int irq, void *p)
 	struct ad7606_state *st = iio_priv(indio_dev);
 	int ret;
 
+	dev_dbg(st->dev, "%s(%d)\n", __func__, irq);
+
 	mutex_lock(&st->lock);
 
 	ret = ad7606_read_samples(st);
@@ -119,6 +125,10 @@ static irqreturn_t ad7606_trigger_handler(int irq, void *p)
 						   iio_get_time_ns(indio_dev));
 
 	iio_trigger_notify_done(indio_dev->trig);
+
+	/// prevent the system from overloading
+	msleep(1);
+
 	/* The rising edge of the CONVST signal starts a new conversion. */
 	if (gpiod_cansleep(st->gpio_convst))
 		gpiod_set_value_cansleep(st->gpio_convst, 1);
@@ -134,6 +144,8 @@ static int ad7606_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 {
 	struct ad7606_state *st = iio_priv(indio_dev);
 	int ret;
+
+	dev_dbg(st->dev, "%s(%d)\n", __func__, ch);
 
 	if (gpiod_cansleep(st->gpio_convst))
 		gpiod_set_value_cansleep(st->gpio_convst, 1);
@@ -152,7 +164,7 @@ static int ad7606_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 
 error_ret:
 	if (gpiod_cansleep(st->gpio_convst))
-		gpiod_set_value_cansleep(st->gpio_convst, 1);
+		gpiod_set_value_cansleep(st->gpio_convst, 0);
 	else
 		gpiod_set_value(st->gpio_convst, 0);
 
@@ -733,6 +745,8 @@ static int ad7606_validate_trigger(struct iio_dev *indio_dev,
 				   struct iio_trigger *trig)
 {
 	struct ad7606_state *st = iio_priv(indio_dev);
+
+	dev_info(st->dev, "%s()\n", __func__);
 
 	if (st->trig != trig)
 		return -EINVAL;
