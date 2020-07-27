@@ -48,7 +48,6 @@ struct pru_prepare{
 	uint32_t size;
 	uint32_t buffer_addr0;
 	uint32_t buffer_addr1;
-	uint32_t buffer_addr2;
 } __attribute__((__packed__));
 
 struct pru_chip_info {
@@ -70,6 +69,7 @@ struct pru_priv {
 	int 					state, bufferd;
 	int						samplecnt;
 	int						cnted;
+	int						looped;
 	int						id;
 	struct device			*dev;
 	struct iio_dev			*indio_dev;
@@ -82,8 +82,8 @@ struct pru_priv {
 	void __iomem			*base_address;
 	const unsigned int		*oversampling_avail;
 	unsigned int			num_os_ratios;
-	uint32_t				*cpu_addr_dma[3];
-	dma_addr_t				dma_handle[3];
+	uint32_t				*cpu_addr_dma[2];
+	dma_addr_t				dma_handle[2];
 
 	struct mutex			lock; /* protect sensor state */
 	struct gpio_desc		*gpio_mux_a[6];
@@ -132,12 +132,11 @@ static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
 
 	prepare.buffer_addr0 = st->dma_handle[0];
 	prepare.buffer_addr1 = st->dma_handle[1];
-	prepare.buffer_addr2 = st->dma_handle[2];
 	prepare.size = cnt;
 	st->cnted = 0;
 
-	dev_dbg(st->dev, "cnt %d addr0 0x%x  addr1 0x%x addr2 0x%x\n",
-		cnt, st->dma_handle[0], st->dma_handle[1], st->dma_handle[2]);
+	dev_dbg(st->dev, "cnt %d addr0 0x%x addr1 0x%x\n",
+		cnt, st->dma_handle[0], st->dma_handle[1]);
 
 	ret = rpmsg_send(st->rpdev->ept, &prepare, sizeof(prepare));
 	if (ret)
@@ -327,6 +326,36 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 	}
 }
 
+static ssize_t pru_show_looped(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct pru_priv *st = iio_priv(dev_to_iio_dev(dev));
+
+	return sprintf(buf, "%d\n", st->looped);
+}
+
+static ssize_t pru_set_looped(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	struct pru_priv *st = iio_priv(dev_to_iio_dev(dev));
+	unsigned int val;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &val);
+	if (ret)
+		goto error_ret;
+
+	if (val < 0)
+		return -EINVAL;
+
+	st->looped = val;
+
+error_ret:
+	return ret ? ret : len;
+}
+
 static ssize_t pru_show_samplecnt(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -357,12 +386,15 @@ error_ret:
 	return ret ? ret : len;
 }
 
+static IIO_DEVICE_ATTR(looped, (S_IWUSR | S_IRUGO),
+		pru_show_looped, pru_set_looped, 0);
+
 static IIO_DEVICE_ATTR(samplecnt, (S_IWUSR | S_IRUGO),
 		pru_show_samplecnt, pru_set_samplecnt, 0);
 
-
 static struct attribute *pru_attributes[] = {
 	&iio_dev_attr_samplecnt.dev_attr.attr,
+	&iio_dev_attr_looped.dev_attr.attr,
 	NULL,
 };
 
@@ -541,10 +573,14 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 		p_st->cnted += s_cnt;
 
-		dev_dbg(p_st->dev, "cb() len %d dma_id %d regs %d scnt %d\n", len, dma_id, reg_cnt, s_cnt);
+		dev_dbg(p_st->dev, "cb() len %d dma_id %d reg_cnt %d scnt %d\n", len, dma_id, reg_cnt, s_cnt);
 
-		if (p_st->cnted >= p_st->samplecnt)
-			pru_read_samples(indio_dev, 0);
+		if (p_st->cnted >= p_st->samplecnt) {
+			if (p_st->looped)
+				pru_read_samples(indio_dev, p_st->samplecnt);
+			else
+				pru_read_samples(indio_dev, 0);
+		}
 
 		for (i = 0; i < s_cnt; i++)
 			iio_push_to_buffers_with_timestamp(indio_dev,
@@ -624,8 +660,6 @@ static void free_dma(struct pru_priv *st)
 			st->cpu_addr_dma[0], st->dma_handle[0]);
 	dma_free_coherent(st->dev, DATA_BUF_SZ,
 			st->cpu_addr_dma[1], st->dma_handle[1]);
-	dma_free_coherent(st->dev, DATA_BUF_SZ,
-			st->cpu_addr_dma[2], st->dma_handle[2]);
 }
 
 static int pru_probe(struct platform_device *pdev)
@@ -654,12 +688,10 @@ static int pru_probe(struct platform_device *pdev)
 
 	st->cpu_addr_dma[0] = dma_alloc_coherent(dev, DATA_BUF_SZ, &st->dma_handle[0], GFP_KERNEL);
 	st->cpu_addr_dma[1] = dma_alloc_coherent(dev, DATA_BUF_SZ, &st->dma_handle[1], GFP_KERNEL);
-	st->cpu_addr_dma[2] = dma_alloc_coherent(dev, DATA_BUF_SZ, &st->dma_handle[2], GFP_KERNEL);
 
 	/// clr all buffers
 	st->cpu_addr_dma[0][0] = 0;
 	st->cpu_addr_dma[1][0] = 0;
-	st->cpu_addr_dma[2][0] = 0;
 
 	ret = register_rpmsg_driver(&rpmsg_pru_driver);
 	if (ret) {
