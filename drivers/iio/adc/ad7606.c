@@ -29,7 +29,7 @@
 
 #include "ad7606.h"
 
-#define AD7606_MODULE_VERSION "1.3"
+#define AD7606_MODULE_VERSION "1.3.1"
 
 /*
  * Scales are computed as 5000/32768 and 10000/32768 respectively,
@@ -126,8 +126,8 @@ static irqreturn_t ad7606_trigger_handler(int irq, void *p)
 
 	iio_trigger_notify_done(indio_dev->trig);
 
-	/// prevent the system from overloading
-	msleep(1);
+	///  measured to approx 1kHz
+	usleep_range(929, 930);
 
 	/* The rising edge of the CONVST signal starts a new conversion. */
 	if (gpiod_cansleep(st->gpio_convst))
