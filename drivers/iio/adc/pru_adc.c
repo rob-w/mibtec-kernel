@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.16"
+#define PRU_ADC_MODULE_VERSION "1.20"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -425,7 +425,7 @@ static const struct iio_info pru_info = {
 		.scan_type = {											\
 			.sign = 's',										\
 			.realbits = 16,										\
-			.storagebits = 16,									\
+			.storagebits = 32,									\
 			.endianness = IIO_CPU,								\
 		},														\
 }
@@ -584,7 +584,7 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 		for (i = 0; i < s_cnt; i++)
 			iio_push_to_buffers_with_timestamp(indio_dev,
-				p_st->cpu_addr_dma[dma_id] + 1 + (i * 3),
+				p_st->cpu_addr_dma[dma_id] + 1 + (i * 6),
 				iio_get_time_ns(indio_dev));
 
 		/// clear this buffer
@@ -596,12 +596,12 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 		return 0;
 	}
 
-	p_st->data[0] = p_st->cpu_addr_dma[dma_id][reg_cnt - 3] & 0xFFFF;
-	p_st->data[1] = p_st->cpu_addr_dma[dma_id][reg_cnt - 3] >> 16;
-	p_st->data[2] = p_st->cpu_addr_dma[dma_id][reg_cnt - 2] & 0xFFFF;
-	p_st->data[3] = p_st->cpu_addr_dma[dma_id][reg_cnt - 2] >> 16;
-	p_st->data[4] = p_st->cpu_addr_dma[dma_id][reg_cnt - 1] & 0xFFFF;
-	p_st->data[5] = p_st->cpu_addr_dma[dma_id][reg_cnt - 1] >> 16;
+	p_st->data[0] = p_st->cpu_addr_dma[dma_id][reg_cnt - 6] & 0xFFFF;
+	p_st->data[1] = p_st->cpu_addr_dma[dma_id][reg_cnt - 5] & 0xFFFF;
+	p_st->data[2] = p_st->cpu_addr_dma[dma_id][reg_cnt - 4] & 0xFFFF;
+	p_st->data[3] = p_st->cpu_addr_dma[dma_id][reg_cnt - 3] & 0xFFFF;
+	p_st->data[4] = p_st->cpu_addr_dma[dma_id][reg_cnt - 2] & 0xFFFF;
+	p_st->data[5] = p_st->cpu_addr_dma[dma_id][reg_cnt - 1] & 0xFFFF;
 
 
 	dev_dbg(p_st->dev, "IDD_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", dma_id,
