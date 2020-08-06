@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.20"
+#define PRU_ADC_MODULE_VERSION "1.21"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -217,7 +217,7 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 		ret = ret * st->calibscale[chan->scan_index];
 		do_div(ret, 100000);
 
-		*val = (short)ret;
+		*val = ret;
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_RAW:
@@ -230,7 +230,7 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 		if (ret == -ETIMEDOUT)
 			return ret;
 
-		*val = (short)ret;
+		*val = ret;
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_CALIBSCALE:
 		*val = st->calibscale[chan->scan_index];
@@ -423,7 +423,7 @@ static const struct iio_info pru_info = {
 		.info_mask_shared_by_all = mask,						\
 		.scan_index = idx,										\
 		.scan_type = {											\
-			.sign = 's',										\
+			.sign = 'u',										\
 			.realbits = 16,										\
 			.storagebits = 32,									\
 			.endianness = IIO_CPU,								\
