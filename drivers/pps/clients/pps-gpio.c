@@ -150,8 +150,7 @@ static int pps_gpio_probe(struct platform_device *pdev)
 		data->info.mode |= PPS_CAPTURECLEAR | PPS_OFFSETCLEAR |
 			PPS_ECHOCLEAR;
 	data->info.owner = THIS_MODULE;
-	snprintf(data->info.name, PPS_MAX_NAME_LEN - 1, "%s.%d",
-		 pdev->name, pdev->id);
+	snprintf(data->info.name, PPS_MAX_NAME_LEN - 1, "%s", pdev->name);
 
 	/* register PPS source */
 	pps_default_params = PPS_CAPTUREASSERT | PPS_OFFSETASSERT;
