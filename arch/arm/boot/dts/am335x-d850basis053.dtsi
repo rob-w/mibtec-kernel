@@ -19,8 +19,7 @@
 / {
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
-/****** LATER USE
-	pps_t6 {
+	pps_0 {
 		pinctrl-names = "default";
 		pinctrl-0 = <&timer6_pin>;
 		timer = <&timer6>;
@@ -28,14 +27,55 @@
 		status = "okay";
 	};
 
-	pps_t7 {
-		inctrl-names = "default";
+	pps_1 {
+		pinctrl-names = "default";
 		pinctrl-0 = <&timer7_pin>;
 		timer = <&timer7>;
 		compatible = "pps-gmtimer";
 		status = "okay";
 	};
-*/
+
+	pps_2 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&basis_pps_2>;
+
+		gpios = <&gpio1 5 GPIO_ACTIVE_HIGH>;
+		assert-falling-edge;
+
+		compatible = "pps-gpio";
+		status = "okay";
+	};
+	pps_3 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&basis_pps_3>;
+
+		gpios = <&gpio1 1 GPIO_ACTIVE_HIGH>;
+		assert-falling-edge;
+
+		compatible = "pps-gpio";
+		status = "okay";
+	};
+	pps_4 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&basis_pps_4>;
+
+		gpios = <&gpio2 12 GPIO_ACTIVE_HIGH>;
+		assert-falling-edge;
+
+		compatible = "pps-gpio";
+		status = "okay";
+	};
+	pps_5 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&basis_pps_5>;
+
+		gpios = <&gpio2 22 GPIO_ACTIVE_HIGH>;
+		assert-falling-edge;
+
+		compatible = "pps-gpio";
+		status = "okay";
+	};
+
 	leds {
 		compatible = "gpio-leds";
 
@@ -87,19 +127,13 @@
 	basis_pins: basis_pins {
 		pinctrl-single,pins = <
 			AM33XX_IOPAD(BONE_P8_07, PIN_OUTPUT | MUX_MODE7)				/* timer4.gpio2_2 DO_1 */
-			AM33XX_IOPAD(BONE_P8_08, PIN_INPUT | MUX_MODE7)					/* timer7.gpio2_3 DI_1 CHECK LATER USE */
 			AM33XX_IOPAD(BONE_P8_09, PIN_OUTPUT | MUX_MODE7)				/* timer5.gpio2_5 DO_2 */
-			AM33XX_IOPAD(BONE_P8_10, PIN_INPUT | MUX_MODE7)					/* timer6.gpio2_4 DI_2 CHECK LATER USE */
 			AM33XX_IOPAD(BONE_P8_18, PIN_INPUT | MUX_MODE7)					/* gpio2_1 IN SYNC */
-			AM33XX_IOPAD(BONE_P8_22, PIN_INPUT | MUX_MODE7)					/* gpio1_5.gpio1_5 DI_3 */
 			AM33XX_IOPAD(BONE_P8_23, PIN_INPUT | MUX_MODE7)					/* gpio1_4.gpio1_4 DO_3 */
-			AM33XX_IOPAD(BONE_P8_24, PIN_INPUT | MUX_MODE7)					/* gpio1_1.gpio1_1 DI_4 */
 			AM33XX_IOPAD(BONE_P8_25, PIN_INPUT | MUX_MODE7)					/* gpio1_0.gpio1_0 DO_4 */
-			AM33XX_IOPAD(BONE_P8_27, PIN_INPUT | MUX_MODE7)					/* gpio2_22.gpio2_22 DI_6 */
 			AM33XX_IOPAD(BONE_P8_30, PIN_INPUT | MUX_MODE7)					/* gpio2_25 */
 			AM33XX_IOPAD(BONE_P8_33, PIN_INPUT | MUX_MODE7)					/* gpio0_9 */
 			AM33XX_IOPAD(BONE_P8_35, PIN_INPUT | MUX_MODE7)					/* gpio0_8 */
-			AM33XX_IOPAD(BONE_P8_39, PIN_INPUT | MUX_MODE7)					/* gpio2_12.gpio2_12 DI_5 */
 
 			AM33XX_IOPAD(BONE_P9_12, PIN_INPUT | MUX_MODE7)					/* gpio1_28 OUT SYNC */
 			AM33XX_IOPAD(BONE_P9_14, PIN_INPUT | MUX_MODE7)					/* gpio1_18 RTC IRQ */
@@ -160,19 +194,42 @@
 		>;
 	};
 
-/***** LATER USE 
+	basis_pps_2: basis_pps_2 {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P8_22, PIN_INPUT | MUX_MODE7)					/* gpio1_5.gpio1_5 DI_3 */
+		>;
+	};
+
+	basis_pps_3: basis_pps_3 {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P8_24, PIN_INPUT | MUX_MODE7)					/* gpio1_1.gpio1_1 DI_4 */
+		>;
+	};
+
+	basis_pps_4: basis_pps_4 {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P8_39, PIN_INPUT | MUX_MODE7)					/* gpio2_12.gpio2_12 DI_5 */
+		>;
+	};
+
+	basis_pps_5: basis_pps_5 {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P8_27, PIN_INPUT | MUX_MODE7)					/* gpio2_22.gpio2_22 DI_6 */
+		>;
+	};
+
 	timer6_pin: timer6_pin {
 		pinctrl-single,pins = <
-			AM33XX_IOPAD(BONE_P8_10, PIN_INPUT | MUX_MODE2)
+			AM33XX_IOPAD(BONE_P8_10, PIN_INPUT | MUX_MODE2)					/* timer6.gpio2_4 DI_2 CHECK LATER USE */
 		>;
 	};
 
 	timer7_pin: timer7_pin {
 		pinctrl-single,pins = <
-			AM33XX_IOPAD(BONE_P8_08, PIN_INPUT | MUX_MODE2)
+			AM33XX_IOPAD(BONE_P8_08, PIN_INPUT | MUX_MODE2)					/* timer7.gpio2_3 DI_1 CHECK LATER USE */
 		>;
 	};
-*/
+
 	adc0_pins: adc0_pins {
 		pinctrl-single,pins = <
 			AM33XX_IOPAD(BONE_P9_15, PIN_INPUT | MUX_MODE7)					/* gpio1_16 ADC BASIS BUSY */
