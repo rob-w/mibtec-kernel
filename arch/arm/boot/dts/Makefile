@@ -617,6 +617,7 @@ dtb-$(CONFIG_SOC_AM33XX) += \
 	am335x-bone.dtb \
 	am335x-boneblack.dtb \
 	am335x-d850anpass060.dtb \
+	am335x-d850anpass062.dtb \
 	am335x-d850basis053.dtb \
 	am335x-boneblack-wireless.dtb \
 	am335x-boneblue.dtb \
