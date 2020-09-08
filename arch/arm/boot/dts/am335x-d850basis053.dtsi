@@ -19,11 +19,21 @@
 / {
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
-	pps_0 {
+/*	pps_0 {
 		pinctrl-names = "default";
 		pinctrl-0 = <&timer6_pin>;
 		timer = <&timer6>;
 		compatible = "pps-gmtimer";
+		status = "okay";
+	};*/
+
+	cnt_gmtimer {
+		pinctrl-names = "default";
+		pinctrl-0 = <&timer6_pin>;
+
+		timer = <&timer6>;
+
+		compatible = "cnt-gmtimer";
 		status = "okay";
 	};
 

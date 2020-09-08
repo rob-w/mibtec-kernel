@@ -15,15 +15,20 @@
 #include <linux/kernel.h>
 #include <linux/rpmsg.h>
 #include <linux/module.h>
+#include <linux/clk.h>
 #include <linux/regulator/consumer.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/sysfs.h>
 #include <linux/util_macros.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
+
 #include <linux/platform_device.h>
-#include <clocksource/timer-ti-dm.h>
 #include <linux/platform_data/dmtimer-omap.h>
+
+#include <linux/clocksource.h>
+#include <clocksource/timer-ti-dm.h>
 
 #include <linux/iio/iio.h>
 #include <linux/iio/buffer.h>
@@ -51,24 +56,33 @@ struct cnt_gmtimer_pdata {
 	int 					state, bufferd;
 	int						gate_time;	// in usec ?
 	int						cnted;
-	int						looped;
+//	int						looped;
 	int						id;
 	struct device			*dev;
 	struct iio_dev			*indio_dev;
 	const struct cnt_gmtimer_info	*chip_info;
-	struct pruss			*pruss;
-	struct rproc			*rproc;
 	struct regulator		*reg;
-	unsigned int			range;
-	unsigned int			oversampling;
-	void __iomem			*base_address;
-	const unsigned int		*oversampling_avail;
+//	unsigned int			range;
+//	unsigned int			oversampling;
+//	void __iomem			*base_address;
+//	const unsigned int		*oversampling_avail;
 	unsigned int			num_os_ratios;
 
 	struct mutex			lock; /* protect sensor state */
 	struct gpio_desc		*gpio_mux_a[6];
 	struct iio_trigger		*trig;
 	struct completion		completion;
+
+	struct omap_dm_timer *capture_timer;
+	const struct omap_dm_timer_ops *timer_ops;
+	const char *timer_name;
+	uint32_t frequency;
+	unsigned int capture;
+	unsigned int overflow;
+	unsigned int count_at_interrupt;
+	struct timespec64 delta;
+	struct clocksource clksrc;
+	int ready;
 
 	/*
 	 * DMA (thus cache coherency maintenance) requires the
@@ -87,6 +101,177 @@ static int cnt_gmtimer_read_samples(struct iio_dev *indio_dev, int cnt)
 	st->cnted = 0;
 
 	return ret;
+}
+
+static void cnt_gmtimer_enable_irq(struct cnt_gmtimer_pdata *st)
+{
+    unsigned int interrupt_mask;
+
+    interrupt_mask = OMAP_TIMER_INT_CAPTURE | OMAP_TIMER_INT_OVERFLOW;
+    __omap_dm_timer_int_enable(st->capture_timer, interrupt_mask);
+    st->capture_timer->context.tier = interrupt_mask;
+    st->capture_timer->context.twer = interrupt_mask;
+}
+
+static void cnt_gmtimer_cleanup_timer(struct cnt_gmtimer_pdata *st)
+{
+	if (st->capture_timer == NULL)
+		return;
+
+	st->timer_ops->set_source(st->capture_timer, OMAP_TIMER_SRC_SYS_CLK); // in case TCLKIN is stopped during boot
+	st->timer_ops->set_int_disable(st->capture_timer, OMAP_TIMER_INT_CAPTURE | OMAP_TIMER_INT_OVERFLOW);
+	free_irq(st->capture_timer->irq, st);
+	st->timer_ops->stop(st->capture_timer);
+	st->timer_ops->free(st->capture_timer);
+	st->capture_timer = NULL;
+}
+
+/* clocksource ***************/
+static struct cnt_gmtimer_pdata *clocksource_timer = NULL;
+
+static u64 cnt_gmtimer_read_cycles(struct clocksource *cs)
+{
+	u64 cycles = __omap_dm_timer_read_counter(clocksource_timer->capture_timer,
+							clocksource_timer->capture_timer->posted);
+	return (cycles);
+}
+
+static irqreturn_t cnt_gmtimer_interrupt(int irq, void *data)
+{
+	struct cnt_gmtimer_pdata *st;
+	unsigned int irq_status;
+
+	st = data;
+
+	if (!st->ready)
+		return IRQ_HANDLED;
+
+	irq_status = st->timer_ops->read_status(st->capture_timer);
+
+	if (irq_status & OMAP_TIMER_INT_CAPTURE) {
+		uint32_t ps_per_hz;
+		unsigned int count_at_capture;
+
+//		pps_get_ts(&pdata->ts);
+
+		st->count_at_interrupt = st->timer_ops->read_counter(st->capture_timer);
+		count_at_capture = __omap_dm_timer_read(st->capture_timer,
+									OMAP_TIMER_CAPTURE_REG,
+									st->capture_timer->posted);
+
+		st->delta.tv_sec = 0;
+
+		// use picoseconds per hz to avoid floating point and limit the rounding error
+		ps_per_hz = 1000000000 / (st->frequency / 1000);
+		st->delta.tv_nsec = ((st->count_at_interrupt - count_at_capture) * ps_per_hz) / 1000;
+
+		dev_dbg(st->dev, "%s() %d vs %d -> %ld \n", __func__,
+				st->count_at_interrupt, count_at_capture, st->delta.tv_nsec);
+
+//		pps_sub_ts(&st->ts, st->delta);
+//		pps_event(pdata->pps, &pdata->ts, PPS_CAPTUREASSERT, NULL);
+
+		st->capture++;
+		__omap_dm_timer_write_status(st->capture_timer, OMAP_TIMER_INT_CAPTURE);
+	}
+
+	if (irq_status & OMAP_TIMER_INT_OVERFLOW) {
+		st->overflow++;
+		__omap_dm_timer_write_status(st->capture_timer, OMAP_TIMER_INT_OVERFLOW);
+	}
+
+	return IRQ_HANDLED; // TODO: shared interrupts?
+}
+
+static void omap_dm_timer_setup_capture(struct omap_dm_timer *timer, const struct omap_dm_timer_ops *timer_ops)
+{
+	u32 ctrl;
+
+	timer_ops->set_source(timer, OMAP_TIMER_SRC_SYS_CLK);
+	timer_ops->enable(timer);
+
+	ctrl = __omap_dm_timer_read(timer, OMAP_TIMER_CTRL_REG, timer->posted);
+
+	// disable prescaler
+	ctrl &= ~(OMAP_TIMER_CTRL_PRE | (0x07 << 2));
+
+	// autoreload
+	ctrl |= OMAP_TIMER_CTRL_AR;
+	__omap_dm_timer_write(timer, OMAP_TIMER_LOAD_REG, 0, timer->posted);
+
+	// start timer
+	ctrl |= OMAP_TIMER_CTRL_ST;
+
+	// set capture
+	ctrl |= OMAP_TIMER_CTRL_TCM_LOWTOHIGH | OMAP_TIMER_CTRL_GPOCFG; // TODO: configurable direction
+
+	__omap_dm_timer_load_start(timer, ctrl, 0, timer->posted);
+
+	/* Save the context */
+	timer->context.tclr = ctrl;
+	timer->context.tldr = 0;
+	timer->context.tcrr = 0;
+}
+
+static int cnt_gmtimer_init_timer(struct device_node *t_dn, struct cnt_gmtimer_pdata *st)
+{
+	struct clk *gt_fclk;
+
+	of_property_read_string_index(t_dn, "ti,hwmods", 0, &st->timer_name);
+	if (!st->timer_name) {
+		pr_err("ti,hwmods property missing?\n");
+		return -ENODEV;
+	}
+
+	st->capture_timer = st->timer_ops->request_by_node(t_dn);
+	if (!st->capture_timer) {
+		pr_err("request_by_node failed\n");
+		return -ENODEV;
+    }
+
+	// TODO: use devm_request_irq?
+	if (request_irq(st->capture_timer->irq, cnt_gmtimer_interrupt, IRQF_TIMER, "cnt-gmtimer-irq", st)){
+		pr_err("cannot register IRQ %d\n", st->capture_timer->irq);
+		return -EIO;
+	}
+
+	omap_dm_timer_setup_capture(st->capture_timer, st->timer_ops);
+
+	gt_fclk = st->timer_ops->get_fclk(st->capture_timer);
+	st->frequency = clk_get_rate(gt_fclk);
+
+	pr_info("timer name=%s rate=%uHz\n", st->timer_name, st->frequency);
+
+	return 0;
+}
+
+static void cnt_gmtimer_clocksource_init(struct cnt_gmtimer_pdata *st)
+{
+    if (clocksource_timer != NULL)
+		return;
+
+	st->clksrc.name = st->timer_name;
+
+	st->clksrc.rating = 299;
+	st->clksrc.read = cnt_gmtimer_read_cycles;
+	st->clksrc.mask = CLOCKSOURCE_MASK(32);
+	st->clksrc.flags = CLOCK_SOURCE_IS_CONTINUOUS;
+
+	clocksource_timer = st;
+	if (clocksource_register_hz(&st->clksrc, st->frequency)){
+		pr_err("Could not register clocksource %s\n", st->clksrc.name);
+		clocksource_timer = NULL;
+	} else
+		pr_info("clocksource: %s at %u Hz\n", st->clksrc.name, st->frequency);
+}
+
+static void cnt_gmtimer_clocksource_cleanup(struct cnt_gmtimer_pdata *st)
+{
+    if (st == clocksource_timer)
+    {
+        clocksource_unregister(&st->clksrc);
+        clocksource_timer = NULL;
+    }
 }
 
 static irqreturn_t cnt_gmtimer_trigger_handler(int irq, void *p)
@@ -164,7 +349,6 @@ static int cnt_gmtimer_write_raw(struct iio_dev *indio_dev,
 			    long mask)
 {
 	struct cnt_gmtimer_pdata *st = iio_priv(indio_dev);
-	int i;
 
 	dev_dbg(st->dev, "%s(%ld)\n", __func__, chan->address);
 
@@ -342,12 +526,65 @@ static const struct of_device_id of_cnt_gmtimer_match[] = {
 
 MODULE_DEVICE_TABLE(of, of_cnt_gmtimer_match);
 
+static void cnt_gmtimer_request_of(struct cnt_gmtimer_pdata *st)
+{
+	struct device_node *np = st->dev->of_node, *t_dn;
+	struct platform_device *timer_pdev;
+	struct dmtimer_platform_data *timer_pdata;
+
+	st->ready = 0;
+
+	t_dn = of_parse_phandle(np, "timer", 0);
+    if (t_dn) {
+		dev_err(st->dev, "Unable to parse device node\n");
+		return;
+	}
+
+	timer_pdev = of_find_device_by_node(t_dn);
+	if (!timer_pdev) {
+		dev_err(st->dev, "Unable to find Timer pdev\n");
+		goto fail2;
+	}
+
+	timer_pdata = dev_get_platdata(&timer_pdev->dev);
+    if (!timer_pdata) {
+		dev_err(st->dev, "dmtimer pdata structure NULL\n");
+		goto fail2;
+	}
+
+    st->timer_ops = timer_pdata->timer_ops;
+	if (!st->timer_ops
+		|| !st->timer_ops->request_by_node
+		|| !st->timer_ops->free
+		|| !st->timer_ops->enable
+		|| !st->timer_ops->disable
+		|| !st->timer_ops->get_fclk
+		|| !st->timer_ops->start
+		|| !st->timer_ops->stop
+		|| !st->timer_ops->set_load
+		|| !st->timer_ops->set_match
+		|| !st->timer_ops->set_pwm
+		|| !st->timer_ops->set_prescaler
+		|| !st->timer_ops->write_counter) {
+		dev_err(st->dev, "Incomplete dmtimer pdata structure\n");
+		goto fail2;
+	}
+
+	if (cnt_gmtimer_init_timer(t_dn, st) < 0)
+		goto fail2;
+
+	of_node_put(t_dn);
+
+fail2:
+	return;
+}
+
 static int cnt_gmtimer_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct cnt_gmtimer_pdata *st;
 	struct iio_dev *indio_dev;
-	int ret, i;
+	int ret;
 
 	dev_info(dev, "%s() %s\n", __func__, CNT_GMTIMER_VERSION);
 
@@ -357,12 +594,15 @@ static int cnt_gmtimer_probe(struct platform_device *pdev)
 
 	st = iio_priv(indio_dev);
 	dev_set_drvdata(dev, indio_dev);
-
 	st->dev = dev;
+
+	cnt_gmtimer_request_of(st);
+
+
 	mutex_init(&st->lock);
-	ret = cnt_gmtimer_request_gpios(st);
-	if (ret)
-		return ret;
+//	ret = cnt_gmtimer_request_gpios(st);
+//	if (ret)
+//		return ret;
 
 	st->chip_info = &cnt_gmtimer_info_tbl[0];
 
@@ -393,6 +633,9 @@ static int cnt_gmtimer_probe(struct platform_device *pdev)
 					      &cnt_gmtimer_buffer_ops);
 	if (ret)
 		return ret;
+
+	cnt_gmtimer_clocksource_init(st);
+	cnt_gmtimer_enable_irq(st);
 
 	init_completion(&st->completion);
 
@@ -435,6 +678,9 @@ static int cnt_gmtimer_remove(struct platform_device *pdev)
 
 	dev_dbg(st->dev, "%s()\n", __func__);
 	st->state = 0;
+
+	cnt_gmtimer_clocksource_cleanup(st);
+	cnt_gmtimer_cleanup_timer(st);
 
 	return 0;
 }
