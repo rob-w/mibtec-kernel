@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * IIO Counter implementation via gpio and/or omap gmtimer block
+ * IIO Counter implementation via gpio and/or omap dmtimer block
  *
  * Copyright 2020 MIS (c) Robert Woerle rwoerle@mibtec.de, robert@linuxdevelopment.de
- * based pps-gmtimer.c
+ * based pps-dmtimer.c
  * 
  */
 
@@ -41,18 +41,18 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define CNT_GMTIMER_VERSION "0.9"
-//#define CNT_GMTIMER_MODULE_DESCRIPTION "Omap Timer counter driver"
-//#define CNT_GMTIMER_MODULE_AUTHOR("Robert Wörle");
+#define CNT_DMTIMER_VERSION "0.9"
+//#define CNT_dmtimer_MODULE_DESCRIPTION "Omap Timer counter driver"
+//#define CNT_dmtimer_MODULE_AUTHOR("Robert Wörle");
 
-struct cnt_gmtimer_info {
+struct cnt_dmtimer_info {
 	const struct iio_chan_spec	*channels;
 	unsigned int				num_channels;
 	const unsigned int			*oversampling_avail;
 	unsigned int				oversampling_num;
 };
 
-struct cnt_gmtimer_pdata {
+struct cnt_dmtimer_pdata {
 	int 					state, bufferd;
 	int						gate_time;	// in usec ?
 	int						cnted;
@@ -60,7 +60,7 @@ struct cnt_gmtimer_pdata {
 	int						id;
 	struct device			*dev;
 	struct iio_dev			*indio_dev;
-	const struct cnt_gmtimer_info	*chip_info;
+	const struct cnt_dmtimer_info	*chip_info;
 	struct regulator		*reg;
 //	unsigned int			range;
 //	unsigned int			oversampling;
@@ -93,9 +93,9 @@ struct cnt_gmtimer_pdata {
 	unsigned int			data[452] ____cacheline_aligned;
 };
 
-static int cnt_gmtimer_read_samples(struct iio_dev *indio_dev, int cnt)
+static int cnt_dmtimer_read_samples(struct iio_dev *indio_dev, int cnt)
 {
-	struct cnt_gmtimer_pdata *st = iio_priv(indio_dev);
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 	int ret = 0;
 
 	st->cnted = 0;
@@ -103,7 +103,7 @@ static int cnt_gmtimer_read_samples(struct iio_dev *indio_dev, int cnt)
 	return ret;
 }
 
-static void cnt_gmtimer_enable_irq(struct cnt_gmtimer_pdata *st)
+static void cnt_dmtimer_enable_irq(struct cnt_dmtimer_pdata *st)
 {
     unsigned int interrupt_mask;
 
@@ -113,7 +113,7 @@ static void cnt_gmtimer_enable_irq(struct cnt_gmtimer_pdata *st)
     st->capture_timer->context.twer = interrupt_mask;
 }
 
-static void cnt_gmtimer_cleanup_timer(struct cnt_gmtimer_pdata *st)
+static void cnt_dmtimer_cleanup_timer(struct cnt_dmtimer_pdata *st)
 {
 	if (st->capture_timer == NULL)
 		return;
@@ -127,18 +127,18 @@ static void cnt_gmtimer_cleanup_timer(struct cnt_gmtimer_pdata *st)
 }
 
 /* clocksource ***************/
-static struct cnt_gmtimer_pdata *clocksource_timer = NULL;
+static struct cnt_dmtimer_pdata *clocksource_timer = NULL;
 
-static u64 cnt_gmtimer_read_cycles(struct clocksource *cs)
+static u64 cnt_dmtimer_read_cycles(struct clocksource *cs)
 {
 	u64 cycles = __omap_dm_timer_read_counter(clocksource_timer->capture_timer,
 							clocksource_timer->capture_timer->posted);
 	return (cycles);
 }
 
-static irqreturn_t cnt_gmtimer_interrupt(int irq, void *data)
+static irqreturn_t cnt_dmtimer_interrupt(int irq, void *data)
 {
-	struct cnt_gmtimer_pdata *st;
+	struct cnt_dmtimer_pdata *st;
 	unsigned int irq_status;
 
 	st = data;
@@ -213,7 +213,7 @@ static void omap_dm_timer_setup_capture(struct omap_dm_timer *timer, const struc
 	timer->context.tcrr = 0;
 }
 
-static int cnt_gmtimer_init_timer(struct device_node *t_dn, struct cnt_gmtimer_pdata *st)
+static int cnt_dmtimer_init_timer(struct device_node *t_dn, struct cnt_dmtimer_pdata *st)
 {
 	struct clk *gt_fclk;
 
@@ -230,7 +230,7 @@ static int cnt_gmtimer_init_timer(struct device_node *t_dn, struct cnt_gmtimer_p
     }
 
 	// TODO: use devm_request_irq?
-	if (request_irq(st->capture_timer->irq, cnt_gmtimer_interrupt, IRQF_TIMER, "cnt-gmtimer-irq", st)){
+	if (request_irq(st->capture_timer->irq, cnt_dmtimer_interrupt, IRQF_TIMER, "cnt-dmtimer-irq", st)){
 		pr_err("cannot register IRQ %d\n", st->capture_timer->irq);
 		return -EIO;
 	}
@@ -245,7 +245,7 @@ static int cnt_gmtimer_init_timer(struct device_node *t_dn, struct cnt_gmtimer_p
 	return 0;
 }
 
-static void cnt_gmtimer_clocksource_init(struct cnt_gmtimer_pdata *st)
+static void cnt_dmtimer_clocksource_init(struct cnt_dmtimer_pdata *st)
 {
     if (clocksource_timer != NULL)
 		return;
@@ -253,7 +253,7 @@ static void cnt_gmtimer_clocksource_init(struct cnt_gmtimer_pdata *st)
 	st->clksrc.name = st->timer_name;
 
 	st->clksrc.rating = 299;
-	st->clksrc.read = cnt_gmtimer_read_cycles;
+	st->clksrc.read = cnt_dmtimer_read_cycles;
 	st->clksrc.mask = CLOCKSOURCE_MASK(32);
 	st->clksrc.flags = CLOCK_SOURCE_IS_CONTINUOUS;
 
@@ -265,7 +265,7 @@ static void cnt_gmtimer_clocksource_init(struct cnt_gmtimer_pdata *st)
 		pr_info("clocksource: %s at %u Hz\n", st->clksrc.name, st->frequency);
 }
 
-static void cnt_gmtimer_clocksource_cleanup(struct cnt_gmtimer_pdata *st)
+static void cnt_dmtimer_clocksource_cleanup(struct cnt_dmtimer_pdata *st)
 {
     if (st == clocksource_timer)
     {
@@ -274,30 +274,30 @@ static void cnt_gmtimer_clocksource_cleanup(struct cnt_gmtimer_pdata *st)
     }
 }
 
-static irqreturn_t cnt_gmtimer_trigger_handler(int irq, void *p)
+static irqreturn_t cnt_dmtimer_trigger_handler(int irq, void *p)
 {
 	struct iio_poll_func *pf = p;
 	struct iio_dev *indio_dev = pf->indio_dev;
-	struct cnt_gmtimer_pdata *st = iio_priv(indio_dev);
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 	dev_dbg(st->dev, "%s()\n", __func__);
 
 	mutex_lock(&st->lock);
 	st->bufferd = 1;
-	cnt_gmtimer_read_samples(indio_dev, 0);
+	cnt_dmtimer_read_samples(indio_dev, 0);
 	iio_trigger_notify_done(indio_dev->trig);
 	mutex_unlock(&st->lock);
 
 	return IRQ_HANDLED;
 }
 
-static int cnt_gmtimer_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
+static int cnt_dmtimer_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 {
-	struct cnt_gmtimer_pdata *st = iio_priv(indio_dev);
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 	int ret;
 
 	dev_dbg(st->dev, "%s(%d)\n", __func__, ch);
 
-	ret = cnt_gmtimer_read_samples(indio_dev, 1000);
+	ret = cnt_dmtimer_read_samples(indio_dev, 1000);
 	if (ret != 0)
 		return -EINVAL;
 
@@ -309,14 +309,14 @@ static int cnt_gmtimer_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 	return st->data[ch];
 }
 
-static int cnt_gmtimer_read_raw(struct iio_dev *indio_dev,
+static int cnt_dmtimer_read_raw(struct iio_dev *indio_dev,
 			   struct iio_chan_spec const *chan,
 			   int *val,
 			   int *val2,
 			   long m)
 {
 	uint64_t ret;
-	struct cnt_gmtimer_pdata *st = iio_priv(indio_dev);
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s(%ld %ld)\n", __func__, chan->address, m);
 
@@ -326,7 +326,7 @@ static int cnt_gmtimer_read_raw(struct iio_dev *indio_dev,
 		if (ret)
 			return ret;
 
-		ret = cnt_gmtimer_scan_direct(indio_dev, chan->address);
+		ret = cnt_dmtimer_scan_direct(indio_dev, chan->address);
 		iio_device_release_direct_mode(indio_dev);
 		if (ret == -ETIMEDOUT)
 			return ret;
@@ -342,13 +342,13 @@ static int cnt_gmtimer_read_raw(struct iio_dev *indio_dev,
 	return -EINVAL;
 }
 
-static int cnt_gmtimer_write_raw(struct iio_dev *indio_dev,
+static int cnt_dmtimer_write_raw(struct iio_dev *indio_dev,
 			    struct iio_chan_spec const *chan,
 			    int val,
 			    int val2,
 			    long mask)
 {
-	struct cnt_gmtimer_pdata *st = iio_priv(indio_dev);
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s(%ld)\n", __func__, chan->address);
 
@@ -364,20 +364,20 @@ static int cnt_gmtimer_write_raw(struct iio_dev *indio_dev,
 	}
 }
 
-static ssize_t cnt_gmtimer_show_gatetime(struct device *dev,
+static ssize_t cnt_dmtimer_show_gatetime(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct cnt_gmtimer_pdata *st = iio_priv(dev_to_iio_dev(dev));
+	struct cnt_dmtimer_pdata *st = iio_priv(dev_to_iio_dev(dev));
 
 	return sprintf(buf, "%d\n", st->gate_time);
 }
 
-static ssize_t cnt_gmtimer_set_gatetime(struct device *dev,
+static ssize_t cnt_dmtimer_set_gatetime(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
 		size_t len)
 {
-	struct cnt_gmtimer_pdata *st = iio_priv(dev_to_iio_dev(dev));
+	struct cnt_dmtimer_pdata *st = iio_priv(dev_to_iio_dev(dev));
 	unsigned int val;
 	int ret;
 
@@ -395,24 +395,24 @@ error_ret:
 }
 
 static IIO_DEVICE_ATTR(gatetime, (S_IWUSR | S_IRUGO),
-		cnt_gmtimer_show_gatetime, cnt_gmtimer_set_gatetime, 0);
+		cnt_dmtimer_show_gatetime, cnt_dmtimer_set_gatetime, 0);
 
-static struct attribute *cnt_gmtimer_attributes[] = {
+static struct attribute *cnt_dmtimer_attributes[] = {
 	&iio_dev_attr_gatetime.dev_attr.attr,
 	NULL,
 };
 
-static const struct attribute_group cnt_gmtimer_attribute_group = {
-	.attrs = cnt_gmtimer_attributes,
+static const struct attribute_group cnt_dmtimer_attribute_group = {
+	.attrs = cnt_dmtimer_attributes,
 };
 
-static const struct iio_info cnt_gmtimer_info = {
-	.read_raw = cnt_gmtimer_read_raw,
-	.write_raw = cnt_gmtimer_write_raw,
-	.attrs = &cnt_gmtimer_attribute_group,
+static const struct iio_info cnt_dmtimer_info = {
+	.read_raw = cnt_dmtimer_read_raw,
+	.write_raw = cnt_dmtimer_write_raw,
+	.attrs = &cnt_dmtimer_attribute_group,
 };
 
-#define CNT_GMTIMER_CHANNEL(num) {				\
+#define CNT_dmtimer_CHANNEL(num) {				\
 		.type = IIO_COUNT,										\
 		.indexed = 1,											\
 		.channel = num,											\
@@ -428,20 +428,20 @@ static const struct iio_info cnt_gmtimer_info = {
 		},														\
 }
 
-static const struct iio_chan_spec cnt_gmtimer_channels[] = {
-	CNT_GMTIMER_CHANNEL(0),
+static const struct iio_chan_spec cnt_dmtimer_channels[] = {
+	CNT_dmtimer_CHANNEL(0),
 	IIO_CHAN_SOFT_TIMESTAMP(6),
 };
 
 
-static const struct cnt_gmtimer_info cnt_gmtimer_info_tbl[] = {
+static const struct cnt_dmtimer_info cnt_dmtimer_info_tbl[] = {
 	[0] = {
-		.channels = cnt_gmtimer_channels,
+		.channels = cnt_dmtimer_channels,
 		.num_channels = 1,
 	},
 };
 
-static int cnt_gmtimer_request_gpios(struct cnt_gmtimer_pdata *st)
+static int cnt_dmtimer_request_gpios(struct cnt_dmtimer_pdata *st)
 {
 	int i;
 	char pinpath[256];
@@ -456,18 +456,18 @@ static int cnt_gmtimer_request_gpios(struct cnt_gmtimer_pdata *st)
 	return 0;
 }
 
-static int cnt_gmtimer_buffer_preenable(struct iio_dev *indio_dev)
+static int cnt_dmtimer_buffer_preenable(struct iio_dev *indio_dev)
 {
-	struct cnt_gmtimer_pdata *st = iio_priv(indio_dev);
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s()\n", __func__);
 
 	return 0;
 }
 
-static int cnt_gmtimer_buffer_postenable(struct iio_dev *indio_dev)
+static int cnt_dmtimer_buffer_postenable(struct iio_dev *indio_dev)
 {
-	struct cnt_gmtimer_pdata *st = iio_priv(indio_dev);
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s()\n", __func__);
 	iio_triggered_buffer_postenable(indio_dev);
@@ -475,9 +475,9 @@ static int cnt_gmtimer_buffer_postenable(struct iio_dev *indio_dev)
 	return 0;
 }
 
-static int cnt_gmtimer_buffer_predisable(struct iio_dev *indio_dev)
+static int cnt_dmtimer_buffer_predisable(struct iio_dev *indio_dev)
 {
-	struct cnt_gmtimer_pdata *st = iio_priv(indio_dev);
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s()\n", __func__);
 //	st->bufferd = 0;
@@ -485,19 +485,19 @@ static int cnt_gmtimer_buffer_predisable(struct iio_dev *indio_dev)
 	return iio_triggered_buffer_predisable(indio_dev);
 }
 
-static int cnt_gmtimer_buffer_postdisable(struct iio_dev *indio_dev)
+static int cnt_dmtimer_buffer_postdisable(struct iio_dev *indio_dev)
 {
-	struct cnt_gmtimer_pdata *st = iio_priv(indio_dev);
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s()\n", __func__);
 
 	return 0;
 }
 
-static int cnt_gmtimer_trigger_set_state(struct iio_trigger *trig, bool enable)
+static int cnt_dmtimer_trigger_set_state(struct iio_trigger *trig, bool enable)
 {
 	struct iio_dev *indio_dev = iio_trigger_get_drvdata(trig);
-	struct cnt_gmtimer_pdata *st = iio_priv(indio_dev);
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s(%d)\n", __func__, enable);
 	st->bufferd = enable;
@@ -507,28 +507,30 @@ static int cnt_gmtimer_trigger_set_state(struct iio_trigger *trig, bool enable)
 	return 0;
 }
 
-static const struct iio_buffer_setup_ops cnt_gmtimer_buffer_ops = {
-	.preenable = &cnt_gmtimer_buffer_preenable,
-	.postenable = &cnt_gmtimer_buffer_postenable,
-	.predisable = &cnt_gmtimer_buffer_predisable,
-	.postdisable = &cnt_gmtimer_buffer_postdisable,
+static const struct iio_buffer_setup_ops cnt_dmtimer_buffer_ops = {
+	.preenable = &cnt_dmtimer_buffer_preenable,
+	.postenable = &cnt_dmtimer_buffer_postenable,
+	.predisable = &cnt_dmtimer_buffer_predisable,
+	.postdisable = &cnt_dmtimer_buffer_postdisable,
 };
 
-static const struct iio_trigger_ops cnt_gmtimer_trigger_ops = {
-    .set_trigger_state = cnt_gmtimer_trigger_set_state,
+static const struct iio_trigger_ops cnt_dmtimer_trigger_ops = {
+    .set_trigger_state = cnt_dmtimer_trigger_set_state,
 	.validate_device = iio_trigger_validate_own_device,
 };
 
-static const struct of_device_id of_cnt_gmtimer_match[] = {
-	{ .compatible = "cnt-gmtimer", },
+static const struct of_device_id of_cnt_dmtimer_match[] = {
+	{ .compatible = "cnt-dmtimer", },
 	{},
 };
 
-MODULE_DEVICE_TABLE(of, of_cnt_gmtimer_match);
+MODULE_DEVICE_TABLE(of, of_cnt_dmtimer_match);
 
-static void cnt_gmtimer_request_of(struct cnt_gmtimer_pdata *st)
+static int cnt_dmtimer_request_of(struct cnt_dmtimer_pdata *st)
 {
-	struct device_node *np = st->dev->of_node, *t_dn;
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
+	struct device *dev = st->dev;
+	struct device_node *np = dev->of_node, *t_dn;
 	struct platform_device *timer_pdev;
 	struct dmtimer_platform_data *timer_pdata;
 
@@ -537,7 +539,7 @@ static void cnt_gmtimer_request_of(struct cnt_gmtimer_pdata *st)
 	t_dn = of_parse_phandle(np, "timer", 0);
     if (t_dn) {
 		dev_err(st->dev, "Unable to parse device node\n");
-		return;
+		return -1;
 	}
 
 	timer_pdev = of_find_device_by_node(t_dn);
@@ -570,23 +572,24 @@ static void cnt_gmtimer_request_of(struct cnt_gmtimer_pdata *st)
 		goto fail2;
 	}
 
-	if (cnt_gmtimer_init_timer(t_dn, st) < 0)
+	if (cnt_dmtimer_init_timer(t_dn, st) < 0)
 		goto fail2;
 
 	of_node_put(t_dn);
+	return 0;
 
 fail2:
-	return;
+	return -1;
 }
 
-static int cnt_gmtimer_probe(struct platform_device *pdev)
+static int cnt_dmtimer_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct cnt_gmtimer_pdata *st;
+	struct cnt_dmtimer_pdata *st;
 	struct iio_dev *indio_dev;
 	int ret;
 
-	dev_info(dev, "%s() %s\n", __func__, CNT_GMTIMER_VERSION);
+	dev_info(dev, "%s() %s\n", __func__, CNT_DMTIMER_VERSION);
 
 	indio_dev = devm_iio_device_alloc(dev, sizeof(*st));
 	if (!indio_dev)
@@ -596,20 +599,21 @@ static int cnt_gmtimer_probe(struct platform_device *pdev)
 	dev_set_drvdata(dev, indio_dev);
 	st->dev = dev;
 
-	cnt_gmtimer_request_of(st);
-
+	ret = cnt_dmtimer_request_of(st);
+	if (ret)
+		return -ENOMEM;
 
 	mutex_init(&st->lock);
-//	ret = cnt_gmtimer_request_gpios(st);
+//	ret = cnt_dmtimer_request_gpios(st);
 //	if (ret)
 //		return ret;
 
-	st->chip_info = &cnt_gmtimer_info_tbl[0];
+	st->chip_info = &cnt_dmtimer_info_tbl[0];
 
 	indio_dev->dev.parent = dev;
-	indio_dev->info = &cnt_gmtimer_info;
+	indio_dev->info = &cnt_dmtimer_info;
 	indio_dev->modes = INDIO_DIRECT_MODE;
-	indio_dev->name = "cnt-gmtimer";
+	indio_dev->name = "cnt-dmtimer";
 	indio_dev->channels = st->chip_info->channels;
 	indio_dev->num_channels = st->chip_info->num_channels;
 
@@ -618,7 +622,7 @@ static int cnt_gmtimer_probe(struct platform_device *pdev)
 	if (!st->trig)
 		return -ENOMEM;
 
-	st->trig->ops = &cnt_gmtimer_trigger_ops;
+	st->trig->ops = &cnt_dmtimer_trigger_ops;
 	st->trig->dev.parent = dev;
 	iio_trigger_set_drvdata(st->trig, indio_dev);
 	ret = devm_iio_trigger_register(dev, st->trig);
@@ -629,13 +633,13 @@ static int cnt_gmtimer_probe(struct platform_device *pdev)
 
 	ret = devm_iio_triggered_buffer_setup(dev, indio_dev,
 					      &iio_pollfunc_store_time,
-					      &cnt_gmtimer_trigger_handler,
-					      &cnt_gmtimer_buffer_ops);
+					      &cnt_dmtimer_trigger_handler,
+					      &cnt_dmtimer_buffer_ops);
 	if (ret)
 		return ret;
 
-	cnt_gmtimer_clocksource_init(st);
-	cnt_gmtimer_enable_irq(st);
+	cnt_dmtimer_clocksource_init(st);
+	cnt_dmtimer_enable_irq(st);
 
 	init_completion(&st->completion);
 
@@ -647,56 +651,56 @@ static int cnt_gmtimer_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_PM_SLEEP
 
-static int cnt_gmtimer_suspend(struct device *dev)
+static int cnt_dmtimer_suspend(struct device *dev)
 {
 	struct iio_dev *indio_dev = dev_get_drvdata(dev);
-	struct cnt_gmtimer_pdata *st = iio_priv(indio_dev);
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 	st->state = 0;
 
 	return 0;
 }
 
-static int cnt_gmtimer_resume(struct device *dev)
+static int cnt_dmtimer_resume(struct device *dev)
 {
 	struct iio_dev *indio_dev = dev_get_drvdata(dev);
-	struct cnt_gmtimer_pdata *st = iio_priv(indio_dev);
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 	st->state = 1;
 
 	return 0;
 }
 
-SIMPLE_DEV_PM_OPS(cnt_gmtimer_pm_ops, cnt_gmtimer_suspend, cnt_gmtimer_resume);
-EXPORT_SYMBOL_GPL(cnt_gmtimer_pm_ops);
+SIMPLE_DEV_PM_OPS(cnt_dmtimer_pm_ops, cnt_dmtimer_suspend, cnt_dmtimer_resume);
+EXPORT_SYMBOL_GPL(cnt_dmtimer_pm_ops);
 
 #endif
 
-static int cnt_gmtimer_remove(struct platform_device *pdev)
+static int cnt_dmtimer_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct iio_dev *indio_dev = dev_get_drvdata(dev);
-	struct cnt_gmtimer_pdata *st = iio_priv(indio_dev);
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s()\n", __func__);
 	st->state = 0;
 
-	cnt_gmtimer_clocksource_cleanup(st);
-	cnt_gmtimer_cleanup_timer(st);
+	cnt_dmtimer_clocksource_cleanup(st);
+	cnt_dmtimer_cleanup_timer(st);
 
 	return 0;
 }
 
-static struct platform_driver cnt_gmtimer = {
-	.probe		= cnt_gmtimer_probe,
-	.remove		= cnt_gmtimer_remove,
+static struct platform_driver cnt_dmtimer = {
+	.probe		= cnt_dmtimer_probe,
+	.remove		= cnt_dmtimer_remove,
 	.driver		= {
-		.name	= "cnt-gmtimer",
-		.of_match_table = of_cnt_gmtimer_match,
+		.name	= "cnt-dmtimer",
+		.of_match_table = of_cnt_dmtimer_match,
 	},
 };
 
-module_platform_driver(cnt_gmtimer);
+module_platform_driver(cnt_dmtimer);
 MODULE_AUTHOR("Robert Wörle <rwoerle@mibtec.de>");
 MODULE_DESCRIPTION("Omap Timer counter driver");
 MODULE_LICENSE("GPL v2");
-MODULE_VERSION(CNT_GMTIMER_VERSION);
-MODULE_ALIAS("platform:cnt-gmtimer");
+MODULE_VERSION(CNT_DMTIMER_VERSION);
+MODULE_ALIAS("platform:cnt-dmtimer");

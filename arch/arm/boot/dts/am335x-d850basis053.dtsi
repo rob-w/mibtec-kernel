@@ -27,13 +27,13 @@
 		status = "okay";
 	};*/
 
-	cnt_gmtimer {
+	cnt_dmtimer {
 		pinctrl-names = "default";
 		pinctrl-0 = <&timer6_pin>;
 
 		timer = <&timer6>;
 
-		compatible = "cnt-gmtimer";
+		compatible = "cnt-dmtimer";
 		status = "okay";
 	};
 

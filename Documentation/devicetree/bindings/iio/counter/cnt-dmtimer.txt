@@ -1,0 +1,21 @@
+Device-Tree Bindings for a Counter driver using Omap Timers
+
+Required properties:
+- compatible: should be "cnt-gmtimer"
+- gpios: one PPS GPIO in the format described by ../gpio/gpio.txt
+
+Optional properties:
+- assert-falling-edge: when present, assert is indicated by a falling edge
+                       (instead of by a rising edge)
+
+Example:
+
+	cnt_gmtimer {
+		pinctrl-names = "default";
+		pinctrl-0 = <&timer6_pin>;
+
+		timer = <&timer6>;
+
+		compatible = "cnt-dmtimer";
+		status = "okay";
+	};
