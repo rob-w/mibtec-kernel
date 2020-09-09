@@ -55,11 +55,13 @@ struct cnt_dmtimer_info {
 struct cnt_dmtimer_pdata {
 	int 					state, bufferd;
 	int						gate_time;	// in usec ?
-	int						cnted;
-//	int						looped;
-	int						id;
+	int						prescaler;
+	int						hz;
+//	int						cnted;
+//	int						id;
 	struct device			*dev;
 	struct iio_dev			*indio_dev;
+	struct platform_device	*pdev;
 	const struct cnt_dmtimer_info	*chip_info;
 	struct regulator		*reg;
 //	unsigned int			range;
@@ -71,15 +73,15 @@ struct cnt_dmtimer_pdata {
 	struct mutex			lock; /* protect sensor state */
 	struct gpio_desc		*gpio_mux_a[6];
 	struct iio_trigger		*trig;
-	struct completion		completion;
+//	struct completion		completion;
 
 	struct omap_dm_timer *capture_timer;
 	const struct omap_dm_timer_ops *timer_ops;
 	const char *timer_name;
 	uint32_t frequency;
-	unsigned int capture;
-	unsigned int overflow;
-	unsigned int count_at_interrupt;
+//	unsigned int capture;
+//	unsigned int overflow;
+//	unsigned int count_at_interrupt;
 	struct timespec64 delta;
 	struct clocksource clksrc;
 	int ready;
@@ -92,16 +94,31 @@ struct cnt_dmtimer_pdata {
 //	unsigned short			data[10] ____cacheline_aligned;
 	unsigned int			data[452] ____cacheline_aligned;
 };
-
+/*
 static int cnt_dmtimer_read_samples(struct iio_dev *indio_dev, int cnt)
 {
 	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 	int ret = 0;
+	uint32_t ps_per_hz;
+	unsigned int count_at_capture;
 
-	st->cnted = 0;
+	st->count_at_interrupt = st->timer_ops->read_counter(st->capture_timer);
+	count_at_capture = __omap_dm_timer_read(st->capture_timer,
+									OMAP_TIMER_CAPTURE_REG,
+									st->capture_timer->posted);
+
+	st->delta.tv_sec = 0;
+
+	// use picoseconds per hz to avoid floating point and limit the rounding error
+	ps_per_hz = 1000000000 / (st->frequency / 1000);
+	st->delta.tv_nsec = ((st->count_at_interrupt - count_at_capture) * ps_per_hz) / 1000;
+
+	dev_info(st->dev, "%s() %d vs %d -> %ld \n", __func__,
+			st->count_at_interrupt, count_at_capture, st->delta.tv_nsec);
 
 	return ret;
 }
+*/
 
 static void cnt_dmtimer_enable_irq(struct cnt_dmtimer_pdata *st)
 {
@@ -149,42 +166,37 @@ static irqreturn_t cnt_dmtimer_interrupt(int irq, void *data)
 	irq_status = st->timer_ops->read_status(st->capture_timer);
 
 	if (irq_status & OMAP_TIMER_INT_CAPTURE) {
-		uint32_t ps_per_hz;
-		unsigned int count_at_capture;
+		unsigned int capture[2];
 
-//		pps_get_ts(&pdata->ts);
-
-		st->count_at_interrupt = st->timer_ops->read_counter(st->capture_timer);
-		count_at_capture = __omap_dm_timer_read(st->capture_timer,
+//		st->count_at_interrupt = st->timer_ops->read_counter(st->capture_timer);
+		capture[0] = __omap_dm_timer_read(st->capture_timer,
 									OMAP_TIMER_CAPTURE_REG,
 									st->capture_timer->posted);
+		capture[1] = __omap_dm_timer_read(st->capture_timer,
+									OMAP_TIMER_CAPTURE2_REG,
+									st->capture_timer->posted);
 
-		st->delta.tv_sec = 0;
+		st->hz = capture[1] - capture[0];
+		dev_dbg(st->dev, "%s() %d vs %d -> %d \n", __func__,
+				capture[0], capture[1], st->hz);
 
-		// use picoseconds per hz to avoid floating point and limit the rounding error
-		ps_per_hz = 1000000000 / (st->frequency / 1000);
-		st->delta.tv_nsec = ((st->count_at_interrupt - count_at_capture) * ps_per_hz) / 1000;
-
-		dev_dbg(st->dev, "%s() %d vs %d -> %ld \n", __func__,
-				st->count_at_interrupt, count_at_capture, st->delta.tv_nsec);
-
-//		pps_sub_ts(&st->ts, st->delta);
-//		pps_event(pdata->pps, &pdata->ts, PPS_CAPTUREASSERT, NULL);
-
-		st->capture++;
+//		st->capture++;
 		__omap_dm_timer_write_status(st->capture_timer, OMAP_TIMER_INT_CAPTURE);
 	}
 
 	if (irq_status & OMAP_TIMER_INT_OVERFLOW) {
-		st->overflow++;
+		dev_info(st->dev, "%s() overflow\n", __func__);
+//		st->overflow++;
 		__omap_dm_timer_write_status(st->capture_timer, OMAP_TIMER_INT_OVERFLOW);
 	}
 
 	return IRQ_HANDLED; // TODO: shared interrupts?
 }
 
-static void omap_dm_timer_setup_capture(struct omap_dm_timer *timer, const struct omap_dm_timer_ops *timer_ops)
+static void omap_dm_timer_setup_capture(struct cnt_dmtimer_pdata *st)
 {
+	struct omap_dm_timer *timer = st->capture_timer;
+	const struct omap_dm_timer_ops *timer_ops = st->timer_ops;
 	u32 ctrl;
 
 	timer_ops->set_source(timer, OMAP_TIMER_SRC_SYS_CLK);
@@ -192,8 +204,12 @@ static void omap_dm_timer_setup_capture(struct omap_dm_timer *timer, const struc
 
 	ctrl = __omap_dm_timer_read(timer, OMAP_TIMER_CTRL_REG, timer->posted);
 
-	// disable prescaler
+	// reload prescaler
 	ctrl &= ~(OMAP_TIMER_CTRL_PRE | (0x07 << 2));
+	if (st->prescaler >= 0x01 && st->prescaler <= 0x07) {
+		ctrl |= OMAP_TIMER_CTRL_PRE;
+		ctrl |= st->prescaler << 2;
+	}
 
 	// autoreload
 	ctrl |= OMAP_TIMER_CTRL_AR;
@@ -203,7 +219,7 @@ static void omap_dm_timer_setup_capture(struct omap_dm_timer *timer, const struc
 	ctrl |= OMAP_TIMER_CTRL_ST;
 
 	// set capture
-	ctrl |= OMAP_TIMER_CTRL_TCM_LOWTOHIGH | OMAP_TIMER_CTRL_GPOCFG; // TODO: configurable direction
+	ctrl |= OMAP_TIMER_CTRL_CAPTMODE | OMAP_TIMER_CTRL_TCM_LOWTOHIGH | OMAP_TIMER_CTRL_GPOCFG;
 
 	__omap_dm_timer_load_start(timer, ctrl, 0, timer->posted);
 
@@ -219,28 +235,28 @@ static int cnt_dmtimer_init_timer(struct device_node *t_dn, struct cnt_dmtimer_p
 
 	of_property_read_string_index(t_dn, "ti,hwmods", 0, &st->timer_name);
 	if (!st->timer_name) {
-		pr_err("ti,hwmods property missing?\n");
+		dev_err(st->dev, "ti,hwmods property missing?\n");
 		return -ENODEV;
 	}
 
 	st->capture_timer = st->timer_ops->request_by_node(t_dn);
 	if (!st->capture_timer) {
-		pr_err("request_by_node failed\n");
+		dev_err(st->dev, "request_by_node failed\n");
 		return -ENODEV;
     }
 
 	// TODO: use devm_request_irq?
 	if (request_irq(st->capture_timer->irq, cnt_dmtimer_interrupt, IRQF_TIMER, "cnt-dmtimer-irq", st)){
-		pr_err("cannot register IRQ %d\n", st->capture_timer->irq);
+		dev_err(st->dev, "cannot register IRQ %d\n", st->capture_timer->irq);
 		return -EIO;
 	}
 
-	omap_dm_timer_setup_capture(st->capture_timer, st->timer_ops);
+	omap_dm_timer_setup_capture(st);
 
 	gt_fclk = st->timer_ops->get_fclk(st->capture_timer);
 	st->frequency = clk_get_rate(gt_fclk);
 
-	pr_info("timer name=%s rate=%uHz\n", st->timer_name, st->frequency);
+	dev_info(st->dev, "timer name=%s rate=%uHz\n", st->timer_name, st->frequency);
 
 	return 0;
 }
@@ -279,17 +295,17 @@ static irqreturn_t cnt_dmtimer_trigger_handler(int irq, void *p)
 	struct iio_poll_func *pf = p;
 	struct iio_dev *indio_dev = pf->indio_dev;
 	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
-	dev_dbg(st->dev, "%s()\n", __func__);
+	dev_info(st->dev, "%s()\n", __func__);
 
 	mutex_lock(&st->lock);
 	st->bufferd = 1;
-	cnt_dmtimer_read_samples(indio_dev, 0);
+//	cnt_dmtimer_read_samples(indio_dev, 0);
 	iio_trigger_notify_done(indio_dev->trig);
 	mutex_unlock(&st->lock);
 
 	return IRQ_HANDLED;
 }
-
+/*
 static int cnt_dmtimer_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 {
 	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
@@ -303,11 +319,12 @@ static int cnt_dmtimer_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 
 //	ret = wait_for_completion_timeout(&st->completion,
 //					msecs_to_jiffies(1000));
-	if (!ret)
-		return -ETIMEDOUT;
+//	if (!ret)
+//		return -ETIMEDOUT;
 
 	return st->data[ch];
 }
+*/
 
 static int cnt_dmtimer_read_raw(struct iio_dev *indio_dev,
 			   struct iio_chan_spec const *chan,
@@ -325,18 +342,16 @@ static int cnt_dmtimer_read_raw(struct iio_dev *indio_dev,
 		ret = iio_device_claim_direct_mode(indio_dev);
 		if (ret)
 			return ret;
-
-		ret = cnt_dmtimer_scan_direct(indio_dev, chan->address);
+		*val = st->hz;
 		iio_device_release_direct_mode(indio_dev);
-		if (ret == -ETIMEDOUT)
-			return ret;
-
-		*val = ret;
 		return IIO_VAL_INT;
-	case IIO_CHAN_INFO_ENABLE:
-		*val = 0;
-		if (gpiod_get_value(st->gpio_mux_a[chan->address]))
-			*val |= (1<<0);
+
+	case IIO_CHAN_INFO_PROCESSED:
+		ret = iio_device_claim_direct_mode(indio_dev);
+		if (ret)
+			return ret;
+		*val = st->hz / 10;
+		iio_device_release_direct_mode(indio_dev);
 		return IIO_VAL_INT;
 	}
 	return -EINVAL;
@@ -351,18 +366,42 @@ static int cnt_dmtimer_write_raw(struct iio_dev *indio_dev,
 	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s(%ld)\n", __func__, chan->address);
-
-	switch (mask) {
-	case IIO_CHAN_INFO_ENABLE:
-		if (val & (1<<0))
-			gpiod_set_value(st->gpio_mux_a[chan->address], 1);
-		else
-			gpiod_set_value(st->gpio_mux_a[chan->address], 0);
-		return 0;
-	default:
-		return -EINVAL;
-	}
+	return -EINVAL;
 }
+
+static ssize_t cnt_dmtimer_show_prescaler(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct cnt_dmtimer_pdata *st = iio_priv(dev_to_iio_dev(dev));
+
+	return sprintf(buf, "%d\n", st->prescaler);
+}
+
+static ssize_t cnt_dmtimer_set_prescaler(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	struct cnt_dmtimer_pdata *st = iio_priv(dev_to_iio_dev(dev));
+	unsigned int val;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &val);
+	if (ret)
+		goto error_ret;
+
+	if (val < 0 || val > 7)
+		return -EINVAL;
+
+	st->prescaler = val;
+	omap_dm_timer_setup_capture(st);
+
+error_ret:
+	return ret ? ret : len;
+}
+
+static IIO_DEVICE_ATTR(prescaler, (S_IWUSR | S_IRUGO),
+		cnt_dmtimer_show_prescaler, cnt_dmtimer_set_prescaler, 0);
 
 static ssize_t cnt_dmtimer_show_gatetime(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -399,6 +438,7 @@ static IIO_DEVICE_ATTR(gatetime, (S_IWUSR | S_IRUGO),
 
 static struct attribute *cnt_dmtimer_attributes[] = {
 	&iio_dev_attr_gatetime.dev_attr.attr,
+	&iio_dev_attr_prescaler.dev_attr.attr,
 	NULL,
 };
 
@@ -417,7 +457,7 @@ static const struct iio_info cnt_dmtimer_info = {
 		.indexed = 1,											\
 		.channel = num,											\
 		.address = num,											\
-		.info_mask_separate =  BIT(IIO_CHAN_INFO_ENABLE)		\
+		.info_mask_separate =  BIT(IIO_CHAN_INFO_PROCESSED)		\
 							| BIT(IIO_CHAN_INFO_RAW),			\
 		.scan_index = num,										\
 		.scan_type = {											\
@@ -526,20 +566,27 @@ static const struct of_device_id of_cnt_dmtimer_match[] = {
 
 MODULE_DEVICE_TABLE(of, of_cnt_dmtimer_match);
 
-static int cnt_dmtimer_request_of(struct cnt_dmtimer_pdata *st)
+static int cnt_dmtimer_request_of(struct iio_dev *indio_dev)
 {
 	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 	struct device *dev = st->dev;
-	struct device_node *np = dev->of_node, *t_dn;
+	struct device_node *t_dn;
+	phandle t_ph;
+
 	struct platform_device *timer_pdev;
 	struct dmtimer_platform_data *timer_pdata;
 
 	st->ready = 0;
 
-	t_dn = of_parse_phandle(np, "timer", 0);
-    if (t_dn) {
-		dev_err(st->dev, "Unable to parse device node\n");
-		return -1;
+	if (of_property_read_u32(dev->of_node, "timer", &t_ph)) {
+		dev_err(st->dev, "could not get of property\n");
+		return -ENXIO;
+	}
+
+	t_dn = of_find_node_by_phandle(t_ph);
+	if (!t_dn) {
+		dev_err(st->dev, "Unable to find Timer device node\n");
+		goto fail2;
 	}
 
 	timer_pdev = of_find_device_by_node(t_dn);
@@ -575,7 +622,7 @@ static int cnt_dmtimer_request_of(struct cnt_dmtimer_pdata *st)
 	if (cnt_dmtimer_init_timer(t_dn, st) < 0)
 		goto fail2;
 
-	of_node_put(t_dn);
+//	of_node_put(t_dn);
 	return 0;
 
 fail2:
@@ -589,7 +636,7 @@ static int cnt_dmtimer_probe(struct platform_device *pdev)
 	struct iio_dev *indio_dev;
 	int ret;
 
-	dev_info(dev, "%s() %s\n", __func__, CNT_DMTIMER_VERSION);
+	dev_info(dev, "%s\n", CNT_DMTIMER_VERSION);
 
 	indio_dev = devm_iio_device_alloc(dev, sizeof(*st));
 	if (!indio_dev)
@@ -598,15 +645,13 @@ static int cnt_dmtimer_probe(struct platform_device *pdev)
 	st = iio_priv(indio_dev);
 	dev_set_drvdata(dev, indio_dev);
 	st->dev = dev;
+	st->pdev = pdev;
 
-	ret = cnt_dmtimer_request_of(st);
+	ret = cnt_dmtimer_request_of(indio_dev);
 	if (ret)
 		return -ENOMEM;
 
 	mutex_init(&st->lock);
-//	ret = cnt_dmtimer_request_gpios(st);
-//	if (ret)
-//		return ret;
 
 	st->chip_info = &cnt_dmtimer_info_tbl[0];
 
@@ -638,10 +683,11 @@ static int cnt_dmtimer_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	st->ready = 1;
 	cnt_dmtimer_clocksource_init(st);
 	cnt_dmtimer_enable_irq(st);
 
-	init_completion(&st->completion);
+//	init_completion(&st->completion);
 
 	st->state = 1;
 	st->bufferd = 0;
