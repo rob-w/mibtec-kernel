@@ -29,10 +29,8 @@
 
 	cnt_dmtimer {
 		pinctrl-names = "default";
-		pinctrl-0 = <&timer6_pin>;
-
-		timer = <&timer6>;
-
+		pinctrl-0 = <&timer7_pin>;
+		timer = <&timer7>;
 		compatible = "cnt-dmtimer";
 		status = "okay";
 	};
