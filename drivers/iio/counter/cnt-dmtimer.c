@@ -42,8 +42,10 @@
 //#include <trace/events/gpio.h>
 
 #define CNT_DMTIMER_VERSION "0.9"
-//#define CNT_dmtimer_MODULE_DESCRIPTION "Omap Timer counter driver"
-//#define CNT_dmtimer_MODULE_AUTHOR("Robert Wörle");
+
+static const unsigned int cnt_dmtimer_prescaler_avail[] = {
+	1, 2, 4, 8, 16, 32, 64, 128, 256
+};
 
 struct cnt_dmtimer_info {
 	const struct iio_chan_spec	*channels;
@@ -56,32 +58,24 @@ struct cnt_dmtimer_pdata {
 	int 					state, bufferd;
 	int						gate_time;	// in usec ?
 	int						prescaler;
-	int						hz;
-//	int						cnted;
-//	int						id;
+	uint32_t				t_delta;
+	int						offset;
 	struct device			*dev;
 	struct iio_dev			*indio_dev;
 	struct platform_device	*pdev;
 	const struct cnt_dmtimer_info	*chip_info;
 	struct regulator		*reg;
-//	unsigned int			range;
-//	unsigned int			oversampling;
-//	void __iomem			*base_address;
-//	const unsigned int		*oversampling_avail;
 	unsigned int			num_os_ratios;
 
 	struct mutex			lock; /* protect sensor state */
 	struct gpio_desc		*gpio_mux_a[6];
 	struct iio_trigger		*trig;
-//	struct completion		completion;
+	struct completion		completion;
 
 	struct omap_dm_timer *capture_timer;
 	const struct omap_dm_timer_ops *timer_ops;
 	const char *timer_name;
 	uint32_t frequency;
-//	unsigned int capture;
-//	unsigned int overflow;
-//	unsigned int count_at_interrupt;
 	struct timespec64 delta;
 	struct clocksource clksrc;
 	int ready;
@@ -94,31 +88,7 @@ struct cnt_dmtimer_pdata {
 //	unsigned short			data[10] ____cacheline_aligned;
 	unsigned int			data[452] ____cacheline_aligned;
 };
-/*
-static int cnt_dmtimer_read_samples(struct iio_dev *indio_dev, int cnt)
-{
-	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
-	int ret = 0;
-	uint32_t ps_per_hz;
-	unsigned int count_at_capture;
 
-	st->count_at_interrupt = st->timer_ops->read_counter(st->capture_timer);
-	count_at_capture = __omap_dm_timer_read(st->capture_timer,
-									OMAP_TIMER_CAPTURE_REG,
-									st->capture_timer->posted);
-
-	st->delta.tv_sec = 0;
-
-	// use picoseconds per hz to avoid floating point and limit the rounding error
-	ps_per_hz = 1000000000 / (st->frequency / 1000);
-	st->delta.tv_nsec = ((st->count_at_interrupt - count_at_capture) * ps_per_hz) / 1000;
-
-	dev_info(st->dev, "%s() %d vs %d -> %ld \n", __func__,
-			st->count_at_interrupt, count_at_capture, st->delta.tv_nsec);
-
-	return ret;
-}
-*/
 
 static void cnt_dmtimer_enable_irq(struct cnt_dmtimer_pdata *st)
 {
@@ -166,9 +136,7 @@ static irqreturn_t cnt_dmtimer_interrupt(int irq, void *data)
 	irq_status = st->timer_ops->read_status(st->capture_timer);
 
 	if (irq_status & OMAP_TIMER_INT_CAPTURE) {
-		unsigned int capture[2];
-
-//		st->count_at_interrupt = st->timer_ops->read_counter(st->capture_timer);
+		uint32_t capture[2];
 		capture[0] = __omap_dm_timer_read(st->capture_timer,
 									OMAP_TIMER_CAPTURE_REG,
 									st->capture_timer->posted);
@@ -176,17 +144,16 @@ static irqreturn_t cnt_dmtimer_interrupt(int irq, void *data)
 									OMAP_TIMER_CAPTURE2_REG,
 									st->capture_timer->posted);
 
-		st->hz = capture[1] - capture[0];
+		st->t_delta = capture[1] - capture[0];
 		dev_dbg(st->dev, "%s() %d vs %d -> %d \n", __func__,
-				capture[0], capture[1], st->hz);
+				capture[0], capture[1], st->t_delta);
 
-//		st->capture++;
+		usleep_range(929, 930);
 		__omap_dm_timer_write_status(st->capture_timer, OMAP_TIMER_INT_CAPTURE);
 	}
 
 	if (irq_status & OMAP_TIMER_INT_OVERFLOW) {
 		dev_info(st->dev, "%s() overflow\n", __func__);
-//		st->overflow++;
 		__omap_dm_timer_write_status(st->capture_timer, OMAP_TIMER_INT_OVERFLOW);
 	}
 
@@ -299,32 +266,12 @@ static irqreturn_t cnt_dmtimer_trigger_handler(int irq, void *p)
 
 	mutex_lock(&st->lock);
 	st->bufferd = 1;
-//	cnt_dmtimer_read_samples(indio_dev, 0);
+
 	iio_trigger_notify_done(indio_dev->trig);
 	mutex_unlock(&st->lock);
 
 	return IRQ_HANDLED;
 }
-/*
-static int cnt_dmtimer_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
-{
-	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
-	int ret;
-
-	dev_dbg(st->dev, "%s(%d)\n", __func__, ch);
-
-	ret = cnt_dmtimer_read_samples(indio_dev, 1000);
-	if (ret != 0)
-		return -EINVAL;
-
-//	ret = wait_for_completion_timeout(&st->completion,
-//					msecs_to_jiffies(1000));
-//	if (!ret)
-//		return -ETIMEDOUT;
-
-	return st->data[ch];
-}
-*/
 
 static int cnt_dmtimer_read_raw(struct iio_dev *indio_dev,
 			   struct iio_chan_spec const *chan,
@@ -342,7 +289,7 @@ static int cnt_dmtimer_read_raw(struct iio_dev *indio_dev,
 		ret = iio_device_claim_direct_mode(indio_dev);
 		if (ret)
 			return ret;
-		*val = st->hz;
+		*val = st->t_delta;
 		iio_device_release_direct_mode(indio_dev);
 		return IIO_VAL_INT;
 
@@ -350,7 +297,17 @@ static int cnt_dmtimer_read_raw(struct iio_dev *indio_dev,
 		ret = iio_device_claim_direct_mode(indio_dev);
 		if (ret)
 			return ret;
-		*val = st->hz / 10;
+
+		*val = (st->frequency + st->offset) / st->t_delta;
+		*val2 = 00000;
+		iio_device_release_direct_mode(indio_dev);
+		return IIO_VAL_INT_PLUS_MICRO;
+
+	case IIO_CHAN_INFO_OFFSET:
+		ret = iio_device_claim_direct_mode(indio_dev);
+		if (ret)
+			return ret;
+		*val = st->offset;
 		iio_device_release_direct_mode(indio_dev);
 		return IIO_VAL_INT;
 	}
@@ -366,6 +323,13 @@ static int cnt_dmtimer_write_raw(struct iio_dev *indio_dev,
 	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s(%ld)\n", __func__, chan->address);
+
+	switch (mask) {
+	case IIO_CHAN_INFO_OFFSET:
+		st->offset = val;
+		return 0;
+	}
+
 	return -EINVAL;
 }
 
@@ -452,13 +416,14 @@ static const struct iio_info cnt_dmtimer_info = {
 	.attrs = &cnt_dmtimer_attribute_group,
 };
 
-#define CNT_dmtimer_CHANNEL(num) {				\
+#define CNT_DMTIMER_CHANNEL(num) {								\
 		.type = IIO_COUNT,										\
 		.indexed = 1,											\
 		.channel = num,											\
 		.address = num,											\
-		.info_mask_separate =  BIT(IIO_CHAN_INFO_PROCESSED)		\
-							| BIT(IIO_CHAN_INFO_RAW),			\
+		.info_mask_separate = BIT(IIO_CHAN_INFO_PROCESSED)		\
+							| BIT(IIO_CHAN_INFO_RAW)			\
+							| BIT(IIO_CHAN_INFO_OFFSET),		\
 		.scan_index = num,										\
 		.scan_type = {											\
 			.sign = 'u',										\
@@ -469,7 +434,7 @@ static const struct iio_info cnt_dmtimer_info = {
 }
 
 static const struct iio_chan_spec cnt_dmtimer_channels[] = {
-	CNT_dmtimer_CHANNEL(0),
+	CNT_DMTIMER_CHANNEL(0),
 	IIO_CHAN_SOFT_TIMESTAMP(6),
 };
 
