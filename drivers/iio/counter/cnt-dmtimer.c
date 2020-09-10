@@ -43,7 +43,7 @@
 
 #define CNT_DMTIMER_VERSION "0.9"
 
-static const unsigned int cnt_dmtimer_prescaler_avail[] = {
+static const unsigned int cnt_dmtimer_prescaler_avail[9] = {
 	1, 2, 4, 8, 16, 32, 64, 128, 256
 };
 
@@ -65,7 +65,8 @@ struct cnt_dmtimer_pdata {
 	struct platform_device	*pdev;
 	const struct cnt_dmtimer_info	*chip_info;
 	struct regulator		*reg;
-	unsigned int			num_os_ratios;
+	unsigned int			num_prescaler;
+	const unsigned int		*oversampling_avail;
 
 	struct mutex			lock; /* protect sensor state */
 	struct gpio_desc		*gpio_mux_a[6];
@@ -147,8 +148,6 @@ static irqreturn_t cnt_dmtimer_interrupt(int irq, void *data)
 		st->t_delta = capture[1] - capture[0];
 		dev_dbg(st->dev, "%s() %d vs %d -> %d \n", __func__,
 				capture[0], capture[1], st->t_delta);
-
-		usleep_range(929, 930);
 		__omap_dm_timer_write_status(st->capture_timer, OMAP_TIMER_INT_CAPTURE);
 	}
 
@@ -400,7 +399,37 @@ error_ret:
 static IIO_DEVICE_ATTR(gatetime, (S_IWUSR | S_IRUGO),
 		cnt_dmtimer_show_gatetime, cnt_dmtimer_set_gatetime, 0);
 
+static ssize_t cnt_dmtimer_show_avail(char *buf, const unsigned int *vals,
+				 unsigned int n, bool micros)
+{
+	size_t len = 0;
+	int i;
+
+	for (i = 0; i < n; i++) {
+		len += scnprintf(buf + len, PAGE_SIZE - len,
+			micros ? "0.%06u " : "%u ", vals[i]);
+	}
+	buf[len - 1] = '\n';
+
+	return len;
+}
+
+static ssize_t cnt_dmtimer_oversampling_ratio_avail(struct device *dev,
+					       struct device_attribute *attr,
+					       char *buf)
+{
+	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
+	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
+
+	return cnt_dmtimer_show_avail(buf, st->oversampling_avail,
+				 st->num_prescaler, false);
+}
+
+static IIO_DEVICE_ATTR(oversampling_ratio_available, 0444,
+		       cnt_dmtimer_oversampling_ratio_avail, NULL, 0);
+
 static struct attribute *cnt_dmtimer_attributes[] = {
+	&iio_dev_attr_oversampling_ratio_available.dev_attr.attr,
 	&iio_dev_attr_gatetime.dev_attr.attr,
 	&iio_dev_attr_prescaler.dev_attr.attr,
 	NULL,
@@ -443,6 +472,8 @@ static const struct cnt_dmtimer_info cnt_dmtimer_info_tbl[] = {
 	[0] = {
 		.channels = cnt_dmtimer_channels,
 		.num_channels = 1,
+		.oversampling_avail = cnt_dmtimer_prescaler_avail,
+		.oversampling_num = ARRAY_SIZE(cnt_dmtimer_prescaler_avail),
 	},
 };
 
@@ -619,6 +650,8 @@ static int cnt_dmtimer_probe(struct platform_device *pdev)
 	mutex_init(&st->lock);
 
 	st->chip_info = &cnt_dmtimer_info_tbl[0];
+	st->num_prescaler = st->chip_info->oversampling_num;
+	st->oversampling_avail = st->chip_info->oversampling_avail;
 
 	indio_dev->dev.parent = dev;
 	indio_dev->info = &cnt_dmtimer_info;
