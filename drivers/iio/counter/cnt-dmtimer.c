@@ -41,7 +41,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define CNT_DMTIMER_VERSION "0.9"
+#define CNT_DMTIMER_VERSION "0.10"
 
 static const unsigned int cnt_dmtimer_prescaler_avail[9] = {
 	1, 2, 4, 8, 16, 32, 64, 128, 256
@@ -50,8 +50,8 @@ static const unsigned int cnt_dmtimer_prescaler_avail[9] = {
 struct cnt_dmtimer_info {
 	const struct iio_chan_spec	*channels;
 	unsigned int				num_channels;
-	const unsigned int			*oversampling_avail;
-	unsigned int				oversampling_num;
+	const unsigned int			*prescale_avail;
+	unsigned int				prescale_num;
 };
 
 struct cnt_dmtimer_pdata {
@@ -66,7 +66,7 @@ struct cnt_dmtimer_pdata {
 	const struct cnt_dmtimer_info	*chip_info;
 	struct regulator		*reg;
 	unsigned int			num_prescaler;
-	const unsigned int		*oversampling_avail;
+	const unsigned int		*prescale_avail;
 
 	struct mutex			lock; /* protect sensor state */
 	struct gpio_desc		*gpio_mux_a[6];
@@ -159,11 +159,24 @@ static irqreturn_t cnt_dmtimer_interrupt(int irq, void *data)
 	return IRQ_HANDLED; // TODO: shared interrupts?
 }
 
-static void omap_dm_timer_setup_capture(struct cnt_dmtimer_pdata *st)
+static int find_prescaler_idx(struct cnt_dmtimer_pdata *st, int val)
+{
+	int i = 0;
+	if (val == 1)
+		i = 0;
+	else if (val == 2)
+		i = 1;
+	else
+		i = find_closest(val, st->prescale_avail, st->num_prescaler);
+	return i;
+}
+
+static void cnt_dmtimer_setup_capture(struct cnt_dmtimer_pdata *st)
 {
 	struct omap_dm_timer *timer = st->capture_timer;
 	const struct omap_dm_timer_ops *timer_ops = st->timer_ops;
 	u32 ctrl;
+	int idx;
 
 	timer_ops->set_source(timer, OMAP_TIMER_SRC_SYS_CLK);
 	timer_ops->enable(timer);
@@ -172,9 +185,11 @@ static void omap_dm_timer_setup_capture(struct cnt_dmtimer_pdata *st)
 
 	// reload prescaler
 	ctrl &= ~(OMAP_TIMER_CTRL_PRE | (0x07 << 2));
-	if (st->prescaler >= 0x01 && st->prescaler <= 0x07) {
+	idx = find_prescaler_idx(st, st->prescaler);
+
+	if (idx >= 0x01 && idx <= 0x08) {
 		ctrl |= OMAP_TIMER_CTRL_PRE;
-		ctrl |= st->prescaler << 2;
+		ctrl |= (idx - 1) << 2;
 	}
 
 	// autoreload
@@ -217,7 +232,7 @@ static int cnt_dmtimer_init_timer(struct device_node *t_dn, struct cnt_dmtimer_p
 		return -EIO;
 	}
 
-	omap_dm_timer_setup_capture(st);
+	cnt_dmtimer_setup_capture(st);
 
 	gt_fclk = st->timer_ops->get_fclk(st->capture_timer);
 	st->frequency = clk_get_rate(gt_fclk);
@@ -297,7 +312,7 @@ static int cnt_dmtimer_read_raw(struct iio_dev *indio_dev,
 		if (ret)
 			return ret;
 
-		*val = (st->frequency + st->offset) / st->t_delta;
+		*val = ((st->frequency + st->offset) / st->prescaler) / st->t_delta;
 		*val2 = 00000;
 		iio_device_release_direct_mode(indio_dev);
 		return IIO_VAL_INT_PLUS_MICRO;
@@ -308,6 +323,10 @@ static int cnt_dmtimer_read_raw(struct iio_dev *indio_dev,
 			return ret;
 		*val = st->offset;
 		iio_device_release_direct_mode(indio_dev);
+		return IIO_VAL_INT;
+
+	case IIO_CHAN_INFO_SCALE:
+		*val = st->prescaler;
 		return IIO_VAL_INT;
 	}
 	return -EINVAL;
@@ -320,51 +339,27 @@ static int cnt_dmtimer_write_raw(struct iio_dev *indio_dev,
 			    long mask)
 {
 	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
-
-	dev_dbg(st->dev, "%s(%ld)\n", __func__, chan->address);
+	int idx;
 
 	switch (mask) {
 	case IIO_CHAN_INFO_OFFSET:
 		st->offset = val;
 		return 0;
+
+	case IIO_CHAN_INFO_SCALE:
+		if (val2)
+			return -EINVAL;
+		if (val <= 0)
+			return -EINVAL;
+
+		idx = find_prescaler_idx(st, val);
+		st->prescaler = st->prescale_avail[idx];
+		cnt_dmtimer_setup_capture(st);
+		return 0;
 	}
 
 	return -EINVAL;
 }
-
-static ssize_t cnt_dmtimer_show_prescaler(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct cnt_dmtimer_pdata *st = iio_priv(dev_to_iio_dev(dev));
-
-	return sprintf(buf, "%d\n", st->prescaler);
-}
-
-static ssize_t cnt_dmtimer_set_prescaler(struct device *dev,
-		struct device_attribute *attr,
-		const char *buf,
-		size_t len)
-{
-	struct cnt_dmtimer_pdata *st = iio_priv(dev_to_iio_dev(dev));
-	unsigned int val;
-	int ret;
-
-	ret = kstrtouint(buf, 0, &val);
-	if (ret)
-		goto error_ret;
-
-	if (val < 0 || val > 7)
-		return -EINVAL;
-
-	st->prescaler = val;
-	omap_dm_timer_setup_capture(st);
-
-error_ret:
-	return ret ? ret : len;
-}
-
-static IIO_DEVICE_ATTR(prescaler, (S_IWUSR | S_IRUGO),
-		cnt_dmtimer_show_prescaler, cnt_dmtimer_set_prescaler, 0);
 
 static ssize_t cnt_dmtimer_show_gatetime(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -399,11 +394,13 @@ error_ret:
 static IIO_DEVICE_ATTR(gatetime, (S_IWUSR | S_IRUGO),
 		cnt_dmtimer_show_gatetime, cnt_dmtimer_set_gatetime, 0);
 
-static ssize_t cnt_dmtimer_show_avail(char *buf, const unsigned int *vals,
-				 unsigned int n, bool micros)
+static ssize_t cnt_dmtimer_show_avail(char *buf, struct cnt_dmtimer_pdata *st,
+				 const unsigned int *vals, unsigned int n, bool micros)
 {
 	size_t len = 0;
 	int i;
+
+	len += scnprintf(buf + len, PAGE_SIZE - len, "%d Hz prescaler: ", st->frequency);
 
 	for (i = 0; i < n; i++) {
 		len += scnprintf(buf + len, PAGE_SIZE - len,
@@ -414,24 +411,23 @@ static ssize_t cnt_dmtimer_show_avail(char *buf, const unsigned int *vals,
 	return len;
 }
 
-static ssize_t cnt_dmtimer_oversampling_ratio_avail(struct device *dev,
+static ssize_t cnt_dmtimer_prescale_ratio_avail(struct device *dev,
 					       struct device_attribute *attr,
 					       char *buf)
 {
 	struct iio_dev *indio_dev = dev_to_iio_dev(dev);
 	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
-	return cnt_dmtimer_show_avail(buf, st->oversampling_avail,
+	return cnt_dmtimer_show_avail(buf, st, st->prescale_avail,
 				 st->num_prescaler, false);
 }
 
-static IIO_DEVICE_ATTR(oversampling_ratio_available, 0444,
-		       cnt_dmtimer_oversampling_ratio_avail, NULL, 0);
+static IIO_DEVICE_ATTR(scale_ratio_available, 0444,
+		       cnt_dmtimer_prescale_ratio_avail, NULL, 0);
 
 static struct attribute *cnt_dmtimer_attributes[] = {
-	&iio_dev_attr_oversampling_ratio_available.dev_attr.attr,
+	&iio_dev_attr_scale_ratio_available.dev_attr.attr,
 	&iio_dev_attr_gatetime.dev_attr.attr,
-	&iio_dev_attr_prescaler.dev_attr.attr,
 	NULL,
 };
 
@@ -452,7 +448,8 @@ static const struct iio_info cnt_dmtimer_info = {
 		.address = num,											\
 		.info_mask_separate = BIT(IIO_CHAN_INFO_PROCESSED)		\
 							| BIT(IIO_CHAN_INFO_RAW)			\
-							| BIT(IIO_CHAN_INFO_OFFSET),		\
+							| BIT(IIO_CHAN_INFO_OFFSET)			\
+							| BIT(IIO_CHAN_INFO_SCALE),			\
 		.scan_index = num,										\
 		.scan_type = {											\
 			.sign = 'u',										\
@@ -467,13 +464,12 @@ static const struct iio_chan_spec cnt_dmtimer_channels[] = {
 	IIO_CHAN_SOFT_TIMESTAMP(6),
 };
 
-
 static const struct cnt_dmtimer_info cnt_dmtimer_info_tbl[] = {
 	[0] = {
 		.channels = cnt_dmtimer_channels,
 		.num_channels = 1,
-		.oversampling_avail = cnt_dmtimer_prescaler_avail,
-		.oversampling_num = ARRAY_SIZE(cnt_dmtimer_prescaler_avail),
+		.prescale_avail = cnt_dmtimer_prescaler_avail,
+		.prescale_num = ARRAY_SIZE(cnt_dmtimer_prescaler_avail),
 	},
 };
 
@@ -643,15 +639,16 @@ static int cnt_dmtimer_probe(struct platform_device *pdev)
 	st->dev = dev;
 	st->pdev = pdev;
 
-	ret = cnt_dmtimer_request_of(indio_dev);
-	if (ret)
-		return -ENOMEM;
-
 	mutex_init(&st->lock);
 
 	st->chip_info = &cnt_dmtimer_info_tbl[0];
-	st->num_prescaler = st->chip_info->oversampling_num;
-	st->oversampling_avail = st->chip_info->oversampling_avail;
+	st->num_prescaler = st->chip_info->prescale_num;
+	st->prescale_avail = st->chip_info->prescale_avail;
+	st->prescaler = 1;
+
+	ret = cnt_dmtimer_request_of(indio_dev);
+	if (ret)
+		return -ENOMEM;
 
 	indio_dev->dev.parent = dev;
 	indio_dev->info = &cnt_dmtimer_info;
