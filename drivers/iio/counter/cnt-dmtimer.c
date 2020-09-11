@@ -73,13 +73,6 @@ struct cnt_dmtimer_pdata {
 	uint32_t frequency;
 	struct clocksource clksrc;
 	int ready;
-
-	/*
-	 * DMA (thus cache coherency maintenance) requires the
-	 * transfer buffers to live in their own cache lines.
-	 *  6 * 16-bit samples + 64-bit timestamp
-	 */
-	unsigned int			data[6] ____cacheline_aligned;
 };
 
 static void cnt_dmtimer_enable_irq(struct cnt_dmtimer_pdata *st)
@@ -99,7 +92,6 @@ static void cnt_dmtimer_cleanup_timer(struct cnt_dmtimer_pdata *st)
 
 	st->timer_ops->set_source(st->capture_timer, OMAP_TIMER_SRC_SYS_CLK); // in case TCLKIN is stopped during boot
 	st->timer_ops->set_int_disable(st->capture_timer, OMAP_TIMER_INT_CAPTURE | OMAP_TIMER_INT_OVERFLOW);
-	free_irq(st->capture_timer->irq, st);
 	st->timer_ops->stop(st->capture_timer);
 	st->timer_ops->free(st->capture_timer);
 	st->capture_timer = NULL;
@@ -203,6 +195,7 @@ static void cnt_dmtimer_setup_capture(struct cnt_dmtimer_pdata *st)
 static int cnt_dmtimer_init_timer(struct device_node *t_dn, struct cnt_dmtimer_pdata *st)
 {
 	struct clk *gt_fclk;
+	int ret;
 
 	of_property_read_string_index(t_dn, "ti,hwmods", 0, &st->timer_name);
 	if (!st->timer_name) {
@@ -216,11 +209,10 @@ static int cnt_dmtimer_init_timer(struct device_node *t_dn, struct cnt_dmtimer_p
 		return -ENODEV;
     }
 
-	// TODO: use devm_request_irq?
-	if (request_irq(st->capture_timer->irq, cnt_dmtimer_interrupt, IRQF_TIMER, "cnt-dmtimer-irq", st)){
-		dev_err(st->dev, "cannot register IRQ %d\n", st->capture_timer->irq);
-		return -EIO;
-	}
+	ret = devm_request_irq(st->dev, st->capture_timer->irq, cnt_dmtimer_interrupt,
+			IRQF_TIMER, dev_name(st->dev), st);
+	if (ret < 0)
+			return -EIO;
 
 	cnt_dmtimer_setup_capture(st);
 
@@ -681,6 +673,9 @@ static int cnt_dmtimer_remove(struct platform_device *pdev)
 	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
 	dev_info(st->dev, "%s()\n", __func__);
+	st->timer_ops->set_int_disable(st->capture_timer, OMAP_TIMER_INT_CAPTURE | OMAP_TIMER_INT_OVERFLOW);
+	disable_irq(st->capture_timer->irq);
+
 	st->state = 0;
 
 	clocksource_unregister(&st->clksrc);
