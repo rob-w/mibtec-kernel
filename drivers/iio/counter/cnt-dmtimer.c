@@ -13,12 +13,9 @@
 #include <linux/gpio/consumer.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
-#include <linux/rpmsg.h>
 #include <linux/module.h>
 #include <linux/clk.h>
-#include <linux/regulator/consumer.h>
 #include <linux/sched.h>
-#include <linux/slab.h>
 #include <linux/sysfs.h>
 #include <linux/util_macros.h>
 #include <linux/of.h>
@@ -55,7 +52,7 @@ struct cnt_dmtimer_info {
 };
 
 struct cnt_dmtimer_pdata {
-	int 					state, bufferd;
+	int 					state;
 	int						gate_time;	// in usec ?
 	int						prescaler;
 	uint32_t				t_delta;
@@ -64,20 +61,16 @@ struct cnt_dmtimer_pdata {
 	struct iio_dev			*indio_dev;
 	struct platform_device	*pdev;
 	const struct cnt_dmtimer_info	*chip_info;
-	struct regulator		*reg;
 	unsigned int			num_prescaler;
 	const unsigned int		*prescale_avail;
 
-	struct mutex			lock; /* protect sensor state */
-	struct gpio_desc		*gpio_mux_a[6];
+	struct mutex			lock;
 	struct iio_trigger		*trig;
-	struct completion		completion;
 
 	struct omap_dm_timer *capture_timer;
 	const struct omap_dm_timer_ops *timer_ops;
 	const char *timer_name;
 	uint32_t frequency;
-	struct timespec64 delta;
 	struct clocksource clksrc;
 	int ready;
 
@@ -262,7 +255,7 @@ static irqreturn_t cnt_dmtimer_trigger_handler(int irq, void *p)
 	dev_info(st->dev, "%s()\n", __func__);
 
 	mutex_lock(&st->lock);
-	st->bufferd = 1;
+//	st->bufferd = 1;
 
 	iio_trigger_notify_done(indio_dev->trig);
 	mutex_unlock(&st->lock);
@@ -503,9 +496,6 @@ static int cnt_dmtimer_trigger_set_state(struct iio_trigger *trig, bool enable)
 	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s(%d)\n", __func__, enable);
-	st->bufferd = enable;
-//	if (st->bufferd)
-//		pru_read_samples(indio_dev, st->samplecnt);
 
 	return 0;
 }
@@ -655,10 +645,6 @@ static int cnt_dmtimer_probe(struct platform_device *pdev)
 	cnt_dmtimer_clocksource_init(st);
 	cnt_dmtimer_enable_irq(st);
 
-//	init_completion(&st->completion);
-
-	st->state = 1;
-	st->bufferd = 0;
 
 	return devm_iio_device_register(dev, indio_dev);
 }
