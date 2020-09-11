@@ -41,7 +41,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define CNT_DMTIMER_VERSION "0.10"
+#define CNT_DMTIMER_VERSION "0.11"
 
 static const unsigned int cnt_dmtimer_prescaler_avail[9] = {
 	1, 2, 4, 8, 16, 32, 64, 128, 256
@@ -86,10 +86,8 @@ struct cnt_dmtimer_pdata {
 	 * transfer buffers to live in their own cache lines.
 	 *  6 * 16-bit samples + 64-bit timestamp
 	 */
-//	unsigned short			data[10] ____cacheline_aligned;
-	unsigned int			data[452] ____cacheline_aligned;
+	unsigned int			data[6] ____cacheline_aligned;
 };
-
 
 static void cnt_dmtimer_enable_irq(struct cnt_dmtimer_pdata *st)
 {
@@ -114,22 +112,14 @@ static void cnt_dmtimer_cleanup_timer(struct cnt_dmtimer_pdata *st)
 	st->capture_timer = NULL;
 }
 
-/* clocksource ***************/
-static struct cnt_dmtimer_pdata *clocksource_timer = NULL;
-
-static u64 cnt_dmtimer_read_cycles(struct clocksource *cs)
-{
-	u64 cycles = __omap_dm_timer_read_counter(clocksource_timer->capture_timer,
-							clocksource_timer->capture_timer->posted);
-	return (cycles);
-}
-
 static irqreturn_t cnt_dmtimer_interrupt(int irq, void *data)
 {
-	struct cnt_dmtimer_pdata *st;
+	struct cnt_dmtimer_pdata *st = data;
+	struct device *pdev = st->dev;
+	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
 	unsigned int irq_status;
-
-	st = data;
+	uint64_t ret;
+	uint32_t ret2;
 
 	if (!st->ready)
 		return IRQ_HANDLED;
@@ -146,8 +136,15 @@ static irqreturn_t cnt_dmtimer_interrupt(int irq, void *data)
 									st->capture_timer->posted);
 
 		st->t_delta = capture[1] - capture[0];
-		dev_dbg(st->dev, "%s() %d vs %d -> %d \n", __func__,
-				capture[0], capture[1], st->t_delta);
+
+		ret = (st->frequency + st->offset) / st->prescaler;
+		ret = ret * 1000;
+		ret2 = div_u64(ret, st->t_delta);
+
+		iio_push_to_buffers_with_timestamp(indio_dev, &ret2, iio_get_time_ns(indio_dev));
+
+		dev_dbg(st->dev, "%s() %d vs %d -> %d %d\n", __func__,
+				capture[0], capture[1], st->t_delta, ret2);
 		__omap_dm_timer_write_status(st->capture_timer, OMAP_TIMER_INT_CAPTURE);
 	}
 
@@ -244,31 +241,17 @@ static int cnt_dmtimer_init_timer(struct device_node *t_dn, struct cnt_dmtimer_p
 
 static void cnt_dmtimer_clocksource_init(struct cnt_dmtimer_pdata *st)
 {
-    if (clocksource_timer != NULL)
-		return;
 
 	st->clksrc.name = st->timer_name;
 
 	st->clksrc.rating = 299;
-	st->clksrc.read = cnt_dmtimer_read_cycles;
 	st->clksrc.mask = CLOCKSOURCE_MASK(32);
 	st->clksrc.flags = CLOCK_SOURCE_IS_CONTINUOUS;
 
-	clocksource_timer = st;
-	if (clocksource_register_hz(&st->clksrc, st->frequency)){
-		pr_err("Could not register clocksource %s\n", st->clksrc.name);
-		clocksource_timer = NULL;
-	} else
-		pr_info("clocksource: %s at %u Hz\n", st->clksrc.name, st->frequency);
-}
-
-static void cnt_dmtimer_clocksource_cleanup(struct cnt_dmtimer_pdata *st)
-{
-    if (st == clocksource_timer)
-    {
-        clocksource_unregister(&st->clksrc);
-        clocksource_timer = NULL;
-    }
+	if (clocksource_register_hz(&st->clksrc, st->frequency))
+		dev_err(st->dev, "Could not register clocksource %s\n", st->clksrc.name);
+	else
+		dev_info(st->dev, "clocksource: %s at %u Hz\n", st->clksrc.name, st->frequency);
 }
 
 static irqreturn_t cnt_dmtimer_trigger_handler(int irq, void *p)
@@ -293,7 +276,7 @@ static int cnt_dmtimer_read_raw(struct iio_dev *indio_dev,
 			   int *val2,
 			   long m)
 {
-	uint64_t ret;
+	uint64_t ret, ret2;
 	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s(%ld %ld)\n", __func__, chan->address, m);
@@ -311,9 +294,12 @@ static int cnt_dmtimer_read_raw(struct iio_dev *indio_dev,
 		ret = iio_device_claim_direct_mode(indio_dev);
 		if (ret)
 			return ret;
+		ret = (st->frequency + st->offset) / st->prescaler;
+		ret = ret * 1000;
+		ret2 = div_u64(ret, st->t_delta);
+		*val = div_u64(ret2, 1000);
+		*val2 = (ret2 - (*val * 1000)) * 1000;
 
-		*val = ((st->frequency + st->offset) / st->prescaler) / st->t_delta;
-		*val2 = 00000;
 		iio_device_release_direct_mode(indio_dev);
 		return IIO_VAL_INT_PLUS_MICRO;
 
@@ -461,32 +447,17 @@ static const struct iio_info cnt_dmtimer_info = {
 
 static const struct iio_chan_spec cnt_dmtimer_channels[] = {
 	CNT_DMTIMER_CHANNEL(0),
-	IIO_CHAN_SOFT_TIMESTAMP(6),
+	IIO_CHAN_SOFT_TIMESTAMP(1),
 };
 
 static const struct cnt_dmtimer_info cnt_dmtimer_info_tbl[] = {
 	[0] = {
 		.channels = cnt_dmtimer_channels,
-		.num_channels = 1,
+		.num_channels = 2,
 		.prescale_avail = cnt_dmtimer_prescaler_avail,
 		.prescale_num = ARRAY_SIZE(cnt_dmtimer_prescaler_avail),
 	},
 };
-
-static int cnt_dmtimer_request_gpios(struct cnt_dmtimer_pdata *st)
-{
-	int i;
-	char pinpath[256];
-	struct device *dev = st->dev;
-
-	for (i = 0; i < 6; i++) {
-		sprintf(pinpath, "pru,adc-%d-mux-a", i + 1);
-		if (IS_ERR(st->gpio_mux_a[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
-			return PTR_ERR(st->gpio_mux_a[i]);
-	}
-
-	return 0;
-}
 
 static int cnt_dmtimer_buffer_preenable(struct iio_dev *indio_dev)
 {
@@ -614,7 +585,7 @@ static int cnt_dmtimer_request_of(struct iio_dev *indio_dev)
 	if (cnt_dmtimer_init_timer(t_dn, st) < 0)
 		goto fail2;
 
-//	of_node_put(t_dn);
+	of_node_put(t_dn);
 	return 0;
 
 fail2:
@@ -645,6 +616,7 @@ static int cnt_dmtimer_probe(struct platform_device *pdev)
 	st->num_prescaler = st->chip_info->prescale_num;
 	st->prescale_avail = st->chip_info->prescale_avail;
 	st->prescaler = 1;
+	st->offset = 1352;
 
 	ret = cnt_dmtimer_request_of(indio_dev);
 	if (ret)
@@ -679,6 +651,7 @@ static int cnt_dmtimer_probe(struct platform_device *pdev)
 		return ret;
 
 	st->ready = 1;
+
 	cnt_dmtimer_clocksource_init(st);
 	cnt_dmtimer_enable_irq(st);
 
@@ -721,10 +694,10 @@ static int cnt_dmtimer_remove(struct platform_device *pdev)
 	struct iio_dev *indio_dev = dev_get_drvdata(dev);
 	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
-	dev_dbg(st->dev, "%s()\n", __func__);
+	dev_info(st->dev, "%s()\n", __func__);
 	st->state = 0;
 
-	cnt_dmtimer_clocksource_cleanup(st);
+	clocksource_unregister(&st->clksrc);
 	cnt_dmtimer_cleanup_timer(st);
 
 	return 0;

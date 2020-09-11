@@ -19,30 +19,20 @@
 / {
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
-/*	pps_0 {
-		pinctrl-names = "default";
-		pinctrl-0 = <&timer6_pin>;
-		timer = <&timer6>;
-		compatible = "pps-gmtimer";
-		status = "okay";
-	};*/
-
-	cnt_dmtimer {
+	cnt_dmtimer_7 {
 		pinctrl-names = "default";
 		pinctrl-0 = <&timer7_pin>;
 		timer = <&timer7>;
 		compatible = "cnt-dmtimer";
 		status = "okay";
 	};
-
-	pps_1 {
+	cnt_dmtimer_6 {
 		pinctrl-names = "default";
-		pinctrl-0 = <&timer7_pin>;
-		timer = <&timer7>;
-		compatible = "pps-gmtimer";
+		pinctrl-0 = <&timer6_pin>;
+		timer = <&timer6>;
+		compatible = "cnt-dmtimer";
 		status = "okay";
 	};
-
 	pps_2 {
 		pinctrl-names = "default";
 		pinctrl-0 = <&basis_pps_2>;
