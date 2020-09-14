@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * IIO Counter implementation via gpio and/or omap dmtimer block
+ * IIO Counter implementation omap dmtimer block
  *
  * Copyright 2020 MIS (c) Robert Woerle rwoerle@mibtec.de, robert@linuxdevelopment.de
- * based pps-dmtimer.c
+ * based/inspired on drivers/pps/client/pps-dmtimer.c apart from other iio drivers
  * 
  */
 
 #include <linux/delay.h>
 #include <linux/device.h>
-#include <linux/err.h>
-#include <linux/gpio/consumer.h>
-#include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/clk.h>
@@ -34,9 +31,6 @@
 #include <linux/iio/trigger.h>
 #include <linux/iio/triggered_buffer.h>
 #include <linux/iio/trigger_consumer.h>
-
-//#define CREATE_TRACE_POINTS
-//#include <trace/events/gpio.h>
 
 #define CNT_DMTIMER_VERSION "0.11"
 
