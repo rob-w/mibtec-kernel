@@ -91,14 +91,25 @@ static void cnt_dmtimer_cleanup_timer(struct cnt_dmtimer_pdata *st)
 	st->capture_timer = NULL;
 }
 
+static uint32_t recalc_freq(struct cnt_dmtimer_pdata *st)
+{
+	uint64_t base;
+	uint32_t freq;
+
+	base = (st->frequency + st->offset) / st->prescaler;
+	base = base * 1000;
+	freq = div_u64(base, st->t_delta);
+
+	return freq;
+}
+
 static irqreturn_t cnt_dmtimer_interrupt(int irq, void *data)
 {
 	struct cnt_dmtimer_pdata *st = data;
 	struct device *pdev = st->dev;
 	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
 	unsigned int irq_status;
-	uint64_t ret;
-	uint32_t ret2;
+	uint32_t freq;
 
 	if (!st->ready)
 		return IRQ_HANDLED;
@@ -115,24 +126,22 @@ static irqreturn_t cnt_dmtimer_interrupt(int irq, void *data)
 									st->capture_timer->posted);
 
 		st->t_delta = capture[1] - capture[0];
-
-		ret = (st->frequency + st->offset) / st->prescaler;
-		ret = ret * 1000;
-		ret2 = div_u64(ret, st->t_delta);
-
-		iio_push_to_buffers_with_timestamp(indio_dev, &ret2, iio_get_time_ns(indio_dev));
+		freq = recalc_freq(st);
+		iio_push_to_buffers_with_timestamp(indio_dev, &freq, iio_get_time_ns(indio_dev));
 
 		dev_dbg(st->dev, "%s() %d vs %d -> %d %d\n", __func__,
-				capture[0], capture[1], st->t_delta, ret2);
+				capture[0], capture[1], st->t_delta, freq);
 		__omap_dm_timer_write_status(st->capture_timer, OMAP_TIMER_INT_CAPTURE);
 	}
 
+	/// we are not interested in IRQ OVERFLOW
+	/// do we just ignore the flag ?
 	if (irq_status & OMAP_TIMER_INT_OVERFLOW) {
 		dev_info(st->dev, "%s() overflow\n", __func__);
 		__omap_dm_timer_write_status(st->capture_timer, OMAP_TIMER_INT_OVERFLOW);
 	}
 
-	return IRQ_HANDLED; // TODO: shared interrupts?
+	return IRQ_HANDLED;
 }
 
 static int find_prescaler_idx(struct cnt_dmtimer_pdata *st, int val)
@@ -273,9 +282,8 @@ static int cnt_dmtimer_read_raw(struct iio_dev *indio_dev,
 		ret = iio_device_claim_direct_mode(indio_dev);
 		if (ret)
 			return ret;
-		ret = (st->frequency + st->offset) / st->prescaler;
-		ret = ret * 1000;
-		ret2 = div_u64(ret, st->t_delta);
+
+		ret2 = recalc_freq(st);
 		*val = div_u64(ret2, 1000);
 		*val2 = (ret2 - (*val * 1000)) * 1000;
 
