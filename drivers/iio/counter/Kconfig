@@ -23,6 +23,7 @@ config 104_QUAD_8
 
 config CNT_DMTIMER
 	tristate "Omap Timer counter driver"
+	depends on ARCH_OMAP2 || ARCH_OMAP3 || SOC_AM33XX || SOC_AM43XX
 	help
 	  Select this option to enable a Omap Timer to capture counts.
 
