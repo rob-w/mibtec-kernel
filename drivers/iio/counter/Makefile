@@ -6,4 +6,5 @@
 
 obj-$(CONFIG_104_QUAD_8)	+= 104-quad-8.o
 obj-$(CONFIG_CNT_DMTIMER)	+= cnt-dmtimer.o
+obj-$(CONFIG_CNT_GPIO)		+= cnt-gpio.o
 obj-$(CONFIG_STM32_LPTIMER_CNT)	+= stm32-lptimer-cnt.o
