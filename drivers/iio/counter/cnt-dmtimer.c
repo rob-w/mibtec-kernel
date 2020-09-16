@@ -73,7 +73,7 @@ static void cnt_dmtimer_enable_irq(struct cnt_dmtimer_pdata *st)
 {
     unsigned int interrupt_mask;
 
-    interrupt_mask = OMAP_TIMER_INT_CAPTURE | OMAP_TIMER_INT_OVERFLOW;
+    interrupt_mask = OMAP_TIMER_INT_CAPTURE;
     __omap_dm_timer_int_enable(st->capture_timer, interrupt_mask);
     st->capture_timer->context.tier = interrupt_mask;
     st->capture_timer->context.twer = interrupt_mask;
@@ -134,8 +134,7 @@ static irqreturn_t cnt_dmtimer_interrupt(int irq, void *data)
 		__omap_dm_timer_write_status(st->capture_timer, OMAP_TIMER_INT_CAPTURE);
 	}
 
-	/// we are not interested in IRQ OVERFLOW
-	/// do we just ignore the flag ?
+	/// in case the flag is up but we only enabled IRQ_CAPTURE
 	if (irq_status & OMAP_TIMER_INT_OVERFLOW) {
 		dev_info(st->dev, "%s() overflow\n", __func__);
 		__omap_dm_timer_write_status(st->capture_timer, OMAP_TIMER_INT_OVERFLOW);
@@ -674,7 +673,7 @@ static int cnt_dmtimer_remove(struct platform_device *pdev)
 	struct iio_dev *indio_dev = dev_get_drvdata(dev);
 	struct cnt_dmtimer_pdata *st = iio_priv(indio_dev);
 
-	dev_info(st->dev, "%s()\n", __func__);
+	dev_dbg(st->dev, "%s()\n", __func__);
 	st->timer_ops->set_int_disable(st->capture_timer, OMAP_TIMER_INT_CAPTURE | OMAP_TIMER_INT_OVERFLOW);
 	disable_irq(st->capture_timer->irq);
 
