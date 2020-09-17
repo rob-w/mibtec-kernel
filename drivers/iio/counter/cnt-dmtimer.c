@@ -18,7 +18,6 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 
-#include <linux/platform_device.h>
 #include <linux/platform_data/dmtimer-omap.h>
 
 #include <linux/clocksource.h>
@@ -53,7 +52,7 @@ struct cnt_dmtimer_pdata {
 	int						offset;
 	struct device			*dev;
 	struct iio_dev			*indio_dev;
-	struct platform_device	*pdev;
+
 	const struct cnt_dmtimer_info	*chip_info;
 	unsigned int			num_prescaler;
 	const unsigned int		*prescale_avail;
@@ -418,7 +417,7 @@ static const struct iio_info cnt_dmtimer_info = {
 		.indexed = 1,											\
 		.channel = num,											\
 		.address = num,											\
-		.info_mask_separate = BIT(IIO_CHAN_INFO_PROCESSED)		\
+		.info_mask_separate = BIT(IIO_CHAN_INFO_FREQUENCY)		\
 							| BIT(IIO_CHAN_INFO_RAW)			\
 							| BIT(IIO_CHAN_INFO_OFFSET)			\
 							| BIT(IIO_CHAN_INFO_SCALE),			\
@@ -591,7 +590,6 @@ static int cnt_dmtimer_probe(struct platform_device *pdev)
 	st = iio_priv(indio_dev);
 	dev_set_drvdata(dev, indio_dev);
 	st->dev = dev;
-	st->pdev = pdev;
 
 	mutex_init(&st->lock);
 
