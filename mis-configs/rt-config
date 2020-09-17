@@ -3900,6 +3900,7 @@ CONFIG_VF610_ADC=m
 #
 # Counters
 #
+CONFIG_CNT_GMTIMER=m
 
 #
 # Digital to analog converters

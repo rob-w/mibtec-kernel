@@ -174,6 +174,8 @@ static irqreturn_t pps_gmtimer_interrupt(int irq, void *data)
             ps_per_hz = 1000000000 / (pdata->frequency / 1000);
             pdata->delta.tv_nsec = ((pdata->count_at_interrupt - count_at_capture) * ps_per_hz) / 1000;
 
+//			pr_info("dbg %d vs %d -> %ld \n", pdata->count_at_interrupt, count_at_capture, pdata->delta.tv_nsec);
+
             pps_sub_ts(&pdata->ts, pdata->delta);
             pps_event(pdata->pps, &pdata->ts, PPS_CAPTUREASSERT, NULL);
 

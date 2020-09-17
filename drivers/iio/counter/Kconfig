@@ -21,6 +21,23 @@ config 104_QUAD_8
 	  The base port addresses for the devices may be configured via the base
 	  array module parameter.
 
+config CNT_DMTIMER
+	tristate "Omap Timer counter driver"
+	depends on ARCH_OMAP2 || ARCH_OMAP3 || SOC_AM33XX || SOC_AM43XX
+	help
+	  Select this option to enable a Omap Timer to capture counts.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called cnt-dmtimer.
+
+config CNT_GPIO
+	tristate "gpio counter driver"
+	help
+	  Select this option to enable a gpios to capture counts.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called cnt-gpio.
+
 config STM32_LPTIMER_CNT
 	tristate "STM32 LP Timer encoder counter driver"
 	depends on MFD_STM32_LPTIMER || COMPILE_TEST

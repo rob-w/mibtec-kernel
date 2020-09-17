@@ -19,60 +19,29 @@
 / {
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
-	pps_0 {
-		pinctrl-names = "default";
-		pinctrl-0 = <&timer6_pin>;
-		timer = <&timer6>;
-		compatible = "pps-gmtimer";
-		status = "okay";
-	};
-
-	pps_1 {
+	cnt_dmtimer_7 {
 		pinctrl-names = "default";
 		pinctrl-0 = <&timer7_pin>;
 		timer = <&timer7>;
-		compatible = "pps-gmtimer";
+		compatible = "cnt-dmtimer";
 		status = "okay";
 	};
-
-	pps_2 {
+	cnt_dmtimer_6 {
 		pinctrl-names = "default";
-		pinctrl-0 = <&basis_pps_2>;
-
-		gpios = <&gpio1 5 GPIO_ACTIVE_HIGH>;
-		assert-falling-edge;
-
-		compatible = "pps-gpio";
+		pinctrl-0 = <&timer6_pin>;
+		timer = <&timer6>;
+		compatible = "cnt-dmtimer";
 		status = "okay";
 	};
-	pps_3 {
+	cnt_gpio {
 		pinctrl-names = "default";
-		pinctrl-0 = <&basis_pps_3>;
+		pinctrl-0 = <&basis_gpio_count>;
+		cnt-gpios = <&gpio1 5 GPIO_ACTIVE_HIGH
+						&gpio1 1 GPIO_ACTIVE_HIGH
+						&gpio2 12 GPIO_ACTIVE_HIGH
+						&gpio2 22 GPIO_ACTIVE_HIGH >;
 
-		gpios = <&gpio1 1 GPIO_ACTIVE_HIGH>;
-		assert-falling-edge;
-
-		compatible = "pps-gpio";
-		status = "okay";
-	};
-	pps_4 {
-		pinctrl-names = "default";
-		pinctrl-0 = <&basis_pps_4>;
-
-		gpios = <&gpio2 12 GPIO_ACTIVE_HIGH>;
-		assert-falling-edge;
-
-		compatible = "pps-gpio";
-		status = "okay";
-	};
-	pps_5 {
-		pinctrl-names = "default";
-		pinctrl-0 = <&basis_pps_5>;
-
-		gpios = <&gpio2 22 GPIO_ACTIVE_HIGH>;
-		assert-falling-edge;
-
-		compatible = "pps-gpio";
+		compatible = "cnt-gpio";
 		status = "okay";
 	};
 
@@ -194,26 +163,11 @@
 		>;
 	};
 
-	basis_pps_2: basis_pps_2 {
+	basis_gpio_count: basis_gpio_cnt {
 		pinctrl-single,pins = <
 			AM33XX_IOPAD(BONE_P8_22, PIN_INPUT | MUX_MODE7)					/* gpio1_5.gpio1_5 DI_3 */
-		>;
-	};
-
-	basis_pps_3: basis_pps_3 {
-		pinctrl-single,pins = <
 			AM33XX_IOPAD(BONE_P8_24, PIN_INPUT | MUX_MODE7)					/* gpio1_1.gpio1_1 DI_4 */
-		>;
-	};
-
-	basis_pps_4: basis_pps_4 {
-		pinctrl-single,pins = <
 			AM33XX_IOPAD(BONE_P8_39, PIN_INPUT | MUX_MODE7)					/* gpio2_12.gpio2_12 DI_5 */
-		>;
-	};
-
-	basis_pps_5: basis_pps_5 {
-		pinctrl-single,pins = <
 			AM33XX_IOPAD(BONE_P8_27, PIN_INPUT | MUX_MODE7)					/* gpio2_22.gpio2_22 DI_6 */
 		>;
 	};

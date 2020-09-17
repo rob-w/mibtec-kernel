@@ -16,7 +16,7 @@
 };
 
 / {
-	model = "D850BASIS053 v0.36";
+	model = "D850BASIS053 v0.40";
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
 };
