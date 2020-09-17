@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.21"
+#define PRU_ADC_MODULE_VERSION "1.22"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -709,10 +709,10 @@ static int pru_probe(struct platform_device *pdev)
 
 	st->rproc = rproc_get_by_phandle(rproc_phandle);
 	if (!st->rproc) {
-		dev_err(&pdev->dev, "could not get rproc handle\n");
+		dev_err(&pdev->dev, "could not get rproc handle, deferring probe\n");
 		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		free_dma(st);
-		return -ENXIO;
+		return -EPROBE_DEFER;
 	}
 
 	st->dev = dev;
