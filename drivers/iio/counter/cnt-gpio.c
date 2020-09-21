@@ -28,7 +28,7 @@
 #include <linux/iio/triggered_buffer.h>
 #include <linux/iio/trigger_consumer.h>
 
-#define CNT_GPIO_VERSION "0.2"
+#define CNT_GPIO_VERSION "0.3"
 
 struct cnt_gpio_info {
 	const struct iio_chan_spec	*channels;
@@ -47,7 +47,8 @@ typedef struct {
 
 struct cnt_gpio_pdata {
 	int 					state;
-	int						gate_time;	// in usec ?
+	int						calc_tm;	/// in ms
+	int						get_tm[2];	/// in us
 	struct device			*dev;
 	struct iio_dev			*indio_dev;
 	struct gpio_descs		*input_gpios;
@@ -130,12 +131,11 @@ static void cnt_gpio_calc_freq_thrd(struct work_struct *work_arg)
 		}
 
 		iio_push_to_buffers_with_timestamp(indio_dev, &iio_buf, now);
-		msleep(st->gate_time);
+		msleep(st->calc_tm);
 	}
 
 	return;
 }
-
 
 static void cnt_gpio_get_state_thrd(struct work_struct *work_arg)
 {
@@ -148,7 +148,7 @@ static void cnt_gpio_get_state_thrd(struct work_struct *work_arg)
 
 	while(st->state) {
 		cnt_gpio_state_cnt(indio_dev);
-		usleep_range(50, 51);
+		usleep_range(st->get_tm[0], st->get_tm[1]);
 	}
 
 	return;
@@ -212,15 +212,75 @@ static int cnt_gpio_write_raw(struct iio_dev *indio_dev,
 	return -EINVAL;
 }
 
-static ssize_t cnt_gpio_show_gatetime(struct device *dev,
+static ssize_t cnt_gpio_show_calctime(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct cnt_gpio_pdata *st = iio_priv(dev_to_iio_dev(dev));
 
-	return sprintf(buf, "%d\n", st->gate_time);
+	return sprintf(buf, "%d\n", st->calc_tm);
 }
 
-static ssize_t cnt_gpio_set_gatetime(struct device *dev,
+static ssize_t cnt_gpio_show_get_time0(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct cnt_gpio_pdata *st = iio_priv(dev_to_iio_dev(dev));
+
+	return sprintf(buf, "%d\n", st->get_tm[0]);
+}
+
+static ssize_t cnt_gpio_show_get_time1(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct cnt_gpio_pdata *st = iio_priv(dev_to_iio_dev(dev));
+
+	return sprintf(buf, "%d\n", st->get_tm[1]);
+}
+
+static ssize_t cnt_gpio_set_get_time0(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	struct cnt_gpio_pdata *st = iio_priv(dev_to_iio_dev(dev));
+	unsigned int val;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &val);
+	if (ret)
+		goto error_ret;
+
+	if (val < 0 || st->get_tm[1] < val)
+		return -EINVAL;
+
+	st->get_tm[0] = val;
+
+error_ret:
+	return ret ? ret : len;
+}
+
+static ssize_t cnt_gpio_set_get_time1(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	struct cnt_gpio_pdata *st = iio_priv(dev_to_iio_dev(dev));
+	unsigned int val;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &val);
+	if (ret)
+		goto error_ret;
+
+	if (val < 0 || st->get_tm[0] > val)
+		return -EINVAL;
+
+	st->get_tm[1] = val;
+
+error_ret:
+	return ret ? ret : len;
+}
+
+static ssize_t cnt_gpio_set_calctime(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
 		size_t len)
@@ -236,17 +296,23 @@ static ssize_t cnt_gpio_set_gatetime(struct device *dev,
 	if (val < 0)
 		return -EINVAL;
 
-	st->gate_time = val;
+	st->calc_tm = val;
 
 error_ret:
 	return ret ? ret : len;
 }
 
-static IIO_DEVICE_ATTR(gatetime, (S_IWUSR | S_IRUGO),
-		cnt_gpio_show_gatetime, cnt_gpio_set_gatetime, 0);
+static IIO_DEVICE_ATTR(calc_time, (S_IWUSR | S_IRUGO),
+		cnt_gpio_show_calctime, cnt_gpio_set_calctime, 0);
+static IIO_DEVICE_ATTR(get_time0, (S_IWUSR | S_IRUGO),
+		cnt_gpio_show_get_time0, cnt_gpio_set_get_time0, 0);
+static IIO_DEVICE_ATTR(get_time1, (S_IWUSR | S_IRUGO),
+		cnt_gpio_show_get_time1, cnt_gpio_set_get_time1, 0);
 
 static struct attribute *cnt_gpio_attributes[] = {
-	&iio_dev_attr_gatetime.dev_attr.attr,
+	&iio_dev_attr_calc_time.dev_attr.attr,
+	&iio_dev_attr_get_time0.dev_attr.attr,
+	&iio_dev_attr_get_time1.dev_attr.attr,
 	NULL,
 };
 
@@ -347,7 +413,9 @@ static int cnt_gpio_probe(struct platform_device *pdev)
 	mutex_init(&st->lock);
 
 	st->chip_info = &cnt_gpio_info_tbl[0];
-	st->gate_time = 500;
+	st->calc_tm = 1000;
+	st->get_tm[0] = 350;
+	st->get_tm[1] = 400;
 
 	ret = cnt_gpio_request_of(indio_dev);
 	if (ret)
