@@ -19,7 +19,7 @@
 
 / {
 	compatible = "ti,am4372","ti,am43";
-	som = "MISDIMM 1.0.1";
+	som = "MISDIMM 1.0.2";
 
 	evm_v3_3d: fixedregulator-v3_3d {
 		compatible = "regulator-fixed";
@@ -182,7 +182,7 @@
 	tps65218: tps65218@24 {
 		reg = <0x24>;
 		compatible = "ti,tps65218";
-		interrupts = <GIC_SPI 7 IRQ_TYPE_NONE>; /* NMIn */
+		interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_LOW>; /* NMIn */
 		interrupt-parent = <&gic>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
