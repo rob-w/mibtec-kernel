@@ -10,7 +10,7 @@
  * published by the Free Software Foundation.
  */
 
-/* AM437x P070H111 Mistec */
+/* AM437x LABELER040 Mistec */
 
 /dts-v1/;
 
@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P070H111 v1.3.1";
+	model = "MIS LABELER040 v1.3.1";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -48,15 +48,15 @@
 		compatible = "panel-dpi";
 		label = "lcd";
 		panel-timing {
-			clock-frequency = <51200000>;
-			hactive = <1024>;
-			vactive = <600>;
-			hfront-porch = <3>;
-			hback-porch = <2>;
-			hsync-len = <128>;
-			vback-porch = <2>;
-			vfront-porch = <2>;
-			vsync-len = <2>;
+			clock-frequency = <6500000>;
+			hactive = <320>;
+			vactive = <240>;
+			hfront-porch = <20>;
+			hback-porch = <68>;
+			hsync-len = <32>;
+			vback-porch = <18>;
+			vfront-porch = <4>;
+			vsync-len = <4>;
 			hsync-active = <0>;
 			vsync-active = <0>;
 			de-active = <1>;
