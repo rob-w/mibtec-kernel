@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS LABELER040 v1.3.1";
+	model = "MIS LABELER040 v1.4.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -45,24 +45,8 @@
 	};
 
 	lcd0: display {
-		compatible = "panel-dpi";
+		compatible = "edt,etm350g8edh6";
 		label = "lcd";
-		panel-timing {
-			clock-frequency = <6500000>;
-			hactive = <320>;
-			vactive = <240>;
-			hfront-porch = <20>;
-			hback-porch = <68>;
-			hsync-len = <32>;
-			vback-porch = <18>;
-			vfront-porch = <4>;
-			vsync-len = <4>;
-			hsync-active = <0>;
-			vsync-active = <0>;
-			de-active = <1>;
-			pixelclk-active = <1>;
-		};
-
 		port {
 			lcd_in: endpoint {
 				remote-endpoint = <&dpi_out>;
