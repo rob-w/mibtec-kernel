@@ -17,7 +17,7 @@
 
 / {
 
-	model = "D850BASIS053 D850ANPASS062 v0.1";
+	model = "D850BASIS053 D850ANPASS062 v0.2";
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
 	pru_adc {
@@ -34,37 +34,31 @@
 		pru,adc-1-mux-b-gpios = <&pcf8575_21 1 GPIO_ACTIVE_HIGH>;
 		pru,adc-1-gain0-gpios = <&pcf8575_21 3 GPIO_ACTIVE_HIGH>;
 		pru,adc-1-gain1-gpios = <&pcf8575_21 2 GPIO_ACTIVE_HIGH>;
-/*		pru,adc-1-gain2-gpios = <&pcf8575_21 GPIO_ACTIVE_HIGH>; */
 
 		pru,adc-2-mux-a-gpios = <&pcf8575_21 4 GPIO_ACTIVE_HIGH>;
 		pru,adc-2-mux-b-gpios = <&pcf8575_21 5 GPIO_ACTIVE_HIGH>;
 		pru,adc-2-gain0-gpios = <&pcf8575_21 7 GPIO_ACTIVE_HIGH>;
 		pru,adc-2-gain1-gpios =	<&pcf8575_21 6 GPIO_ACTIVE_HIGH>;
-/*		pru,adc-2-gain2-gpios = <&pcf8575_21 GPIO_ACTIVE_HIGH>; */
 
 		pru,adc-3-mux-a-gpios = <&pcf8575_21 8 GPIO_ACTIVE_HIGH>;
 		pru,adc-3-mux-b-gpios = <&pcf8575_21 9 GPIO_ACTIVE_HIGH>;
 		pru,adc-3-gain0-gpios = <&pcf8575_21 11 GPIO_ACTIVE_HIGH>;
 		pru,adc-3-gain1-gpios = <&pcf8575_21 10 GPIO_ACTIVE_HIGH>;
-/*		pru,adc-3-gain2-gpios = <&pcf8575_22 GPIO_ACTIVE_HIGH>; */
 
-		pru,adc-4-mux-a-gpios = <&pcf8575_21 11 GPIO_ACTIVE_HIGH>;
-		pru,adc-4-mux-b-gpios = <&pcf8575_21 12 GPIO_ACTIVE_HIGH>;
-		pru,adc-4-gain0-gpios = <&pcf8575_21 14 GPIO_ACTIVE_HIGH>;
-		pru,adc-4-gain1-gpios = <&pcf8575_21 13 GPIO_ACTIVE_HIGH>;
-/*		pru,adc-4-gain2-gpios = <&pcf8575_22 GPIO_ACTIVE_HIGH>; */
+		pru,adc-4-mux-a-gpios = <&pcf8575_21 12 GPIO_ACTIVE_HIGH>;
+		pru,adc-4-mux-b-gpios = <&pcf8575_21 13 GPIO_ACTIVE_HIGH>;
+		pru,adc-4-gain0-gpios = <&pcf8575_21 15 GPIO_ACTIVE_HIGH>;
+		pru,adc-4-gain1-gpios = <&pcf8575_21 14 GPIO_ACTIVE_HIGH>;
 
 		pru,adc-5-mux-a-gpios = <&pcf8575_22 0 GPIO_ACTIVE_HIGH>;
 		pru,adc-5-mux-b-gpios = <&pcf8575_22 1 GPIO_ACTIVE_HIGH>;
 		pru,adc-5-gain0-gpios = <&pcf8575_22 3 GPIO_ACTIVE_HIGH>;
 		pru,adc-5-gain1-gpios = <&pcf8575_22 2 GPIO_ACTIVE_HIGH>;
-/*		pru,adc-5-gain2-gpios = <&pcf8575_23 GPIO_ACTIVE_HIGH>; */
 
-/*		pru,adc-6-mux-a-gpios = <&pcf8575_23 4 GPIO_ACTIVE_HIGH>;
-		pru,adc-6-mux-b-gpios = <&pcf8575_23 5 GPIO_ACTIVE_HIGH>;
-		pru,adc-6-gain0-gpios = <&pcf8575_23 7 GPIO_ACTIVE_HIGH>;
-		pru,adc-6-gain1-gpios = <&pcf8575_23 6 GPIO_ACTIVE_HIGH>;
-		pru,adc-6-gain2-gpios = <&pcf8575_23 GPIO_ACTIVE_HIGH>; */
+		pru,adc-6-mux-a-gpios = <&pcf8575_22 4 GPIO_ACTIVE_HIGH>;
+		pru,adc-6-mux-b-gpios = <&pcf8575_22 5 GPIO_ACTIVE_HIGH>;
+		pru,adc-6-gain0-gpios = <&pcf8575_22 7 GPIO_ACTIVE_HIGH>;
+		pru,adc-6-gain1-gpios = <&pcf8575_22 6 GPIO_ACTIVE_HIGH>;
 	};
 
 	leds {
@@ -156,19 +150,8 @@
 		lines-initial-states = <0xF3F3>;
 		gpio-line-names = "MUX_A_5", "MUX_B_5", "MAIN_G1_5", "MAIN_G0_5",
 						  "MUX_A_6", "MUX_B_6", "MAIN_G1_6", "MAIN_G0_6",
-						  "LED_1", "LED_2", "LED_3", "LED_4", "LED_5", "LED_6";
+						  "LED_1", "LED_2", "LED_3", "LED_4", "LED_5", "LED_6", "", "";
 	};
-
-/*
-	pcf8575_23: gpio@23 {
-		compatible = "nxp,pcf8575";
-		reg = <0x23>;
-		gpio-controller;
-		#gpio-cells = <2>;
-		lines-initial-states = <0xF3F3>;
-		gpio-line-names = "MUX_A_5", "MUX_B_5", "", "", "LED_5", "MAIN_G2_5", "MAIN_G1_5", "MAIN_G0_5",
-						  "MUX_A_6", "MUX_B_6", "", "", "LED_6", "MAIN_G2_6", "MAIN_G1_6", "MAIN_G0_6";
-	};*/
 
 	pcf8575_27: gpio@27 {
 		compatible = "nxp,pcf8575";

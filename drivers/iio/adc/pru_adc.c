@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.22"
+#define PRU_ADC_MODULE_VERSION "1.30"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -90,7 +90,7 @@ struct pru_priv {
 	struct gpio_desc		*gpio_mux_b[6];
 	struct gpio_desc		*gpio_gain0[6];
 	struct gpio_desc		*gpio_gain1[6];
-	struct gpio_desc		*gpio_gain2[6];
+//	struct gpio_desc		*gpio_gain2[6];
 	short					offset[6];
 	int						calibscale[6];
 	struct iio_trigger		*trig;
@@ -116,12 +116,12 @@ static int pru_reset(struct pru_priv *st)
 
 static void debug_pins(struct pru_priv *st, int adc)
 {
-	dev_dbg(st->dev, "adc %d: %d %d %d %d %d\n", adc,
+	dev_dbg(st->dev, "adc %d: %d %d %d %d\n", adc,
 			gpiod_get_value_cansleep(p_st->gpio_mux_a[adc]),
 			gpiod_get_value_cansleep(p_st->gpio_mux_b[adc]),
 			gpiod_get_value_cansleep(p_st->gpio_gain0[adc]),
-			gpiod_get_value_cansleep(p_st->gpio_gain1[adc]),
-			gpiod_get_value_cansleep(p_st->gpio_gain2[adc]));
+			gpiod_get_value_cansleep(p_st->gpio_gain1[adc])
+			/*gpiod_get_value_cansleep(p_st->gpio_gain2[adc])*/);
 }
 
 static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
@@ -247,8 +247,8 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 			*val |= (1<<0);
 		if (gpiod_get_value_cansleep(st->gpio_gain1[chan->address]))
 			*val |= (1<<1);
-		if (gpiod_get_value_cansleep(st->gpio_gain2[chan->address]))
-			*val |= (1<<2);
+//		if (gpiod_get_value_cansleep(st->gpio_gain2[chan->address]))
+//			*val |= (1<<2);
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_ENABLE:
 		*val = 0;
@@ -306,10 +306,10 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 			gpiod_set_value_cansleep(st->gpio_gain1[chan->address], 1);
 		else
 			gpiod_set_value_cansleep(st->gpio_gain1[chan->address], 0);
-		if (val & (1<<2))
-			gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 1);
-		else
-			gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 0);
+//		if (val & (1<<2))
+//			gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 1);
+//		else
+//			gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 0);
 		return 0;
 	case IIO_CHAN_INFO_ENABLE:
 		if (val & (1<<0))
@@ -474,9 +474,9 @@ static int pru_request_gpios(struct pru_priv *st)
 		if (IS_ERR(st->gpio_gain1[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
 			return PTR_ERR(st->gpio_gain1[i]);
 
-		sprintf(pinpath, "pru,adc-%d-gain2", i + 1);
-		if (IS_ERR(st->gpio_gain2[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
-			return PTR_ERR(st->gpio_gain2[i]);
+//		sprintf(pinpath, "pru,adc-%d-gain2", i + 1);
+//		if (IS_ERR(st->gpio_gain2[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
+//			return PTR_ERR(st->gpio_gain2[i]);
 	}
 	return 0;
 }
@@ -719,6 +719,8 @@ static int pru_probe(struct platform_device *pdev)
 	mutex_init(&st->lock);
 	ret = pru_request_gpios(st);
 	if (ret) {
+		dev_err(&pdev->dev, "error requesting gpios\n");
+		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		free_dma(st);
 		return ret;
 	}
@@ -741,6 +743,8 @@ static int pru_probe(struct platform_device *pdev)
 	st->trig = devm_iio_trigger_alloc(dev, "%s-dev%d",
 					  indio_dev->name, indio_dev->id);
 	if (!st->trig) {
+		dev_err(&pdev->dev, "error alloc iio_trigger\n");
+		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		free_dma(st);
 		return -ENOMEM;
 	}
@@ -767,6 +771,8 @@ static int pru_probe(struct platform_device *pdev)
 
 	st->pruss = pruss_get(st->rproc);
 	if (!st->pruss) {
+		dev_err(&pdev->dev, "error did not get pruss\n");
+		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		free_dma(st);
 		return -ENOMEM;
 	}
