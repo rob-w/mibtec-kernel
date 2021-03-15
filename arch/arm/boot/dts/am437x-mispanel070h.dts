@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P070H111 v1.3.1";
+	model = "MIS P070H111 v1.3.3";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -40,29 +40,23 @@
 		enable-gpios = <&gpio5 4 GPIO_ACTIVE_HIGH>;
 
 		/* PWM starts at 75 and we make 16 levels */
-		brightness-levels = <0 75 87 99 111 123 135 147 159 171 183 195 207 219 231 243 255>;
-		default-brightness-level = <16>;
+		brightness-levels = < 0  1  2  3  4  5  6  7  8  9
+				     10 11 12 13 14 15 16 17 18 19
+				     20 21 22 23 24 25 26 27 28 29
+				     30 31 32 33 34 35 36 37 38 39
+				     40 41 42 43 44 45 46 47 48 49
+				     50 51 52 53 54 55 56 57 58 59
+				     60 61 62 63 64 65 66 67 68 69
+				     70 71 72 73 74 75 76 77 78 79
+				     80 81 82 83 84 85 86 87 88 89
+				     90 91 92 93 94 95 96 97 98 99
+				    100>;
+		default-brightness-level = <100>;
 	};
 
 	lcd0: display {
-		compatible = "panel-dpi";
+		compatible = "edt,ep0700M09";
 		label = "lcd";
-		panel-timing {
-			clock-frequency = <51200000>;
-			hactive = <1024>;
-			vactive = <600>;
-			hfront-porch = <3>;
-			hback-porch = <2>;
-			hsync-len = <128>;
-			vback-porch = <2>;
-			vfront-porch = <2>;
-			vsync-len = <2>;
-			hsync-active = <0>;
-			vsync-active = <0>;
-			de-active = <1>;
-			pixelclk-active = <1>;
-		};
-
 		port {
 			lcd_in: endpoint {
 				remote-endpoint = <&dpi_out>;
