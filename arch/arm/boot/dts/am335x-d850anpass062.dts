@@ -60,11 +60,11 @@
 		pru,adc-5-gain1-gpios = <&pcf8575_22 2 GPIO_ACTIVE_HIGH>;
 /*		pru,adc-5-gain2-gpios = <&pcf8575_23 GPIO_ACTIVE_HIGH>; */
 
-		pru,adc-6-mux-a-gpios = <&pcf8575_23 4 GPIO_ACTIVE_HIGH>;
+/*		pru,adc-6-mux-a-gpios = <&pcf8575_23 4 GPIO_ACTIVE_HIGH>;
 		pru,adc-6-mux-b-gpios = <&pcf8575_23 5 GPIO_ACTIVE_HIGH>;
 		pru,adc-6-gain0-gpios = <&pcf8575_23 7 GPIO_ACTIVE_HIGH>;
 		pru,adc-6-gain1-gpios = <&pcf8575_23 6 GPIO_ACTIVE_HIGH>;
-/*		pru,adc-6-gain2-gpios = <&pcf8575_23 GPIO_ACTIVE_HIGH>; */
+		pru,adc-6-gain2-gpios = <&pcf8575_23 GPIO_ACTIVE_HIGH>; */
 	};
 
 	leds {
