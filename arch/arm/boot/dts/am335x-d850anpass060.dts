@@ -179,5 +179,5 @@
 };
 
 &pru1 {
-	firmware-name = "pru/d850-pru-adc.out";
+	firmware-name = "pru/d850-pru-adc-060.out";
 };
