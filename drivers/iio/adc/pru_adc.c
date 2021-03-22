@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.30"
+#define PRU_ADC_MODULE_VERSION "1.4"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -553,19 +553,24 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 			void *priv, u32 src)
 {
 	int i, reg_cnt, s_cnt, dma_id;
-	char *pdata = data;
+//	char *pdata = data;
 	struct device *pdev = p_st->dev;
 	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
 
-	dma_id = pdata[0];
-	reg_cnt = pdata[4] << 24 | pdata[3] << 16 | pdata[2] << 8 | pdata[1];
-
-	if (dma_id != 0 && dma_id != 1 && dma_id != 2) {
+	if (p_st->cpu_addr_dma[0][0])
+		dma_id = 0;
+	else if (p_st->cpu_addr_dma[1][0])
+		dma_id = 1;
+	else {
 		pru_read_samples(indio_dev, 0);
 		return 0;
 	}
 
 	s_cnt = p_st->cpu_addr_dma[dma_id][0];
+	reg_cnt = s_cnt;
+
+	dev_dbg(p_st->dev, "cb() dma_id %d scnt %d\n", dma_id, s_cnt);
+
 //	trace_pru_call(dma_id, "start");
 //	trace_gpio_value(1, 0, 0);
 
@@ -573,7 +578,7 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 		p_st->cnted += s_cnt;
 
-		dev_dbg(p_st->dev, "cb() len %d dma_id %d reg_cnt %d scnt %d\n", len, dma_id, reg_cnt, s_cnt);
+		dev_dbg(p_st->dev, "cb() len %d dma_id %d scnt %d\n", len, dma_id, s_cnt);
 
 		if (p_st->cnted >= p_st->samplecnt) {
 			if (p_st->looped)
