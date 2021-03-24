@@ -688,8 +688,18 @@ static int rpmsg_recv_single(struct virtproc_info *vrp, struct device *dev,
 			     struct rpmsg_hdr *msg, unsigned int len)
 {
 	struct rpmsg_endpoint *ept;
+	struct rpmsg_hdr fake_msg;
 	struct scatterlist sg;
 	int err;
+
+	if (!len) {
+		fake_msg.dst = 0x400;
+		fake_msg.src = 0x1f;
+		fake_msg.flags = 0;
+		fake_msg.reserved = 0;
+		fake_msg.len = 0;
+		msg = &fake_msg;
+	}
 
 	dev_dbg(dev, "From: 0x%x, To: 0x%x, Len: %d, Flags: %d, Reserved: %d\n",
 		msg->src, msg->dst, msg->len, msg->flags, msg->reserved);
@@ -734,6 +744,10 @@ static int rpmsg_recv_single(struct virtproc_info *vrp, struct device *dev,
 	} else
 		dev_warn(dev, "msg received with no recipient\n");
 
+	/// this was a construct , leave it like that
+	if (!len)
+		return 0;
+
 	/* publish the real size of the buffer */
 	rpmsg_sg_init(vrp, &sg, msg, vrp->buf_size);
 
@@ -758,8 +772,8 @@ static void rpmsg_recv_done(struct virtqueue *rvq)
 
 	msg = virtqueue_get_buf(rvq, &len);
 	if (!msg) {
-		dev_err(dev, "uhm, incoming signal, but no used buffer ?\n");
-		return;
+		dev_dbg(dev, "no msg - assuming IRQ-only event\n");
+		rpmsg_recv_single(vrp, dev, msg, 0);
 	}
 
 	while (msg) {
