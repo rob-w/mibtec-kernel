@@ -63,7 +63,8 @@ struct rpmsg_pru_dev {
 	wait_queue_head_t wait_list;
 };
 
-#define DATA_BUF_SZ 4096000
+/// 1MB pro DMA
+#define DATA_BUF_SZ			1024000
 
 struct pru_priv {
 	int 					state, bufferd;
