@@ -46,6 +46,7 @@
 
 struct pru_prepare{
 	uint32_t size;
+	uint32_t looped;
 	uint32_t buffer_addr0;
 	uint32_t buffer_addr1;
 } __attribute__((__packed__));
@@ -91,7 +92,7 @@ struct pru_priv {
 	struct gpio_desc		*gpio_mux_b[6];
 	struct gpio_desc		*gpio_gain0[6];
 	struct gpio_desc		*gpio_gain1[6];
-//	struct gpio_desc		*gpio_gain2[6];
+	struct gpio_desc		*gpio_gain2[6];
 	short					offset[6];
 	int						calibscale[6];
 	struct iio_trigger		*trig;
@@ -117,12 +118,12 @@ static int pru_reset(struct pru_priv *st)
 
 static void debug_pins(struct pru_priv *st, int adc)
 {
-	dev_dbg(st->dev, "adc %d: %d %d %d %d\n", adc,
+	dev_dbg(st->dev, "adc %d: %d %d %d %d %d\n", adc,
 			gpiod_get_value_cansleep(p_st->gpio_mux_a[adc]),
 			gpiod_get_value_cansleep(p_st->gpio_mux_b[adc]),
 			gpiod_get_value_cansleep(p_st->gpio_gain0[adc]),
-			gpiod_get_value_cansleep(p_st->gpio_gain1[adc])
-			/*gpiod_get_value_cansleep(p_st->gpio_gain2[adc])*/);
+			gpiod_get_value_cansleep(p_st->gpio_gain1[adc]),
+			gpiod_get_value_cansleep(p_st->gpio_gain2[adc]));
 }
 
 static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
@@ -131,9 +132,10 @@ static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
 	int ret = 0;
 	struct pru_prepare prepare;
 
+	prepare.size = cnt;
+	prepare.looped = st->looped;
 	prepare.buffer_addr0 = st->dma_handle[0];
 	prepare.buffer_addr1 = st->dma_handle[1];
-	prepare.size = cnt;
 	st->cnted = 0;
 
 	dev_dbg(st->dev, "cnt %d addr0 0x%x addr1 0x%x\n",
@@ -144,12 +146,6 @@ static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
 		dev_err(st->dev, "rpmsg_send failed: %d\n", ret);
 
 	return ret;
-}
-
-static uint64_t pru_calc_units(uint64_t val)
-{
-
-	return 0;
 }
 
 static irqreturn_t pru_trigger_handler(int irq, void *p)
@@ -212,8 +208,6 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 
 		ret -= st->offset[chan->scan_index];
 
-//		ret = pru_calc_units(ret);
-
 		/// factor with calibscale
 		ret = ret * st->calibscale[chan->scan_index];
 		do_div(ret, 100000);
@@ -248,8 +242,8 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 			*val |= (1<<0);
 		if (gpiod_get_value_cansleep(st->gpio_gain1[chan->address]))
 			*val |= (1<<1);
-//		if (gpiod_get_value_cansleep(st->gpio_gain2[chan->address]))
-//			*val |= (1<<2);
+		if (gpiod_get_value_cansleep(st->gpio_gain2[chan->address]))
+			*val |= (1<<2);
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_ENABLE:
 		*val = 0;
@@ -307,10 +301,10 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 			gpiod_set_value_cansleep(st->gpio_gain1[chan->address], 1);
 		else
 			gpiod_set_value_cansleep(st->gpio_gain1[chan->address], 0);
-//		if (val & (1<<2))
-//			gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 1);
-//		else
-//			gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 0);
+		if (val & (1<<2))
+			gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 1);
+		else
+			gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 0);
 		return 0;
 	case IIO_CHAN_INFO_ENABLE:
 		if (val & (1<<0))
@@ -475,9 +469,9 @@ static int pru_request_gpios(struct pru_priv *st)
 		if (IS_ERR(st->gpio_gain1[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
 			return PTR_ERR(st->gpio_gain1[i]);
 
-//		sprintf(pinpath, "pru,adc-%d-gain2", i + 1);
-//		if (IS_ERR(st->gpio_gain2[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
-//			return PTR_ERR(st->gpio_gain2[i]);
+		sprintf(pinpath, "pru,adc-%d-gain2", i + 1);
+		if (IS_ERR(st->gpio_gain2[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
+			return PTR_ERR(st->gpio_gain2[i]);
 	}
 	return 0;
 }
@@ -486,7 +480,10 @@ static int pru_buffer_preenable(struct iio_dev *indio_dev)
 {
 	struct pru_priv *st = iio_priv(indio_dev);
 
-	dev_dbg(st->dev, "%s()\n", __func__);
+//	if (st->looped) {
+//		rproc_boot(st->rproc);
+		dev_dbg(st->dev, "%s()\n", __func__);
+//	}
 
 	return 0;
 }
@@ -505,8 +502,9 @@ static int pru_buffer_predisable(struct iio_dev *indio_dev)
 {
 	struct pru_priv *st = iio_priv(indio_dev);
 
-	dev_dbg(st->dev, "%s()\n", __func__);
+	dev_dbg(st->dev, "%s() shutting down rproc\n", __func__);
 	st->bufferd = 0;
+	rproc_shutdown(st->rproc);
 
 	return iio_triggered_buffer_predisable(indio_dev);
 }
@@ -514,9 +512,8 @@ static int pru_buffer_predisable(struct iio_dev *indio_dev)
 static int pru_buffer_postdisable(struct iio_dev *indio_dev)
 {
 	struct pru_priv *st = iio_priv(indio_dev);
-
-	dev_dbg(st->dev, "%s()\n", __func__);
-
+	dev_dbg(st->dev, "%s() booting rproc\n", __func__);
+	rproc_boot(st->rproc);
 	return 0;
 }
 
@@ -579,11 +576,9 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 		p_st->cnted += s_cnt;
 
-		dev_dbg(p_st->dev, "cb() len %d dma_id %d scnt %d\n", len, dma_id, s_cnt);
-
 		if (p_st->cnted >= p_st->samplecnt) {
 			if (p_st->looped)
-				pru_read_samples(indio_dev, p_st->samplecnt);
+				p_st->cnted = 0;
 			else
 				pru_read_samples(indio_dev, 0);
 		}
