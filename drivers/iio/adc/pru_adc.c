@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.4"
+#define PRU_ADC_MODULE_VERSION "1.5"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -512,7 +512,14 @@ static int pru_buffer_predisable(struct iio_dev *indio_dev)
 static int pru_buffer_postdisable(struct iio_dev *indio_dev)
 {
 	struct pru_priv *st = iio_priv(indio_dev);
-	dev_dbg(st->dev, "%s() booting rproc\n", __func__);
+
+	dev_info(st->dev, "%s()\n", __func__);
+	/// we are shutting down and probably unloading
+	/// so dont restart the pruss
+	if (!st->state)
+		return 0;
+
+	dev_info(st->dev, "%s() booting rproc\n", __func__);
 	rproc_boot(st->rproc);
 	return 0;
 }
@@ -550,8 +557,8 @@ static const struct of_device_id of_pru_adc_match[] = {
 static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 			void *priv, u32 src)
 {
-	int i, reg_cnt, s_cnt, dma_id;
-//	char *pdata = data;
+	int i, s_cnt, dma_id;
+	int dma_buff_cnt;
 	struct device *pdev = p_st->dev;
 	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
 
@@ -565,14 +572,15 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 	}
 
 	s_cnt = p_st->cpu_addr_dma[dma_id][0];
-	reg_cnt = s_cnt;
-
-	dev_dbg(p_st->dev, "cb() dma_id %d scnt %d\n", dma_id, s_cnt);
 
 //	trace_pru_call(dma_id, "start");
 //	trace_gpio_value(1, 0, 0);
 
 	if (p_st->bufferd) {
+
+		dma_buff_cnt = p_st->cpu_addr_dma[dma_id][2] & 0xFFFF;
+
+		dev_dbg(p_st->dev, "cb() dma_id %d %d scnt %d\n", dma_id, dma_buff_cnt, s_cnt);
 
 		p_st->cnted += s_cnt;
 
@@ -597,13 +605,12 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 		return 0;
 	}
 
-	p_st->data[0] = p_st->cpu_addr_dma[dma_id][reg_cnt - 6] & 0xFFFF;
-	p_st->data[1] = p_st->cpu_addr_dma[dma_id][reg_cnt - 5] & 0xFFFF;
-	p_st->data[2] = p_st->cpu_addr_dma[dma_id][reg_cnt - 4] & 0xFFFF;
-	p_st->data[3] = p_st->cpu_addr_dma[dma_id][reg_cnt - 3] & 0xFFFF;
-	p_st->data[4] = p_st->cpu_addr_dma[dma_id][reg_cnt - 2] & 0xFFFF;
-	p_st->data[5] = p_st->cpu_addr_dma[dma_id][reg_cnt - 1] & 0xFFFF;
-
+	p_st->data[0] = p_st->cpu_addr_dma[dma_id][1] & 0xFFFF;
+	p_st->data[1] = p_st->cpu_addr_dma[dma_id][2] & 0xFFFF;
+	p_st->data[2] = p_st->cpu_addr_dma[dma_id][3] & 0xFFFF;
+	p_st->data[3] = p_st->cpu_addr_dma[dma_id][4] & 0xFFFF;
+	p_st->data[4] = p_st->cpu_addr_dma[dma_id][5] & 0xFFFF;
+	p_st->data[5] = p_st->cpu_addr_dma[dma_id][6] & 0xFFFF;
 
 	dev_dbg(p_st->dev, "IDD_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", dma_id,
 			p_st->data[0], p_st->data[1], p_st->data[2], p_st->data[3], p_st->data[4], p_st->data[5]);
@@ -703,16 +710,16 @@ static int pru_probe(struct platform_device *pdev)
 
 	if (of_property_read_u32(dev->of_node, "ti,rproc", &rproc_phandle)) {
 		dev_err(&pdev->dev, "could not get of property\n");
-		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		free_dma(st);
+		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		return -ENXIO;
 	}
 
 	st->rproc = rproc_get_by_phandle(rproc_phandle);
 	if (!st->rproc) {
 		dev_err(&pdev->dev, "could not get rproc handle, deferring probe\n");
-		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		free_dma(st);
+		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		return -EPROBE_DEFER;
 	}
 
@@ -721,8 +728,8 @@ static int pru_probe(struct platform_device *pdev)
 	ret = pru_request_gpios(st);
 	if (ret) {
 		dev_err(&pdev->dev, "error requesting gpios\n");
-		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		free_dma(st);
+		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		return ret;
 	}
 
@@ -745,8 +752,8 @@ static int pru_probe(struct platform_device *pdev)
 					  indio_dev->name, indio_dev->id);
 	if (!st->trig) {
 		dev_err(&pdev->dev, "error alloc iio_trigger\n");
-		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		free_dma(st);
+		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		return -ENOMEM;
 	}
 
@@ -756,6 +763,7 @@ static int pru_probe(struct platform_device *pdev)
 	ret = devm_iio_trigger_register(dev, st->trig);
 	if (ret) {
 		free_dma(st);
+		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		return ret;
 	}
 
@@ -773,8 +781,8 @@ static int pru_probe(struct platform_device *pdev)
 	st->pruss = pruss_get(st->rproc);
 	if (!st->pruss) {
 		dev_err(&pdev->dev, "error did not get pruss\n");
-		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		free_dma(st);
+		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		return -ENOMEM;
 	}
 	st->id = pru_rproc_get_id(st->rproc);
@@ -824,7 +832,7 @@ static int pru_remove(struct platform_device *pdev)
 	struct iio_dev *indio_dev = dev_get_drvdata(dev);
 	struct pru_priv *st = iio_priv(indio_dev);
 
-	dev_dbg(st->dev, "%s()\n", __func__);
+	dev_info(st->dev, "%s()\n", __func__);
 	st->state = 0;
 	unregister_rpmsg_driver(&rpmsg_pru_driver);
 
