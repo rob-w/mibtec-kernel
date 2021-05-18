@@ -17,8 +17,20 @@
 
 / {
 
-	model = "D850BASIS053 D850ANPASS060 v0.41";
+	model = "D850BASIS053 D850ANPASS060 v0.5";
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
+
+	DI_3-6 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&basis_gpio_count>;
+		cnt-gpios = <&gpio1 5 GPIO_ACTIVE_HIGH
+						&gpio1 1 GPIO_ACTIVE_HIGH
+						&gpio2 12 GPIO_ACTIVE_HIGH
+						&gpio2 22 GPIO_ACTIVE_HIGH >;
+
+		compatible = "cnt-gpio";
+		status = "okay";
+	};
 
 	ad8864 {
 		status = "okay";
@@ -106,6 +118,22 @@
 
 &am33xx_pinmux {
 	pinctrl-names = "default";
+	pinctrl-0 = <&anpass_pins>;
+
+	anpass_pins: anpass_pins {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P8_30, PIN_INPUT | MUX_MODE7)					/* gpio2_25 */
+		>;
+	};
+
+	basis_gpio_count: basis_gpio_cnt {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(BONE_P8_22, PIN_INPUT | MUX_MODE7)					/* gpio1_5.gpio1_5 DI_3 */
+			AM33XX_IOPAD(BONE_P8_24, PIN_INPUT | MUX_MODE7)					/* gpio1_1.gpio1_1 DI_4 */
+			AM33XX_IOPAD(BONE_P8_39, PIN_INPUT | MUX_MODE7)					/* gpio2_12.gpio2_12 DI_5 */
+			AM33XX_IOPAD(BONE_P8_27, PIN_INPUT | MUX_MODE7)					/* gpio2_22.gpio2_22 DI_6 */
+		>;
+	};
 
 	pru_adc_pins: pru_adc_pins {
 		pinctrl-single,pins = <

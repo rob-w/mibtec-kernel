@@ -11,6 +11,6 @@
 #include "am57xx-d850basis053.dtsi"
 
 / {
-	model = "D850BASIS053 v0.34";
+	model = "D850BASIS053 v0.40";
 	compatible = "beagleboard.org,am57xx-beagleboneai", "ti,am5728", "ti,dra742", "ti,dra74", "ti,dra7";
 };
