@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.5"
+#define PRU_ADC_MODULE_VERSION "1.6"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -52,6 +52,7 @@ struct pru_prepare{
 } __attribute__((__packed__));
 
 struct pru_chip_info {
+	int 						id;
 	const struct iio_chan_spec	*channels;
 	unsigned int				num_channels;
 	const unsigned int			*oversampling_avail;
@@ -116,16 +117,6 @@ static int pru_reset(struct pru_priv *st)
 	return 0;
 }
 
-static void debug_pins(struct pru_priv *st, int adc)
-{
-	dev_dbg(st->dev, "adc %d: %d %d %d %d %d\n", adc,
-			gpiod_get_value_cansleep(p_st->gpio_mux_a[adc]),
-			gpiod_get_value_cansleep(p_st->gpio_mux_b[adc]),
-			gpiod_get_value_cansleep(p_st->gpio_gain0[adc]),
-			gpiod_get_value_cansleep(p_st->gpio_gain1[adc]),
-			gpiod_get_value_cansleep(p_st->gpio_gain2[adc]));
-}
-
 static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
 {
 	struct pru_priv *st = iio_priv(indio_dev);
@@ -170,7 +161,6 @@ static int pru_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 	int ret;
 
 	dev_dbg(st->dev, "%s(%d)\n", __func__, ch);
-	debug_pins(st, ch);
 
 	ret = pru_read_samples(indio_dev, 1000);
 	if (ret != 0)
@@ -242,8 +232,10 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 			*val |= (1<<0);
 		if (gpiod_get_value_cansleep(st->gpio_gain1[chan->address]))
 			*val |= (1<<1);
-		if (gpiod_get_value_cansleep(st->gpio_gain2[chan->address]))
-			*val |= (1<<2);
+		if (st->chip_info->id == 060) {
+			if (gpiod_get_value_cansleep(st->gpio_gain2[chan->address]))
+				*val |= (1<<2);
+		}
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_ENABLE:
 		*val = 0;
@@ -301,10 +293,12 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 			gpiod_set_value_cansleep(st->gpio_gain1[chan->address], 1);
 		else
 			gpiod_set_value_cansleep(st->gpio_gain1[chan->address], 0);
-		if (val & (1<<2))
-			gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 1);
-		else
-			gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 0);
+		if (st->chip_info->id == 060) {
+			if (val & (1<<2))
+				gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 1);
+			else
+				gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 0);
+		}
 		return 0;
 	case IIO_CHAN_INFO_ENABLE:
 		if (val & (1<<0))
@@ -443,6 +437,12 @@ static const struct pru_chip_info pru_chip_info_tbl[] = {
 	[0] = {
 		.channels = pru_channels,
 		.num_channels = 7,
+		.id = 60,
+	},
+	[1] = {
+		.channels = pru_channels,
+		.num_channels = 7,
+		.id = 62,
 	},
 };
 
@@ -469,10 +469,13 @@ static int pru_request_gpios(struct pru_priv *st)
 		if (IS_ERR(st->gpio_gain1[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
 			return PTR_ERR(st->gpio_gain1[i]);
 
-		sprintf(pinpath, "pru,adc-%d-gain2", i + 1);
-		if (IS_ERR(st->gpio_gain2[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
-			return PTR_ERR(st->gpio_gain2[i]);
+		if (st->chip_info->id == 060) {
+			sprintf(pinpath, "pru,adc-%d-gain2", i + 1);
+			if (IS_ERR(st->gpio_gain2[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
+				return PTR_ERR(st->gpio_gain2[i]);
+		}
 	}
+
 	return 0;
 }
 
@@ -550,7 +553,8 @@ static const struct iio_trigger_ops pru_trigger_ops = {
 };
 
 static const struct of_device_id of_pru_adc_match[] = {
-	{ .compatible = "pru-adc", },
+	{ .compatible = "pru-adc-060", },
+	{ .compatible = "pru-adc-062", },
 	{},
 };
 
@@ -701,6 +705,18 @@ static int pru_probe(struct platform_device *pdev)
 	st->cpu_addr_dma[0][0] = 0;
 	st->cpu_addr_dma[1][0] = 0;
 
+	if (of_property_match_string(dev->of_node, "compatible", "pru-adc-060") == 0) {
+		st->chip_info = &pru_chip_info_tbl[0];
+		dev_info(dev, "loading %03d 6x16bit\n", st->chip_info->id);
+	} else if (of_property_match_string(dev->of_node, "compatible", "pru-adc-062") == 0) {
+		st->chip_info = &pru_chip_info_tbl[1];
+		dev_info(dev, "loading %03d 6x24bit\n", st->chip_info->id);
+	} else {
+		pr_err("no compatible of_device");
+		free_dma(st);
+		return -ENODEV;
+	}
+
 	ret = register_rpmsg_driver(&rpmsg_pru_driver);
 	if (ret) {
 		pr_err("Unable to register rpmsg driver");
@@ -732,8 +748,6 @@ static int pru_probe(struct platform_device *pdev)
 		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		return ret;
 	}
-
-	st->chip_info = &pru_chip_info_tbl[0];
 
 	indio_dev->dev.parent = dev;
 	indio_dev->info = &pru_info;
