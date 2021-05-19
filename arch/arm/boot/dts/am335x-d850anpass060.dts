@@ -34,7 +34,7 @@
 
 	ad8864 {
 		status = "okay";
-		compatible = "pru-adc";
+		compatible = "pru-adc-060";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pru_adc_pins>;
 		ti,rproc = <&pru1>;
@@ -164,6 +164,17 @@
 		reg = <0x52>;
 	};
 
+	pcf8575_27: gpio@27 {
+		compatible = "nxp,pcf8575";
+		reg = <0x27>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		lines-initial-states = <0x0000>;
+		gpio-line-names = "ADAPT_ID_0", "ADAPT_ID_1", "ADAPT_ID_2", "ADAPT_ID_3",
+						  "ADAPT_VAR_0", "ADAPT_VAR_1", "ADAPT_VAR_2", "ADAPT_VAR_3",
+						  "P5", "P3", "P1", "P2", "P4", "P6", "", "";
+	};
+
 	pcf8575_21: gpio@21 {
 		compatible = "nxp,pcf8575";
 		reg = <0x21>;
@@ -192,17 +203,6 @@
 		lines-initial-states = <0xF3F3>;
 		gpio-line-names = "MUX_A_5", "MUX_B_5", "", "", "LED_5", "MAIN_G2_5", "MAIN_G1_5", "MAIN_G0_5",
 						  "MUX_A_6", "MUX_B_6", "", "", "LED_6", "MAIN_G2_6", "MAIN_G1_6", "MAIN_G0_6";
-	};
-
-	pcf8575_27: gpio@27 {
-		compatible = "nxp,pcf8575";
-		reg = <0x27>;
-		gpio-controller;
-		#gpio-cells = <2>;
-		lines-initial-states = <0x0000>;
-		gpio-line-names = "ADAPT_ID_0", "ADAPT_ID_1", "ADAPT_ID_2", "ADAPT_ID_3",
-						  "ADAPT_VAR_0", "ADAPT_VAR_1", "ADAPT_VAR_2", "ADAPT_VAR_3",
-						  "P5", "P3", "P1", "P2", "P4", "P6", "", "";
 	};
 };
 
