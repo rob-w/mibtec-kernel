@@ -17,7 +17,7 @@
 
 / {
 
-	model = "D850BASIS053 D850ANPASS062 v0.3";
+	model = "D850BASIS053 D850ANPASS062 v0.4";
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
 	DI_3-4 {
@@ -69,6 +69,12 @@
 		pru,adc-6-mux-b-gpios = <&pcf8575_22 5 GPIO_ACTIVE_HIGH>;
 		pru,adc-6-gain0-gpios = <&pcf8575_22 7 GPIO_ACTIVE_HIGH>;
 		pru,adc-6-gain1-gpios = <&pcf8575_22 6 GPIO_ACTIVE_HIGH>;
+
+		/* ADC CS selections */
+		pru,select-all-gpios = <&gpio2 25 GPIO_ACTIVE_HIGH>;
+		pru,select-0-gpios = <&gpio2 12 GPIO_ACTIVE_HIGH>;
+		pru,select-1-gpios = <&gpio2 22 GPIO_ACTIVE_HIGH>;
+		pru,select-2-gpios = <&gpio2 23 GPIO_ACTIVE_HIGH>;
 	};
 
 	leds {
