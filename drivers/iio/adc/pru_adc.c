@@ -351,8 +351,12 @@ error_ret:
 static ssize_t pru_show_cs_chans(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	int val, i;
+	int val = 0;
+	int i;
 	struct pru_priv *st = iio_priv(dev_to_iio_dev(dev));
+
+	if (st->chip_info->id != 062)
+		return sprintf(buf, "%d\n", val);
 
 	for (i = 0, val = 0; i < 3; i++) {
 		if (gpiod_get_value(st->gpio_select[i]))
@@ -371,6 +375,9 @@ static ssize_t pru_set_cs_chans(struct device *dev,
 	struct pru_priv *st = iio_priv(dev_to_iio_dev(dev));
 	unsigned int val;
 	int ret;
+
+	if (st->chip_info->id != 062)
+		return 0;
 
 	ret = kstrtouint(buf, 0, &val);
 	if (ret)
@@ -394,6 +401,8 @@ static ssize_t pru_show_cs_select_all(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct pru_priv *st = iio_priv(dev_to_iio_dev(dev));
+	if (st->chip_info->id != 062)
+		return sprintf(buf, "%d\n", 0);
 
 	return sprintf(buf, "%d\n", gpiod_get_value(st->gpio_select_all));
 }
@@ -406,6 +415,9 @@ static ssize_t pru_set_cs_select_all(struct device *dev,
 	struct pru_priv *st = iio_priv(dev_to_iio_dev(dev));
 	unsigned int val;
 	int ret;
+
+	if (st->chip_info->id != 062)
+		return 0;
 
 	ret = kstrtouint(buf, 0, &val);
 	if (ret)
@@ -462,13 +474,7 @@ static IIO_DEVICE_ATTR(cs_select_all, (S_IWUSR | S_IRUGO),
 static IIO_DEVICE_ATTR(cs_chans, (S_IWUSR | S_IRUGO),
 		pru_show_cs_chans, pru_set_cs_chans, 0);
 
-static struct attribute *pru_attributes_0[] = {
-	&iio_dev_attr_samplecnt.dev_attr.attr,
-	&iio_dev_attr_looped.dev_attr.attr,
-	NULL,
-};
-
-static struct attribute *pru_attributes_1[] = {
+static struct attribute *pru_attributes[] = {
 	&iio_dev_attr_samplecnt.dev_attr.attr,
 	&iio_dev_attr_looped.dev_attr.attr,
 	&iio_dev_attr_cs_select_all.dev_attr.attr,
@@ -476,24 +482,14 @@ static struct attribute *pru_attributes_1[] = {
 	NULL,
 };
 
-static const struct attribute_group pru_attribute_group_0 = {
-	.attrs = pru_attributes_0,
+static const struct attribute_group pru_attribute_group = {
+	.attrs = pru_attributes,
 };
 
-static const struct attribute_group pru_attribute_group_1 = {
-	.attrs = pru_attributes_1,
-};
-
-static const struct iio_info pru_info_0 = {
+static const struct iio_info pru_info = {
 	.read_raw = pru_read_raw,
 	.write_raw = pru_write_raw,
-	.attrs = &pru_attribute_group_0,
-};
-
-static const struct iio_info pru_info_1 = {
-	.read_raw = pru_read_raw,
-	.write_raw = pru_write_raw,
-	.attrs = &pru_attribute_group_1,
+	.attrs = &pru_attribute_group,
 };
 
 #define PRUX_CHANNEL(num, idx, typ, mask) {						\
@@ -563,7 +559,7 @@ static int pru_request_gpios(struct pru_priv *st)
 	char pinpath[256];
 	struct device *dev = st->dev;
 
-	for (i = 0; i < 6; i++) {
+	for (i = 0; i < st->chip_info->num_channels -1; i++) {
 		sprintf(pinpath, "pru,adc-%d-mux-a", i + 1);
 		if (IS_ERR(st->gpio_mux_a[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
 			return PTR_ERR(st->gpio_mux_a[i]);
@@ -835,7 +831,7 @@ static int pru_probe(struct platform_device *pdev)
 		st->chip_info = &pru_chip_info_tbl[1];
 		dev_info(dev, "loading %03d 6x24bit\n", st->chip_info->id);
 	} else if (of_property_match_string(dev->of_node, "compatible", "pru-adc-054") == 0) {
-		st->chip_info = &pru_chip_info_tbl[1];
+		st->chip_info = &pru_chip_info_tbl[2];
 		dev_info(dev, "loading %03d 4x16bit\n", st->chip_info->id);
 	} else {
 		pr_err("no compatible of_device");
@@ -876,10 +872,7 @@ static int pru_probe(struct platform_device *pdev)
 	}
 
 	indio_dev->dev.parent = dev;
-	if (st->chip_info->id == 060 || st->chip_info->id == 054)
-		indio_dev->info = &pru_info_0;
-	else
-		indio_dev->info = &pru_info_1;
+	indio_dev->info = &pru_info;
 	indio_dev->modes = INDIO_DIRECT_MODE;
 	indio_dev->name = "pru-adc";
 	indio_dev->channels = st->chip_info->channels;

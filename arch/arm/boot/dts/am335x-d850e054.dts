@@ -321,7 +321,7 @@
 		reg = <0x26>;
 		gpio-controller;
 		#gpio-cells = <2>;
-		lines-initial-states = <0xFF1F>;
+		lines-initial-states = <0x0>;
 		gpio-line-names = "MAIN_G0_1", "MAIN_G1_1", "MAIN_G2_1", "U1", "MAIN_G0_2", "MAIN_G1_2", "MAIN_G2_2", "U2",
 						  "MAIN_G0_3", "MAIN_G1_3", "MAIN_G2_3", "I3", "MAIN_G0_4", "MAIN_G1_4", "MAIN_G2_4", "I4";
 	};
