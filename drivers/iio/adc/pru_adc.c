@@ -462,7 +462,13 @@ static IIO_DEVICE_ATTR(cs_select_all, (S_IWUSR | S_IRUGO),
 static IIO_DEVICE_ATTR(cs_chans, (S_IWUSR | S_IRUGO),
 		pru_show_cs_chans, pru_set_cs_chans, 0);
 
-static struct attribute *pru_attributes[] = {
+static struct attribute *pru_attributes_0[] = {
+	&iio_dev_attr_samplecnt.dev_attr.attr,
+	&iio_dev_attr_looped.dev_attr.attr,
+	NULL,
+};
+
+static struct attribute *pru_attributes_1[] = {
 	&iio_dev_attr_samplecnt.dev_attr.attr,
 	&iio_dev_attr_looped.dev_attr.attr,
 	&iio_dev_attr_cs_select_all.dev_attr.attr,
@@ -470,14 +476,24 @@ static struct attribute *pru_attributes[] = {
 	NULL,
 };
 
-static const struct attribute_group pru_attribute_group = {
-	.attrs = pru_attributes,
+static const struct attribute_group pru_attribute_group_0 = {
+	.attrs = pru_attributes_0,
 };
 
-static const struct iio_info pru_info = {
+static const struct attribute_group pru_attribute_group_1 = {
+	.attrs = pru_attributes_1,
+};
+
+static const struct iio_info pru_info_0 = {
 	.read_raw = pru_read_raw,
 	.write_raw = pru_write_raw,
-	.attrs = &pru_attribute_group,
+	.attrs = &pru_attribute_group_0,
+};
+
+static const struct iio_info pru_info_1 = {
+	.read_raw = pru_read_raw,
+	.write_raw = pru_write_raw,
+	.attrs = &pru_attribute_group_1,
 };
 
 #define PRUX_CHANNEL(num, idx, typ, mask) {						\
@@ -505,7 +521,7 @@ static const struct iio_info pru_info = {
 #define PRU_CHANNEL(num, idx, typ)	\
 	PRUX_CHANNEL(num, idx, typ, BIT(IIO_CHAN_INFO_OVERSAMPLING_RATIO))
 
-static const struct iio_chan_spec pru_channels[] = {
+static const struct iio_chan_spec pru_6_channels[] = {
 	PRU_CHANNEL(0, 0, IIO_VOLTAGE),
 	PRU_CHANNEL(1, 1, IIO_VOLTAGE),
 	PRU_CHANNEL(2, 2, IIO_VOLTAGE),
@@ -515,17 +531,29 @@ static const struct iio_chan_spec pru_channels[] = {
 	IIO_CHAN_SOFT_TIMESTAMP(6),
 };
 
+static const struct iio_chan_spec pru_4_channels[] = {
+	PRU_CHANNEL(0, 0, IIO_VOLTAGE),
+	PRU_CHANNEL(1, 1, IIO_VOLTAGE),
+	PRU_CHANNEL(2, 2, IIO_VOLTAGE),
+	PRU_CHANNEL(3, 3, IIO_VOLTAGE),
+	IIO_CHAN_SOFT_TIMESTAMP(6),
+};
 
 static const struct pru_chip_info pru_chip_info_tbl[] = {
 	[0] = {
-		.channels = pru_channels,
+		.channels = pru_6_channels,
 		.num_channels = 7,
 		.id = 60,
 	},
 	[1] = {
-		.channels = pru_channels,
+		.channels = pru_6_channels,
 		.num_channels = 7,
 		.id = 62,
+	},
+	[2] = {
+		.channels = pru_4_channels,
+		.num_channels = 5,
+		.id = 54,
 	},
 };
 
@@ -540,9 +568,11 @@ static int pru_request_gpios(struct pru_priv *st)
 		if (IS_ERR(st->gpio_mux_a[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
 			return PTR_ERR(st->gpio_mux_a[i]);
 
-		sprintf(pinpath, "pru,adc-%d-mux-b", i + 1);
-		if (IS_ERR(st->gpio_mux_b[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
-			return PTR_ERR(st->gpio_mux_b[i]);
+		if (st->chip_info->id == 060 || st->chip_info->id == 062) {
+			sprintf(pinpath, "pru,adc-%d-mux-b", i + 1);
+			if (IS_ERR(st->gpio_mux_b[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
+				return PTR_ERR(st->gpio_mux_b[i]);
+		}
 
 		sprintf(pinpath, "pru,adc-%d-gain0", i + 1);
 		if (IS_ERR(st->gpio_gain0[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
@@ -552,7 +582,7 @@ static int pru_request_gpios(struct pru_priv *st)
 		if (IS_ERR(st->gpio_gain1[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
 			return PTR_ERR(st->gpio_gain1[i]);
 
-		if (st->chip_info->id == 060) {
+		if (st->chip_info->id == 060 || st->chip_info->id == 054) {
 			sprintf(pinpath, "pru,adc-%d-gain2", i + 1);
 			if (IS_ERR(st->gpio_gain2[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
 				return PTR_ERR(st->gpio_gain2[i]);
@@ -649,6 +679,7 @@ static const struct iio_trigger_ops pru_trigger_ops = {
 static const struct of_device_id of_pru_adc_match[] = {
 	{ .compatible = "pru-adc-060", },
 	{ .compatible = "pru-adc-062", },
+	{ .compatible = "pru-adc-054", },
 	{},
 };
 
@@ -671,16 +702,12 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 	s_cnt = p_st->cpu_addr_dma[dma_id][0];
 
-//	trace_pru_call(dma_id, "start");
-//	trace_gpio_value(1, 0, 0);
-
 	if (p_st->bufferd) {
 
 		dma_buff_cnt = p_st->cpu_addr_dma[dma_id][2] & 0xFFFF;
+		p_st->cnted += s_cnt;
 
 		dev_dbg(p_st->dev, "cb() dma_id %d %d scnt %d\n", dma_id, dma_buff_cnt, s_cnt);
-
-		p_st->cnted += s_cnt;
 
 		if (p_st->cnted >= p_st->samplecnt) {
 			if (p_st->looped)
@@ -691,7 +718,7 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 		for (i = 0; i < s_cnt; i++)
 			iio_push_to_buffers_with_timestamp(indio_dev,
-				p_st->cpu_addr_dma[dma_id] + 1 + (i * 6),
+				p_st->cpu_addr_dma[dma_id] + 1 + (i * (p_st->chip_info->num_channels - 1)),
 				iio_get_time_ns(indio_dev));
 
 		/// clear this buffer
@@ -707,8 +734,10 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 	p_st->data[1] = p_st->cpu_addr_dma[dma_id][2] & 0xFFFF;
 	p_st->data[2] = p_st->cpu_addr_dma[dma_id][3] & 0xFFFF;
 	p_st->data[3] = p_st->cpu_addr_dma[dma_id][4] & 0xFFFF;
-	p_st->data[4] = p_st->cpu_addr_dma[dma_id][5] & 0xFFFF;
-	p_st->data[5] = p_st->cpu_addr_dma[dma_id][6] & 0xFFFF;
+	if (p_st->chip_info->id == 060 || p_st->chip_info->id == 062) {
+		p_st->data[4] = p_st->cpu_addr_dma[dma_id][5] & 0xFFFF;
+		p_st->data[5] = p_st->cpu_addr_dma[dma_id][6] & 0xFFFF;
+	}
 
 	dev_dbg(p_st->dev, "IDD_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", dma_id,
 			p_st->data[0], p_st->data[1], p_st->data[2], p_st->data[3], p_st->data[4], p_st->data[5]);
@@ -805,6 +834,9 @@ static int pru_probe(struct platform_device *pdev)
 	} else if (of_property_match_string(dev->of_node, "compatible", "pru-adc-062") == 0) {
 		st->chip_info = &pru_chip_info_tbl[1];
 		dev_info(dev, "loading %03d 6x24bit\n", st->chip_info->id);
+	} else if (of_property_match_string(dev->of_node, "compatible", "pru-adc-054") == 0) {
+		st->chip_info = &pru_chip_info_tbl[1];
+		dev_info(dev, "loading %03d 4x16bit\n", st->chip_info->id);
 	} else {
 		pr_err("no compatible of_device");
 		free_dma(st);
@@ -844,7 +876,10 @@ static int pru_probe(struct platform_device *pdev)
 	}
 
 	indio_dev->dev.parent = dev;
-	indio_dev->info = &pru_info;
+	if (st->chip_info->id == 060 || st->chip_info->id == 054)
+		indio_dev->info = &pru_info_0;
+	else
+		indio_dev->info = &pru_info_1;
 	indio_dev->modes = INDIO_DIRECT_MODE;
 	indio_dev->name = "pru-adc";
 	indio_dev->channels = st->chip_info->channels;
