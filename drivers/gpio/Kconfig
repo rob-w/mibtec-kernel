@@ -984,6 +984,13 @@ config GPIO_PISOSR
 	  GPIO driver for SPI compatible parallel-in/serial-out shift
 	  registers. These are input only devices.
 
+config GPIO_SI838X
+	tristate "Silicon Labs bipolar input controller"
+	depends on SPI_MASTER
+	help
+	  SPI driver for Silicon Labs bipoler input controller.
+	  This provides GPIO interface supporting inputs only.
+
 endmenu
 
 menu "USB GPIO expanders"
