@@ -22,7 +22,7 @@
 #include <linux/of.h>
 #include <linux/spi/spi.h>
 
-#define SI838X_MODULE_VERSION "0.1"
+#define SI838X_MODULE_VERSION "0.3"
 
 #define DEFAULT_NGPIO 8
 
@@ -35,11 +35,12 @@
  * @lock: Protects read sequences
  */
 struct si838x_gpio {
-	struct gpio_chip chip;
-	struct spi_device *spi;
-	u8 *buffer;
-	size_t buffer_size;
-	struct mutex lock;
+	struct		gpio_chip chip;
+	struct		spi_device *spi;
+	u8			*buffer;
+	size_t		buffer_size;
+	struct		mutex lock;
+	bool		inv_order;
 };
 
 static inline struct si838x_gpio *to_si838x_gpio(struct gpio_chip *chip)
@@ -89,7 +90,8 @@ static int si838x_gpio_set_debounce(struct gpio_chip *chip, unsigned offset, uns
 
 static int si838x_gpio_refresh(struct si838x_gpio *gpio)
 {
-	int ret;
+	int ret, i;
+	u8 dat;
 	u8 tx_buf[2];
 
 	mutex_lock(&gpio->lock);
@@ -101,7 +103,14 @@ static int si838x_gpio_refresh(struct si838x_gpio *gpio)
 	if (ret)
 		return ret;
 
-	dev_info(gpio->chip.dev, "%s() buf %d\n", __func__,  gpio->buffer[0]);
+	if (gpio->inv_order) {
+		dat = gpio->buffer[0];
+		gpio->buffer[0] = 0;
+		for (i = 0; i < 8; i++) {
+			if (dat & (1<<i))
+				gpio->buffer[0] |= (1<< (7 - i));
+		}
+	}
 
 	mutex_unlock(&gpio->lock);
 
@@ -129,6 +138,13 @@ static int si838x_gpio_direction_output(struct gpio_chip *chip,
 	return -EINVAL;
 }
 
+static void si838x_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
+{
+/*	struct si838x_gpio *si838x = to_si838x_gpio(chip);
+	u8 temp;
+	unsigned long flags;*/
+}
+
 static int si838x_gpio_get(struct gpio_chip *chip, unsigned offset)
 {
 	struct si838x_gpio *gpio = to_si838x_gpio(chip);
@@ -145,6 +161,7 @@ static struct gpio_chip template_chip = {
 	.direction_input	= si838x_gpio_direction_input,
 	.direction_output	= si838x_gpio_direction_output,
 	.get			= si838x_gpio_get,
+	.set			= si838x_gpio_set,
 	.set_debounce	= si838x_gpio_set_debounce,
 	.base			= -1,
 	.ngpio			= DEFAULT_NGPIO,
@@ -166,6 +183,7 @@ static int si838x_gpio_probe(struct spi_device *spi)
 	gpio->chip = template_chip;
 	gpio->chip.dev = dev;
 	of_property_read_u16(dev->of_node, "ngpios", &gpio->chip.ngpio);
+	gpio->inv_order = of_property_read_bool(dev->of_node, "invert_order");
 
 	gpio->spi = spi;
 
