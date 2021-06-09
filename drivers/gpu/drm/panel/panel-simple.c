@@ -1129,6 +1129,32 @@ static const struct panel_desc edt_etm350g8edh6 = {
 	.bus_flags = DRM_BUS_FLAG_DE_HIGH | DRM_BUS_FLAG_PIXDATA_DRIVE_NEGEDGE,
 };
 
+static const struct drm_display_mode edt_etm0430g8edh6_mode = {
+	.clock = 9000,
+	.hdisplay = 480,
+	.hsync_start = 480 + 8,
+	.hsync_end = 480 + 8 + 43,
+	.htotal = 480 + 8 + 43 + 4,
+	.vdisplay = 272,
+	.vsync_start = 272 + 8,
+	.vsync_end = 272 + 8 + 12,
+	.vtotal = 272 + 8 + 12 + 4,
+	.vrefresh = 60,
+	.flags = DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC,
+};
+
+static const struct panel_desc edt_etm0430g8edh6 = {
+	.modes = &edt_etm0430g8edh6_mode,
+	.num_modes = 1,
+	.bpc = 6,
+	.size = {
+		.width = 480,
+		.height = 272,
+	},
+	.bus_format = MEDIA_BUS_FMT_RGB666_1X18,
+	.bus_flags = DRM_BUS_FLAG_DE_HIGH | DRM_BUS_FLAG_PIXDATA_DRIVE_NEGEDGE,
+};
+
 static const struct drm_display_mode foxlink_fl500wvr00_a0t_mode = {
 	.clock = 32260,
 	.hdisplay = 800,
@@ -2560,6 +2586,9 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "edt,et070080dh6",
 		.data = &edt_etm0700g0dh6,
+	}, {
+		.compatible = "edt,etm0430g8edh6",
+		.data = &edt_etm0430g8edh6,
 	}, {
 		.compatible = "edt,etm0700g0dh6",
 		.data = &edt_etm0700g0dh6,
