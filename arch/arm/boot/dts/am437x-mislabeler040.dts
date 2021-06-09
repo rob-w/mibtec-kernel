@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS LABELER040 v1.4.0";
+	model = "MIS LABELER040 v1.4.1";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -53,7 +53,7 @@
 	};
 
 	lcd0: display {
-		compatible = "edt,etm350g8edh6";
+		compatible = "edt,etm0430g8edh6";
 		label = "lcd";
 		port {
 			lcd_in: endpoint {
