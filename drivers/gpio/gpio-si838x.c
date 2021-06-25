@@ -22,7 +22,7 @@
 #include <linux/of.h>
 #include <linux/spi/spi.h>
 
-#define SI838X_MODULE_VERSION "0.3"
+#define SI838X_MODULE_VERSION "0.4"
 
 #define DEFAULT_NGPIO 8
 
@@ -148,10 +148,16 @@ static void si838x_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 static int si838x_gpio_get(struct gpio_chip *chip, unsigned offset)
 {
 	struct si838x_gpio *gpio = to_si838x_gpio(chip);
+	int ret;
 
 	si838x_gpio_refresh(gpio);
 
-	return (gpio->buffer[offset / 8] >> (offset % 8)) & 0x1;
+	/// to stay stupidly compatible we invert here again
+	if ((gpio->buffer[offset / 8] >> (offset % 8)) & 0x1)
+		ret = 0;
+	else
+		ret = 1;
+	return (ret);
 }
 
 static struct gpio_chip template_chip = {
