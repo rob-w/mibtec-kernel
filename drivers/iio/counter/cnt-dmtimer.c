@@ -31,7 +31,7 @@
 #include <linux/iio/triggered_buffer.h>
 #include <linux/iio/trigger_consumer.h>
 
-#define CNT_DMTIMER_VERSION "0.11"
+#define CNT_DMTIMER_VERSION "0.12"
 
 static const unsigned int cnt_dmtimer_prescaler_avail[9] = {
 	1, 2, 4, 8, 16, 32, 64, 128, 256
@@ -90,10 +90,14 @@ static void cnt_dmtimer_cleanup_timer(struct cnt_dmtimer_pdata *st)
 	st->capture_timer = NULL;
 }
 
-static uint32_t recalc_freq(struct cnt_dmtimer_pdata *st)
+static uint32_t cnt_dmtimer_recalc_freq(struct cnt_dmtimer_pdata *st)
 {
 	uint64_t base;
 	uint32_t freq;
+
+	/// no IRQ was fired at all till now, protect div0 cond
+	if (st->t_delta <= 0)
+		return 0;
 
 	base = (st->frequency + st->offset) / st->prescaler;
 	base = base * 1000;
@@ -125,7 +129,7 @@ static irqreturn_t cnt_dmtimer_interrupt(int irq, void *data)
 									st->capture_timer->posted);
 
 		st->t_delta = capture[1] - capture[0];
-		freq = recalc_freq(st);
+		freq = cnt_dmtimer_recalc_freq(st);
 		iio_push_to_buffers_with_timestamp(indio_dev, &freq, iio_get_time_ns(indio_dev));
 
 		dev_dbg(st->dev, "%s() %d vs %d -> %d %d\n", __func__,
@@ -276,12 +280,12 @@ static int cnt_dmtimer_read_raw(struct iio_dev *indio_dev,
 		iio_device_release_direct_mode(indio_dev);
 		return IIO_VAL_INT;
 
-	case IIO_CHAN_INFO_PROCESSED:
+	case IIO_CHAN_INFO_FREQUENCY:
 		ret = iio_device_claim_direct_mode(indio_dev);
 		if (ret)
 			return ret;
 
-		ret2 = recalc_freq(st);
+		ret2 = cnt_dmtimer_recalc_freq(st);
 		*val = div_u64(ret2, 1000);
 		*val2 = (ret2 - (*val * 1000)) * 1000;
 
