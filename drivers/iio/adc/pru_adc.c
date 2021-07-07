@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.6"
+#define PRU_ADC_MODULE_VERSION "1.7"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -603,10 +603,7 @@ static int pru_buffer_preenable(struct iio_dev *indio_dev)
 {
 	struct pru_priv *st = iio_priv(indio_dev);
 
-//	if (st->looped) {
-//		rproc_boot(st->rproc);
-		dev_dbg(st->dev, "%s()\n", __func__);
-//	}
+	dev_dbg(st->dev, "%s()\n", __func__);
 
 	return 0;
 }
@@ -627,6 +624,7 @@ static int pru_buffer_predisable(struct iio_dev *indio_dev)
 
 	dev_dbg(st->dev, "%s() shutting down rproc\n", __func__);
 	st->bufferd = 0;
+	st->looped = 0;
 	rproc_shutdown(st->rproc);
 
 	return iio_triggered_buffer_predisable(indio_dev);
