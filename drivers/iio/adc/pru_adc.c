@@ -733,10 +733,11 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 	if (p_st->chip_info->id == 060 || p_st->chip_info->id == 062) {
 		p_st->data[4] = p_st->cpu_addr_dma[dma_id][5] & 0xFFFF;
 		p_st->data[5] = p_st->cpu_addr_dma[dma_id][6] & 0xFFFF;
-	}
-
-	dev_dbg(p_st->dev, "IDD_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", dma_id,
+		dev_dbg(p_st->dev, "IDD_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", dma_id,
 			p_st->data[0], p_st->data[1], p_st->data[2], p_st->data[3], p_st->data[4], p_st->data[5]);
+	} else
+		dev_dbg(p_st->dev, "IDD_%d 1:%d 2:%d 3:%d 4:%d\n", dma_id,
+			p_st->data[0], p_st->data[1], p_st->data[2], p_st->data[3]);
 
 	/// clear this buffer
 	p_st->cpu_addr_dma[dma_id][0] = 0;
