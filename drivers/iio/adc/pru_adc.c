@@ -244,6 +244,10 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 		*val = 0;
 		if (gpiod_get_value_cansleep(st->gpio_mux_a[chan->address]))
 			*val |= (1<<0);
+
+		if (st->chip_info->id == 054)
+			return IIO_VAL_INT;
+
 		if (gpiod_get_value_cansleep(st->gpio_mux_b[chan->address]))
 			*val |= (1<<1);
 		return IIO_VAL_INT;
@@ -308,6 +312,10 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 			gpiod_set_value_cansleep(st->gpio_mux_a[chan->address], 1);
 		else
 			gpiod_set_value_cansleep(st->gpio_mux_a[chan->address], 0);
+
+		if (st->chip_info->id == 054)
+			return 0;
+
 		if (val & (1<<1))
 			gpiod_set_value_cansleep(st->gpio_mux_b[chan->address], 1);
 		else
