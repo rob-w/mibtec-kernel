@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.7"
+#define PRU_ADC_MODULE_VERSION "1.8"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -235,10 +235,12 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 			*val |= (1<<0);
 		if (gpiod_get_value_cansleep(st->gpio_gain1[chan->address]))
 			*val |= (1<<1);
-		if (st->chip_info->id == 060) {
-			if (gpiod_get_value_cansleep(st->gpio_gain2[chan->address]))
+
+		if (st->chip_info->id == 062)
+				return IIO_VAL_INT;
+
+		if (gpiod_get_value_cansleep(st->gpio_gain2[chan->address]))
 				*val |= (1<<2);
-		}
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_ENABLE:
 		*val = 0;
@@ -300,12 +302,15 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 			gpiod_set_value_cansleep(st->gpio_gain1[chan->address], 1);
 		else
 			gpiod_set_value_cansleep(st->gpio_gain1[chan->address], 0);
-		if (st->chip_info->id == 060) {
-			if (val & (1<<2))
-				gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 1);
-			else
-				gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 0);
-		}
+
+		if (st->chip_info->id == 062)
+			return 0;
+
+		if (val & (1<<2))
+			gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 1);
+		else
+			gpiod_set_value_cansleep(st->gpio_gain2[chan->address], 0);
+
 		return 0;
 	case IIO_CHAN_INFO_ENABLE:
 		if (val & (1<<0))
