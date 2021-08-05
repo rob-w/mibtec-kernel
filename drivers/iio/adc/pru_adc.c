@@ -39,10 +39,14 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.8"
+#define PRU_ADC_MODULE_VERSION "1.9"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
+
+#define CHIP_054	54
+#define CHIP_060	60
+#define CHIP_062	62
 
 struct pru_prepare{
 	uint32_t size;
@@ -236,18 +240,19 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 		if (gpiod_get_value_cansleep(st->gpio_gain1[chan->address]))
 			*val |= (1<<1);
 
-		if (st->chip_info->id == 062)
-				return IIO_VAL_INT;
+		if (st->chip_info->id == CHIP_062)
+			return IIO_VAL_INT;
 
 		if (gpiod_get_value_cansleep(st->gpio_gain2[chan->address]))
-				*val |= (1<<2);
+			*val |= (1<<2);
+
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_ENABLE:
 		*val = 0;
 		if (gpiod_get_value_cansleep(st->gpio_mux_a[chan->address]))
 			*val |= (1<<0);
 
-		if (st->chip_info->id == 054)
+		if (st->chip_info->id == CHIP_054)
 			return IIO_VAL_INT;
 
 		if (gpiod_get_value_cansleep(st->gpio_mux_b[chan->address]))
@@ -303,7 +308,7 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 		else
 			gpiod_set_value_cansleep(st->gpio_gain1[chan->address], 0);
 
-		if (st->chip_info->id == 062)
+		if (st->chip_info->id == CHIP_062)
 			return 0;
 
 		if (val & (1<<2))
@@ -318,7 +323,7 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 		else
 			gpiod_set_value_cansleep(st->gpio_mux_a[chan->address], 0);
 
-		if (st->chip_info->id == 054)
+		if (st->chip_info->id == CHIP_054)
 			return 0;
 
 		if (val & (1<<1))
@@ -368,7 +373,7 @@ static ssize_t pru_show_cs_chans(struct device *dev,
 	int i;
 	struct pru_priv *st = iio_priv(dev_to_iio_dev(dev));
 
-	if (st->chip_info->id != 062)
+	if (st->chip_info->id != CHIP_062)
 		return sprintf(buf, "%d\n", val);
 
 	for (i = 0, val = 0; i < 3; i++) {
@@ -389,7 +394,7 @@ static ssize_t pru_set_cs_chans(struct device *dev,
 	unsigned int val;
 	int ret;
 
-	if (st->chip_info->id != 062)
+	if (st->chip_info->id != CHIP_062)
 		return 0;
 
 	ret = kstrtouint(buf, 0, &val);
@@ -414,7 +419,7 @@ static ssize_t pru_show_cs_select_all(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct pru_priv *st = iio_priv(dev_to_iio_dev(dev));
-	if (st->chip_info->id != 062)
+	if (st->chip_info->id != CHIP_062)
 		return sprintf(buf, "%d\n", 0);
 
 	return sprintf(buf, "%d\n", gpiod_get_value(st->gpio_select_all));
@@ -429,7 +434,7 @@ static ssize_t pru_set_cs_select_all(struct device *dev,
 	unsigned int val;
 	int ret;
 
-	if (st->chip_info->id != 062)
+	if (st->chip_info->id != CHIP_062)
 		return 0;
 
 	ret = kstrtouint(buf, 0, &val);
@@ -552,17 +557,17 @@ static const struct pru_chip_info pru_chip_info_tbl[] = {
 	[0] = {
 		.channels = pru_6_channels,
 		.num_channels = 7,
-		.id = 60,
+		.id = CHIP_060,
 	},
 	[1] = {
 		.channels = pru_6_channels,
 		.num_channels = 7,
-		.id = 62,
+		.id = CHIP_062,
 	},
 	[2] = {
 		.channels = pru_4_channels,
 		.num_channels = 5,
-		.id = 54,
+		.id = CHIP_054,
 	},
 };
 
@@ -577,7 +582,7 @@ static int pru_request_gpios(struct pru_priv *st)
 		if (IS_ERR(st->gpio_mux_a[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
 			return PTR_ERR(st->gpio_mux_a[i]);
 
-		if (st->chip_info->id == 060 || st->chip_info->id == 062) {
+		if (st->chip_info->id == CHIP_060 || st->chip_info->id == CHIP_062) {
 			sprintf(pinpath, "pru,adc-%d-mux-b", i + 1);
 			if (IS_ERR(st->gpio_mux_b[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
 				return PTR_ERR(st->gpio_mux_b[i]);
@@ -591,14 +596,14 @@ static int pru_request_gpios(struct pru_priv *st)
 		if (IS_ERR(st->gpio_gain1[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
 			return PTR_ERR(st->gpio_gain1[i]);
 
-		if (st->chip_info->id == 060 || st->chip_info->id == 054) {
+		if (st->chip_info->id == CHIP_060 || st->chip_info->id == CHIP_054) {
 			sprintf(pinpath, "pru,adc-%d-gain2", i + 1);
 			if (IS_ERR(st->gpio_gain2[i] = devm_gpiod_get(dev, pinpath, GPIOD_OUT_LOW)))
 				return PTR_ERR(st->gpio_gain2[i]);
 		}
 	}
 
-	if (st->chip_info->id == 062) {
+	if (st->chip_info->id == CHIP_062) {
 		if (IS_ERR(st->gpio_select_all = devm_gpiod_get(dev, "pru,adc-select-all", GPIOD_OUT_LOW)))
 			return PTR_ERR(st->gpio_select_all);
 		if (IS_ERR(st->gpio_select[0] = devm_gpiod_get(dev, "pru,adc-select-0", GPIOD_OUT_LOW)))
@@ -741,7 +746,7 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 	p_st->data[1] = p_st->cpu_addr_dma[dma_id][2] & 0xFFFF;
 	p_st->data[2] = p_st->cpu_addr_dma[dma_id][3] & 0xFFFF;
 	p_st->data[3] = p_st->cpu_addr_dma[dma_id][4] & 0xFFFF;
-	if (p_st->chip_info->id == 060 || p_st->chip_info->id == 062) {
+	if (p_st->chip_info->id == CHIP_060 || p_st->chip_info->id == CHIP_062) {
 		p_st->data[4] = p_st->cpu_addr_dma[dma_id][5] & 0xFFFF;
 		p_st->data[5] = p_st->cpu_addr_dma[dma_id][6] & 0xFFFF;
 		dev_dbg(p_st->dev, "IDD_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", dma_id,
