@@ -20,14 +20,12 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS LABELER040 v1.4.1";
+	model = "MIS LABELER040 v1.5.1";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
 		display0 = &lcd0;
 		serial1 = &uart1;
-		serial2 = &uart2;
-		serial3 = &uart3;
 		rtc0 = &mcp_rtc;
 		rtc1 = &rtc;
 	};
@@ -106,20 +104,6 @@
 			linux,default-trigger = "off";
 		};
 
-		/* 0x090 P600_144 A9 gpmc_advn_ale.gpio2_2 UART1_TE */
-		uart1_term {
-			label = "mispanel_uart1_terminator";
-			gpios = <&gpio2 2 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "off";
-		};
-
-		/* 0x218 P600_148 AE19 cam0_data4.gpio4_26 UART2_TE */
-		uart2_term {
-			label = "mispanel_uart2_terminator";
-			gpios = <&gpio4 26 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "off";
-		};
-
 		/* 0x150 P600_160 P23  spi0_sclk.gpio0_2 INTERFACES_OFF */
 		interfaces_off {
 			label = "mispanel_interfaces_off";
@@ -127,10 +111,10 @@
 			linux,default-trigger = "off";
 		};
 
-		/* 0x264 P600_158 P22  spi2_d0.gpio3_22 REGULATORS OFF */
+		/* 0x234 P600_57 K24 uart3_rtsn.gpio5_1 REGULATORS_OFF */
 		regulators_off {
 			label = "mispanel_regulators_off";
-			gpios = <&gpio3 22 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio5 1 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "off";
 		};
 
@@ -141,18 +125,11 @@
 			linux,default-trigger = "off";
 		};
 
-		/* 0x278 P600_166 H20  clkreq.gpio0_24 LCD_OFF */
+		/* 0x278 P600_166 H20  clkreq.gpio0_24 LCD_OFF *//* TEST ME ACTIVE HIGH/LOW ? was LOW */
 		lcd_off {
 			label = "mispanel_lcd_off";
 			gpios = <&gpio0 24 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "oneshot";
-		};
-
-		/* 0x258 P600_164 P24  spi4_d1.gpio5_6 ETH2_INT_N */
-		lcd_sleep {
-			label = "mispanel_lcd_sleep";
-			gpios = <&gpio5 6 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "default-on";
 		};
 	};
 };
@@ -192,6 +169,19 @@
 			0x1d8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_114 AC23 cam1_vd.gpio4_10 */
 			0x1dc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_116 AE21 cam1_pclk.gpio4_11 */
 
+			0x040 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_153 C3 gpmc_a0.gpio1_16 CPU1_GPIO2 */
+			0x044 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_143 C5 gpmc_a1.gpio1_17 CPU2_GPIO1 */
+			0x048 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_157 C6 gpmc_a2.gpio1_18 CPU1_BOOT_NUART */
+			0x04c (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_159 A4 gpmc_a3.gpio1_19 CPU1_NFAULT */
+			0x050 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_161 D7 gpmc_a4.gpio1_20 DRV1_NRESET */
+			0x054 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_163 E7 gpmc_a5.gpio1_21 CPU1_RESET */
+			0x058 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_155 E8 gpmc_a6.gpio1_22 CPU1_GPIO1 */
+			0x05c (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_141 F6 gpmc_a7.gpio1_23 CPU2_GPIO2 */
+			0x060 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_151 F7 gpmc_a8.gpio1_24 CPU2_RESET */
+			0x064 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_149 B4 gpmc_a9.gpio1_25 DRV2_NRESET */
+			0x068 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_147 G8 gpmc_a10.gpio1_26 CPU2_NFAULT */
+			0x06c (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_145 D8 gpmc_a11.gpio1_27 CPU2_BOOT_NUART */
+
 			/* ClassName:AUDIO */
 			0x144 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_120 A16  rmii1_ref_clk.gpio0_29 */
 			0x108 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_122 D16  mii1_col.gpio3_0 */
@@ -204,19 +194,34 @@
 			0x074 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_150 B3   gpmc_wpn.gpio0_31 UART2_RI */
 			0x078 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_152 A3   gpmc_be1n.gpio1_28 USB0_nOC */
 			0x07c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_146 A8   gpmc_csn0.gpio1_29 UART 1_RI */
-			0x090 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_144 A9 gpmc_advn_ale.gpio2_2 UART1_TE */
+			0x090 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_144 A9 gpmc_advn_ale.gpio2_2 POWERGOOD3v3 */
 			0x09c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_156 C10  gpmc_be0n_cle.gpio2_5 UV_DETECT */
 			0x150 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_160 P23  spi0_sclk.gpio0_2 INTERFACES_OFF */
 			0x154 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_154 T22  spi0_d0.gpio0_3 USB1_nOC */
+			0x168 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_60 L25 uart0_ctsn.gpio1_8 NC */
+			0x16C (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_58  J25  uart0_rtsn.gpio1_9 */
 			0x1a0 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_180 L23  mcasp0_aclkr.gpio3_18 EE_WP_BASEBOARD */
 			0x1a4 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_176 K23 mcasp0_fsr.gpio3_19 CAN0_TERMINATION */
 			0x1ac (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_162 L24  mcasp0_ahclkx.gpio3_21 ETH1_INT_N*/
-			0x218 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)/* P600_148 AE19 cam0_data4.gpio4_26 UART2_TE */
+
+			0x1f0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_50 AD21 cam1_data2. */
+			0x1f4 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_48 AE22 cam1_data3.gpio4_17 */
+			0x1f8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_43  AD22 cam1_data4.gpio4_18 */
+			0x1fc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_45  AE23 cam1_data5.gpio4_19 */
+			0x200 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_49  AD23 cam1_data6.gpio4_20 */
+			0x204 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_47  AE24 cam1_data7.gpio4_21 */
+
+			0x218 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_148 AE19 cam0_data4.gpio4_26 */
+
+			0x228 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_55 H25 uart3_rxd. */
+			0x22c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_53 H24 uart3_txd. */
+			0x230 (PIN_INPUT_PULLDOWN | MUX_MODE8) /* P600_59 H22 uart3_ctsn. */
+
 			0x240 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_170 G20  gpio5_10.gpio5_10 LCD_DIMO */
-			0x250 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_172 P25 spi4_sclk.gpio5_4 LCD_STANDBY */
-			0x258 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_164 P24  spi4_d1.gpio5_6 ETH2_INT_N */
-			0x264 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_158 P22  spi2_d0.gpio3_22 REGULATORS OFF */
+			0x258 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_164 P24  spi4_d1.gpio5_6 */
+			0x264 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_158 P22  spi2_d0.gpio3_22 */
 			0x278 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_166 H20  clkreq.gpio0_24 LCD_OFF */
+
 		>;
 	};
 
@@ -258,20 +263,6 @@
 			0x138 (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_115 E16 mii1_rxd2.rgmii1_rxd2 */
 			0x13c (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_113 B16 mii1_rxd1.rgmii1_rxd1 */
 			0x140 (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_111 F17 mii1_rxd0.rgmii1_rd0 */
-
-			/* ClassName:ETH2 Slave 2 */
-			0x040 (PIN_OUTPUT_PULLDOWN | MUX_MODE2)	/* P600_153 C3 gpmc_a0.rgmii2_tctl */
-			0x044 (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_143 C5 gpmc_a1.rgmii2_rctl */
-			0x048 (PIN_OUTPUT_PULLDOWN | MUX_MODE2)	/* P600_157 C6 gpmc_a2.rgmii2_td3 */
-			0x04c (PIN_OUTPUT_PULLDOWN | MUX_MODE2)	/* P600_159 A4 gpmc_a3.rgmii2_td2 */
-			0x050 (PIN_OUTPUT_PULLDOWN | MUX_MODE2)	/* P600_161 D7 gpmc_a4.rgmii2_td1 */
-			0x054 (PIN_OUTPUT_PULLDOWN | MUX_MODE2)	/* P600_163 E7 gpmc_a5.rgmii2_td0 */
-			0x058 (PIN_OUTPUT_PULLDOWN | MUX_MODE2)	/* P600_155 E8 gpmc_a6.rgmii2_tclk */
-			0x05c (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_141 F6 gpmc_a7.rgmii2_rclk */
-			0x060 (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_151 F7 gpmc_a8.rgmii2_rd3 */
-			0x064 (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_149 B4 gpmc_a9.rgmii2_rd2 */
-			0x068 (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_147 G8 gpmc_a10.rgmii2_rd1 */
-			0x06c (PIN_INPUT_PULLDOWN | MUX_MODE2)	/* P600_145 D8 gpmc_a11.rgmii2_rd0 */
 		>;
 	};
 
@@ -290,20 +281,6 @@
 			0x138 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_115 E16 mii1_rxd2.gpio2_19 */
 			0x13c (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_113 B16 mii1_rxd1.gpio2_20 */
 			0x140 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_111 F17 mii1_rxd0.gpio2_21 */
-
-			/* ClassName:ETH2 Slave 2 reset value */
-			0x040 (PIN_INPUT_PULLDOWN | MUX_MODE7)			/* P600_153 C3 gpmc_a0.gpio1_16 */
-			0x044 (PIN_INPUT_PULLDOWN | MUX_MODE7)			/* P600_143 C5 gpmc_a1.gpio1_17 */
-			0x048 (PIN_INPUT_PULLDOWN | MUX_MODE7)			/* P600_157 C6 gpmc_a2.gpio1_18 */
-			0x04c (PIN_INPUT_PULLDOWN | MUX_MODE7)			/* P600_159 A4 gpmc_a3.gpio1_19 */
-			0x050 (PIN_INPUT_PULLDOWN | MUX_MODE7)			/* P600_161 D7 gpmc_a4.gpio1_20 */
-			0x054 (PIN_INPUT_PULLDOWN | MUX_MODE7)			/* P600_163 E7 gpmc_a5.gpio1_21 */
-			0x058 (PIN_INPUT_PULLDOWN | MUX_MODE7)			/* P600_155 E8 gpmc_a6.gpio1_22 */
-			0x05c (PIN_INPUT_PULLDOWN | MUX_MODE7)			/* P600_141 F6 gpmc_a7.gpio1_23 */
-			0x060 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_151 F7 gpmc_a8.gpio1_24 */
-			0x064 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_149 B4 gpmc_a9.gpio1_25 */
-			0x068 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_147 G8 gpmc_a10.gpio1_26 */
-			0x06c (PIN_INPUT | PULL_DISABLE | MUX_MODE7)	/* P600_145 D8 gpmc_a11.gpio1_27 */
 		>;
 	};
 
@@ -409,8 +386,6 @@
 
 	uart0_pins_default: uart0_pins_default {
 		pinctrl-single,pins = <
-			0x168 (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE0) /* P600_60 L25 uart0_ctsn.uart0_ctsn */
-			0x16C (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE0) /* P600_58 J25 uart0_rtsn.uart0_rtsn */
 			0x170 (PIN_INPUT_PULLUP | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE0) /* P600_56 K25 uart0_rxd.uart0_rxd */
 			0x174 (PIN_INPUT | PULL_DISABLE | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE0) /* P600_54 J24 uart0_txd.uart0_txd */
 		>;
@@ -418,8 +393,6 @@
 
 	uart0_pins_sleep: uart0_pins_sleep {
 		pinctrl-single,pins = <
-			0x168 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_60 L25 uart0_ctsn.gpio1_8 */
-			0x16C (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_58 J25 uart0_rtsn.gpio1_9 */
 			0x170 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_56 K25 uart0_rxd.gpio1_10 */
 			0x174 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_54 J24 uart0_txd.uart1_11 */
 		>;
@@ -429,8 +402,6 @@
 		pinctrl-single,pins = <
 			0x1e8 (PIN_INPUT_PULLUP | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE1) /* P600_44 AB20 cam1_data0.uart1_rxd */
 			0x1ec (PIN_INPUT | PULL_DISABLE | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE1) /* P600_46 AC21 cam1_data1.uart1_txd */
-			0x1f0 (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE1) /* P600_50 AD21 cam1_data2.uart1_ctsn */
-			0x1f4 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_48 AE22 cam1_data3.gpio4_17 RS485 Send-enable */
 		>;
 	};
 
@@ -438,56 +409,20 @@
 		pinctrl-single,pins = <
 			0x1e8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_44 AB20 cam1_data0.gpio4_14 */
 			0x1ec (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_46 AC21 cam1_data1.gpio4_15 */
-			0x1f0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_50 AD21 cam1_data2.gpio4_16 */
-			0x1f4 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_48 AE22 cam1_data3.gpio4_17 */
-		>;
-	};
-
-	uart2_pins_default: uart2_pins_default {
-		pinctrl-single,pins = <
-			0x1f8 (PIN_INPUT_PULLUP | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE2) /* P600_43  AD22 cam1_data4.uart2_rxd */
-			0x1fc (PIN_INPUT | PULL_DISABLE | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE2) /* P600_45  AE23 cam1_data5.uart2_txd */
-			0x200 (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE2) /* P600_49  AD23 cam1_data6.uart2_ctsn */
-			0x204 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_47  AE24 cam1_data7.gpio4_21 */
-		>;
-	};
-
-	uart2_pins_sleep: uart2_pins_sleep {
-		pinctrl-single,pins = <
-			0x1f8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_43  AD22 cam1_data4.gpio4_18 */
-			0x1fc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_45  AE23 cam1_data5.gpio4_19 */
-			0x200 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_49  AD23 cam1_data6.gpio4_20 */
-			0x204 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_47  AE24 cam1_data7.gpio4_21 */
-		>;
-	};
-
-	uart3_pins_default: uart3_pins_default {
-		pinctrl-single,pins = <
-			0x228 (PIN_INPUT | MUX_MODE0) 			/* P600_55 H25 uart3_rxd.uart3_rxd */
-			0x22c (PIN_OUTPUT_PULLDOWN | MUX_MODE0) /* P600_53 H24 uart3_txd.uart3_txd */
-			0x230 (PIN_INPUT_PULLUP | MUX_MODE0) 	/* P600_59 H22 uart3_ctsn.uart3_ctsn */
-			0x234 (PIN_OUTPUT_PULLDOWN | MUX_MODE0) /* P600_57 K24 uart3_rtsn.uart3_rtsn */
-		>;
-	};
-
-	uart3_pins_sleep: uart3_pins_sleep {
-		pinctrl-single,pins = <
-			0x228 (PIN_INPUT | MUX_MODE7) 			/* P600_55 H25 uart3_rxd.uart3_rxd */
-			0x22c (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_53 H24 uart3_txd.uart3_txd */
-			0x230 (PIN_INPUT_PULLUP | MUX_MODE7) 	/* P600_59 H22 uart3_ctsn.uart3_ctsn */
-			0x234 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_57 K24 uart3_rtsn.uart3_rtsn */
 		>;
 	};
 
 	ecap0_pins_default: backlight_pins_default {
 		pinctrl-single,pins = <
 			0x164 (MUX_MODE0) /* P600_104 G24 ecap0_pwm0_out.ecap0_pwm0_out*/
+			0x250 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_172 P25  spi4_sclk.gpio5_4 BACKLIGHT_ON */
 		>;
 	};
 
 	ecap0_pins_sleep: backlight_pins_sleep {
 		pinctrl-single,pins = <
 			0x164 (PIN_INPUT_PULLDOWN | MUX_MODE7)
+			0x250 (PIN_INPUT_PULLDOWN | MUX_MODE7)
 		>;
 	};
 
@@ -601,26 +536,6 @@
 	linux,rs485-enabled-at-boot-time;
 	rs485-rts-active-high;
 	rs485-rts-delay = <0 0>;		// in milliseconds
-};
-
-&uart2 {
-	status = "okay";
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&uart2_pins_default>;
-	pinctrl-1 = <&uart2_pins_sleep>;
-	clock-frequency = <48000000>;
-	rts-gpio = <&gpio4 21 GPIO_ACTIVE_HIGH>;
-	linux,rs485-enabled-at-boot-time;
-	rs485-rts-active-high;
-	rs485-rts-delay = <0 0>;		// in milliseconds
-};
-
-&uart3 {
-	status = "okay";
-	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&uart3_pins_default>;
-	pinctrl-1 = <&uart3_pins_sleep>;
-	clock-frequency = <48000000>;
 };
 
 &dwc3_1 {
