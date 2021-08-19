@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS LABELER040 v1.5.1";
+	model = "MIS LABELER040 v1.5.2";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -57,6 +57,34 @@
 			lcd_in: endpoint {
 				remote-endpoint = <&dpi_out>;
 			};
+		};
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		/* 0x1dc P600_116 AE21 cam1_pclk.gpio4_11 PFK-S1 */
+		i_key {
+			label = "PFK-S1";
+			linux,code = <59>; /* F1 0xffbe */
+			gpios = <&gpio3 0 GPIO_ACTIVE_LOW>;
+			debounce-interval = <20>;
+		};
+
+		/* 0x144 P600_120 A16  rmii1_ref_clk.gpio0_29 PFK-S2*/
+		r_key {
+			label = "PFK-S2";
+			linux,code = <60>; /* F2 0xffbf */
+			gpios = <&gpio0 29 GPIO_ACTIVE_LOW>;
+			debounce-interval = <20>;
+		};
+
+		/* 0x108 P600_122 D16  mii1_col.gpio3_0 PFK-S3 */
+		t_key {
+			label = "PFK-S3";
+			linux,code = <61>; /* F3 0xffc0 */
+			gpios = <&gpio4 11 GPIO_ACTIVE_LOW>;
+			debounce-interval = <20>;
 		};
 	};
 
@@ -167,24 +195,24 @@
 			0x198 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_110 H23  mcasp0_axr0.gpio3_16 */
 			0x19c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_112 M24  mcasp0_ahclkr.gpio3_17 */
 			0x1d8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_114 AC23 cam1_vd.gpio4_10 */
-			0x1dc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_116 AE21 cam1_pclk.gpio4_11 */
+			0x1dc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_116 AE21 cam1_pclk.gpio4_11 PFK-S1 */
 
-			0x040 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_153 C3 gpmc_a0.gpio1_16 CPU1_GPIO2 */
-			0x044 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_143 C5 gpmc_a1.gpio1_17 CPU2_GPIO1 */
+			0x040 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_153 C3 gpmc_a0.gpio1_16 CPU1_GPIOB */
+			0x044 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_143 C5 gpmc_a1.gpio1_17 PLC-RESERVE */
 			0x048 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_157 C6 gpmc_a2.gpio1_18 CPU1_BOOT_NUART */
 			0x04c (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_159 A4 gpmc_a3.gpio1_19 CPU1_NFAULT */
 			0x050 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_161 D7 gpmc_a4.gpio1_20 DRV1_NRESET */
 			0x054 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_163 E7 gpmc_a5.gpio1_21 CPU1_RESET */
-			0x058 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_155 E8 gpmc_a6.gpio1_22 CPU1_GPIO1 */
-			0x05c (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_141 F6 gpmc_a7.gpio1_23 CPU2_GPIO2 */
-			0x060 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_151 F7 gpmc_a8.gpio1_24 CPU2_RESET */
-			0x064 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_149 B4 gpmc_a9.gpio1_25 DRV2_NRESET */
-			0x068 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_147 G8 gpmc_a10.gpio1_26 CPU2_NFAULT */
-			0x06c (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_145 D8 gpmc_a11.gpio1_27 CPU2_BOOT_NUART */
+			0x058 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_155 E8 gpmc_a6.gpio1_22 CPU1_GPIOA */
+			0x05c (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_141 F6 gpmc_a7.gpio1_23 PLC-RESET */
+			0x060 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_151 F7 gpmc_a8.gpio1_24 CPU1_GPIOC */
+			0x064 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_149 B4 gpmc_a9.gpio1_25 CPU1_GPIOD */
+			0x068 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_147 G8 gpmc_a10.gpio1_26 */
+			0x06c (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_145 D8 gpmc_a11.gpio1_27 N_DRIVE_DISABLE */
 
 			/* ClassName:AUDIO */
-			0x144 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_120 A16  rmii1_ref_clk.gpio0_29 */
-			0x108 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_122 D16  mii1_col.gpio3_0 */
+			0x144 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_120 A16  rmii1_ref_clk.gpio0_29 PFK-S2*/
+			0x108 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_122 D16  mii1_col.gpio3_0 PFK-S3 */
 			0x10c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_126 B14  mii1_crs.gpio3_1 */
 			0x110 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_128 B13  mii1_rx_er.gpio3_2 */
 			0x270 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_124 D24  xdma_event_intr0.gpio0_19 */
@@ -222,29 +250,13 @@
 			0x264 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_158 P22  spi2_d0.gpio3_22 */
 			0x278 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_166 H20  clkreq.gpio0_24 LCD_OFF */
 
-		>;
-	};
-
-	mmc1_pins: pinmux_mmc1_pins {
-		pinctrl-single,pins = <
-			0x100 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_clk.mmc0_clk */
-			0x104 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_cmd.mmc0_cmd */
-			0x0f0 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat0.mmc0_dat0 */
-			0x0f4 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat1.mmc0_dat1 */
-			0x0f8 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat2.mmc0_dat2 */
-			0x0fc (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat3.mmc0_dat3 */
-			0x160 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* spi0_cs1.mmc0_sdcd HACK to card detec both */
-		>;
-	};
-
-	mmc1_sleep_pins: pinmux_mmc1_sleep_pins {
-		pinctrl-single,pins = <
-			0x100 (PIN_INPUT_PULLDOWN | MUX_MODE7)
-			0x104 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
-			0x0f0 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
-			0x0f4 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
-			0x0f8 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
-			0x0fc (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x100 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_190 D1 mmc0_clk.gpio2_30 PLC-BUSY */
+			0x104 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_192 D2 mmc0_cmd.gpio2_31 PLC-ROLLERENDE */
+			0x0f0 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_194 C1 mmc0_dat0.gpio2_29 PLC-ERROR */
+			0x0f4 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_196 C2 mmc0_dat1.gpio2_28 PLC-READY */
+			0x0f8 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_198 B2 mmc0_dat2.gpio2_27 EN_EMG_PWR */
+			0x0fc (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_200 B1 mmc0_dat3.gpio2_26 ENA_CAN2_WCK_PWR */
+			0x160 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_202 R25 spi0_cs1.gpio0_6 ENA_CAN1_WCK_PWR  */
 		>;
 	};
 
@@ -501,11 +513,6 @@
 		reset-gpios = <&gpio4 29 GPIO_ACTIVE_LOW>;
 		wake-gpios = <&gpio4 13 GPIO_ACTIVE_HIGH>;
 	};
-
-	ambient@10 {
-		compatible = "vishay,veml7700";
-		reg = <0x10>;
-	};
 };
 
 &mmc1 {
@@ -513,9 +520,8 @@
 	vmmc-supply = <&evm_v3_3d>;
 	bus-width = <4>;
 	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&mmc1_pins>;
-	pinctrl-1 = <&mmc1_sleep_pins>;
-	cd-gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+	/* we got rid of pins here to reuse them */
+	/* but keep device enabled to not disturb numbering of mmcblkN */
 };
 
 &uart0 {
