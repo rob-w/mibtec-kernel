@@ -68,7 +68,7 @@
 			label = "PFK-S1";
 			linux,code = <59>; /* F1 0xffbe */
 			gpios = <&gpio3 0 GPIO_ACTIVE_LOW>;
-			debounce-interval = <20>;
+			debounce-interval = <5>;
 		};
 
 		/* 0x144 P600_120 A16  rmii1_ref_clk.gpio0_29 PFK-S2*/
@@ -76,7 +76,7 @@
 			label = "PFK-S2";
 			linux,code = <60>; /* F2 0xffbf */
 			gpios = <&gpio0 29 GPIO_ACTIVE_LOW>;
-			debounce-interval = <20>;
+			debounce-interval = <5>;
 		};
 
 		/* 0x108 P600_122 D16  mii1_col.gpio3_0 PFK-S3 */
@@ -84,7 +84,7 @@
 			label = "PFK-S3";
 			linux,code = <61>; /* F3 0xffc0 */
 			gpios = <&gpio4 11 GPIO_ACTIVE_LOW>;
-			debounce-interval = <20>;
+			debounce-interval = <5>;
 		};
 	};
 
