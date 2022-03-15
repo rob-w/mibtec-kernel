@@ -1129,19 +1129,6 @@ static const struct panel_desc edt_etm350g8edh6 = {
 	.bus_flags = DRM_BUS_FLAG_DE_HIGH | DRM_BUS_FLAG_PIXDATA_DRIVE_NEGEDGE,
 };
 
-static const struct display_timing edt_etm0430g8edh6_tim = {
-	.pixelclock = { 8000000, 9000000, 12000000 },
-	.hactive = { 480, 480, 480 },
-	.hfront_porch = { 2, 8, 75 },
-	.hback_porch = { 3, 43, 43},
-	.hsync_len = { 2, 4, 75 },
-	.vactive = { 272, 272, 272 },
-	.vfront_porch = { 2, 8, 37 },
-	.vback_porch = { 2, 12, 12 },
-	.vsync_len = { 2, 4, 37 },
-	.flags = DISPLAY_FLAGS_HSYNC_LOW | DISPLAY_FLAGS_VSYNC_LOW
-};
-
 static const struct drm_display_mode edt_etm0430g8edh6_mode = {
 	.clock = 9000,
 	.hdisplay = 480,
@@ -1153,14 +1140,12 @@ static const struct drm_display_mode edt_etm0430g8edh6_mode = {
 	.vsync_end = 272 + 8 + 4,
 	.vtotal = 272 + 8 + 4 + 12,
 	.vrefresh = 60,
-//	.flags = DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC,
 	.flags = DRM_MODE_FLAG_NHSYNC,
 
 };
 
 static const struct panel_desc edt_etm0430g8edh6 = {
 	.modes = &edt_etm0430g8edh6_mode,
-//	.timings = &edt_etm0430g8edh6_tim,
 	.num_modes = 1,
 	.bpc = 6,
 	.size = {
@@ -1168,7 +1153,7 @@ static const struct panel_desc edt_etm0430g8edh6 = {
 		.height = 272,
 	},
 	.bus_format = MEDIA_BUS_FMT_RGB666_1X18,
-	.bus_flags = DRM_BUS_FLAG_DE_HIGH | DRM_BUS_FLAG_PIXDATA_DRIVE_NEGEDGE,
+	.bus_flags = DRM_BUS_FLAG_DE_HIGH | DRM_BUS_FLAG_PIXDATA_DRIVE_POSEDGE,
 };
 
 static const struct drm_display_mode foxlink_fl500wvr00_a0t_mode = {
