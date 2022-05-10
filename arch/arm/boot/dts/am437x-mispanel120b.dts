@@ -22,7 +22,7 @@
 #include <dt-bindings/input/input.h>
 
 / {
-	model = "MIS P120B110 v1.2.0";
+	model = "MIS P120B110 v1.3.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -612,6 +612,13 @@
 		vref_mv = <2500>;
 		scale = <22567>;
 		channel_type = <1>;
+	};
+
+	dac7574: dac@4c {
+		compatible = "ti,dac7574";
+		reg = <0x4C>;
+		status = "okay";
+		vref-supply = <&vdd_supply>;
 	};
 };
 
