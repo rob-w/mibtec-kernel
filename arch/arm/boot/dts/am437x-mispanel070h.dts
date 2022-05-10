@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P070H111 v1.3.3";
+	model = "MIS P070H111 v1.3.4";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -38,8 +38,6 @@
 
 		/* 0x250 P600_172 P25 164 spi4_sclk.gpio5_4 LCD_STANDBY */
 		enable-gpios = <&gpio5 4 GPIO_ACTIVE_HIGH>;
-
-		/* PWM starts at 75 and we make 16 levels */
 		brightness-levels = < 0  1  2  3  4  5  6  7  8  9
 				     10 11 12 13 14 15 16 17 18 19
 				     20 21 22 23 24 25 26 27 28 29
