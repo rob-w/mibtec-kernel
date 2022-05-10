@@ -618,7 +618,6 @@
 		compatible = "ti,dac7574";
 		reg = <0x4C>;
 		status = "okay";
-		vref-supply = <&vdd_supply>;
 	};
 };
 
