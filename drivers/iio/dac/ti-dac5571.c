@@ -22,6 +22,9 @@
 #include <linux/of.h>
 #include <linux/regulator/consumer.h>
 
+#define DRIVER_VERSION "v1.0"
+#define	MAX_12BIT			((1 << 12) - 1)
+
 enum chip_id {
 	single_8bit, single_10bit, single_12bit,
 	quad_8bit, quad_10bit, quad_12bit
@@ -47,6 +50,7 @@ struct dac5571_data {
 	struct mutex lock;
 	struct regulator *vref;
 	u16 val[4];
+	u32 scale[4];
 	bool powerdown;
 	u8 powerdown_mode;
 	struct dac5571_spec const *spec;
@@ -217,14 +221,15 @@ static const struct iio_chan_spec_ext_info dac5571_ext_info[] = {
 };
 
 #define dac5571_CHANNEL(chan, name) {				\
-	.type = IIO_VOLTAGE,					\
+	.type = IIO_CURRENT,					\
 	.channel = (chan),					\
 	.address = (chan),					\
 	.indexed = true,					\
 	.output = true,						\
 	.datasheet_name = name,					\
-	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW),		\
-	.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),	\
+	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW)|\
+				BIT(IIO_CHAN_INFO_CALIBSCALE) |\
+				BIT(IIO_CHAN_INFO_SCALE),\
 	.ext_info = dac5571_ext_info,				\
 }
 
@@ -240,7 +245,8 @@ static int dac5571_read_raw(struct iio_dev *indio_dev,
 			    int *val, int *val2, long mask)
 {
 	struct dac5571_data *data = iio_priv(indio_dev);
-	int ret;
+//	int ret;
+	unsigned long long tmp;
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
@@ -248,13 +254,16 @@ static int dac5571_read_raw(struct iio_dev *indio_dev,
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_SCALE:
-		ret = regulator_get_voltage(data->vref);
-		if (ret < 0)
-			return ret;
+//		*val = ret / 1000;
+//		*val2 = data->spec->resolution;
+//		return IIO_VAL_FRACTIONAL_LOG2;
+		*val = data->scale[chan->channel];
+		return IIO_VAL_INT;
 
-		*val = ret / 1000;
-		*val2 = data->spec->resolution;
-		return IIO_VAL_FRACTIONAL_LOG2;
+	case IIO_CHAN_INFO_CALIBSCALE:
+		tmp = div_s64(((s64)data->scale[chan->channel] * 1000LL), MAX_12BIT);
+		*val = div_s64((s64)(data->val[chan->channel] * tmp), 1000LL);
+		return IIO_VAL_INT;
 
 	default:
 		return -EINVAL;
@@ -266,7 +275,8 @@ static int dac5571_write_raw(struct iio_dev *indio_dev,
 			     int val, int val2, long mask)
 {
 	struct dac5571_data *data = iio_priv(indio_dev);
-	int ret;
+	int ret = 0;
+	unsigned long long tmp;
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
@@ -286,9 +296,25 @@ static int dac5571_write_raw(struct iio_dev *indio_dev,
 		mutex_unlock(&data->lock);
 		return ret;
 
+	case IIO_CHAN_INFO_SCALE:
+		data->scale[chan->channel] = val;
+		break;
+
+	case IIO_CHAN_INFO_CALIBSCALE:
+		if (val >= data->scale[chan->channel])
+			val = data->scale[chan->channel];
+
+		tmp = div_s64(((s64)data->scale[chan->channel] * 1000LL), MAX_12BIT);
+
+		if (tmp > 0)
+			data->val[chan->channel] =  div_s64((s64)(val * 1000LL), tmp );
+		return 0;
+
 	default:
 		return -EINVAL;
 	}
+
+	return ret;
 }
 
 static int dac5571_write_raw_get_fmt(struct iio_dev *indio_dev,
@@ -312,6 +338,8 @@ static int dac5571_probe(struct i2c_client *client,
 	struct dac5571_data *data;
 	struct iio_dev *indio_dev;
 	int ret, i;
+
+	dev_info(&client->dev, "DAC 12bit - %s\n", DRIVER_VERSION);
 
 	indio_dev = devm_iio_device_alloc(dev, sizeof(*data));
 	if (!indio_dev)
