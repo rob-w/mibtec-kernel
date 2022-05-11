@@ -298,7 +298,7 @@ static int dac5571_write_raw(struct iio_dev *indio_dev,
 
 	case IIO_CHAN_INFO_SCALE:
 		data->scale[chan->channel] = val;
-		break;
+		return 0;
 
 	case IIO_CHAN_INFO_CALIBSCALE:
 		if (val >= data->scale[chan->channel])
@@ -307,7 +307,7 @@ static int dac5571_write_raw(struct iio_dev *indio_dev,
 		tmp = div_s64(((s64)data->scale[chan->channel] * 1000LL), MAX_12BIT);
 
 		if (tmp > 0)
-			data->val[chan->channel] =  div_s64((s64)(val * 1000LL), tmp );
+			data->val[chan->channel] = div_s64((s64)(val * 1000LL), tmp );
 		return 0;
 
 	default:
@@ -317,17 +317,9 @@ static int dac5571_write_raw(struct iio_dev *indio_dev,
 	return ret;
 }
 
-static int dac5571_write_raw_get_fmt(struct iio_dev *indio_dev,
-				     struct iio_chan_spec const *chan,
-				     long mask)
-{
-	return IIO_VAL_INT;
-}
-
 static const struct iio_info dac5571_info = {
 	.read_raw = dac5571_read_raw,
 	.write_raw = dac5571_write_raw,
-	.write_raw_get_fmt = dac5571_write_raw_get_fmt,
 };
 
 static int dac5571_probe(struct i2c_client *client,
