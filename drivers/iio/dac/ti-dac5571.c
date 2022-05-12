@@ -22,7 +22,7 @@
 #include <linux/of.h>
 #include <linux/regulator/consumer.h>
 
-#define DRIVER_VERSION "v1.0"
+#define DRIVER_VERSION "v1.1"
 #define	MAX_12BIT			((1 << 12) - 1)
 
 enum chip_id {
@@ -51,6 +51,7 @@ struct dac5571_data {
 	struct regulator *vref;
 	u16 val[4];
 	u32 scale[4];
+	u16 offset[4];
 	bool powerdown;
 	u8 powerdown_mode;
 	struct dac5571_spec const *spec;
@@ -229,6 +230,7 @@ static const struct iio_chan_spec_ext_info dac5571_ext_info[] = {
 	.datasheet_name = name,					\
 	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW)|\
 				BIT(IIO_CHAN_INFO_CALIBSCALE) |\
+				BIT(IIO_CHAN_INFO_OFFSET)|\
 				BIT(IIO_CHAN_INFO_SCALE),\
 	.ext_info = dac5571_ext_info,				\
 }
@@ -251,6 +253,10 @@ static int dac5571_read_raw(struct iio_dev *indio_dev,
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
 		*val = data->val[chan->channel];
+		return IIO_VAL_INT;
+
+	case IIO_CHAN_INFO_OFFSET:
+		*val = data->offset[chan->channel];
 		return IIO_VAL_INT;
 
 	case IIO_CHAN_INFO_SCALE:
@@ -300,14 +306,27 @@ static int dac5571_write_raw(struct iio_dev *indio_dev,
 		data->scale[chan->channel] = val;
 		return 0;
 
+	case IIO_CHAN_INFO_OFFSET:
+		data->offset[chan->channel] = val;
+		return 0;
+
 	case IIO_CHAN_INFO_CALIBSCALE:
 		if (val >= data->scale[chan->channel])
 			val = data->scale[chan->channel];
 
+		/// substract possible offset
+		val -= data->offset[chan->channel];
+
 		tmp = div_s64(((s64)data->scale[chan->channel] * 1000LL), MAX_12BIT);
 
 		if (tmp > 0)
-			data->val[chan->channel] = div_s64((s64)(val * 1000LL), tmp );
+			data->val[chan->channel] = div_s64((s64)(val * 1000LL), tmp);
+
+		mutex_lock(&data->lock);
+		ret = data->dac5571_cmd(data, chan->channel, data->val[chan->channel]);
+		if (ret == 0)
+			data->val[chan->channel] = val;
+		mutex_unlock(&data->lock);
 		return 0;
 
 	default:
