@@ -17,6 +17,7 @@
 };
 
 / {
+	baseboard = "D850BASIS053 v0.2";
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
 	DI_1 {
