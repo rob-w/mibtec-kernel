@@ -860,7 +860,7 @@ static int pru_probe(struct platform_device *pdev)
 	if (ret) {
 		pr_err("Unable to register rpmsg driver");
 		free_dma(st);
-		return (ret);
+		return (-ENXIO);
 	}
 
 	if (of_property_read_u32(dev->of_node, "ti,rproc", &rproc_phandle)) {
