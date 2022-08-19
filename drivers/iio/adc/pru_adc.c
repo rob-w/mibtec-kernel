@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.91"
+#define PRU_ADC_MODULE_VERSION "1.92a"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -76,7 +76,7 @@ struct pru_priv {
 	int 					state, bufferd;
 	int						samplecnt;
 	int						cnted;
-	int						looped;
+	uint32_t				looped;
 	int						id;
 	struct device			*dev;
 	struct iio_dev			*indio_dev;
@@ -136,8 +136,8 @@ static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
 	prepare.buffer_addr1 = st->dma_handle[1];
 	st->cnted = 0;
 
-	dev_dbg(st->dev, "cnt %d addr0 0x%x addr1 0x%x\n",
-		cnt, st->dma_handle[0], st->dma_handle[1]);
+	dev_dbg(st->dev, "cnt %d addr0 0x%x addr1 0x%x loop %d\n",
+		cnt, st->dma_handle[0], st->dma_handle[1], prepare.looped);
 
 	ret = rpmsg_send(st->rpdev->ept, &prepare, sizeof(prepare));
 	if (ret)
@@ -640,11 +640,8 @@ static int pru_buffer_predisable(struct iio_dev *indio_dev)
 {
 	struct pru_priv *st = iio_priv(indio_dev);
 
-	dev_dbg(st->dev, "%s() shutting down rproc\n", __func__);
+	dev_dbg(st->dev, "%s() rebooting? rproc\n", __func__);
 	st->bufferd = 0;
-	st->looped = 0;
-	rproc_shutdown(st->rproc);
-
 	return iio_triggered_buffer_predisable(indio_dev);
 }
 
@@ -652,14 +649,7 @@ static int pru_buffer_postdisable(struct iio_dev *indio_dev)
 {
 	struct pru_priv *st = iio_priv(indio_dev);
 
-	dev_info(st->dev, "%s()\n", __func__);
-	/// we are shutting down and probably unloading
-	/// so dont restart the pruss
-	if (!st->state)
-		return 0;
-
-	dev_info(st->dev, "%s() booting rproc\n", __func__);
-	rproc_boot(st->rproc);
+	dev_dbg(st->dev, "%s()\n", __func__);
 	return 0;
 }
 
@@ -699,7 +689,7 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 			void *priv, u32 src)
 {
 	int i, s_cnt, dma_id;
-	int dma_buff_cnt;
+	uint32_t dbg1, dbg2, dbg3;
 	struct device *pdev = p_st->dev;
 	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
 
@@ -716,10 +706,13 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 	if (p_st->bufferd) {
 
-		dma_buff_cnt = p_st->cpu_addr_dma[dma_id][2] & 0xFFFF;
+		dbg1 = p_st->cpu_addr_dma[dma_id][1] & 0xFFFF;
+		dbg2 = p_st->cpu_addr_dma[dma_id][2] & 0xFFFF;
+		dbg3 = p_st->cpu_addr_dma[dma_id][3] & 0xFFFF;
+
 		p_st->cnted += s_cnt;
 
-		dev_dbg(p_st->dev, "cb() dma_id %d %d scnt %d\n", dma_id, dma_buff_cnt, s_cnt);
+		dev_dbg(p_st->dev, "cb() dma_id %d scnt %d dbg %d %d %d\n", dma_id, s_cnt, dbg1, dbg2, dbg3);
 
 		if (p_st->cnted >= p_st->samplecnt) {
 			if (p_st->looped)
@@ -942,6 +935,7 @@ static int pru_probe(struct platform_device *pdev)
 
 	/// start pru execution
 	rproc_boot(st->rproc);
+	dev_dbg(st->dev, "%s() rproc_boot()\n", __func__);
 
 	for (i = 0; i <indio_dev->num_channels - 1; i++)
 		st->calibscale[i] = 100000;
@@ -986,14 +980,17 @@ static int pru_remove(struct platform_device *pdev)
 	struct pru_priv *st = iio_priv(indio_dev);
 
 	dev_info(st->dev, "%s()\n", __func__);
+
 	st->state = 0;
+
+	/// stop pru execution
+	rproc_shutdown(st->rproc);
+	/// disable intc
+	pruss_put(st->pruss);
+
 	unregister_rpmsg_driver(&rpmsg_pru_driver);
 
 	free_dma(st);
-
-	pruss_put(st->pruss);
-	/// stop pru execution
-	rproc_shutdown(st->rproc);
 
 	return 0;
 }
