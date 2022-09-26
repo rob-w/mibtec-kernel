@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.92a"
+#define PRU_ADC_MODULE_VERSION "1.92b"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -135,7 +135,7 @@ static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
 	prepare.buffer_addr1 = st->dma_handle[1];
 	st->cnted = 0;
 
-	dev_dbg(st->dev, "cnt %d addr0 0x%x addr1 0x%x loop %d\n",
+	dev_info(st->dev, "cnt %d addr0 0x%x addr1 0x%x loop %d\n",
 		cnt, st->dma_handle[0], st->dma_handle[1], prepare.looped);
 
 	ret = rpmsg_send(st->rpdev->ept, &prepare, sizeof(prepare));
@@ -470,8 +470,8 @@ static const struct iio_info pru_info = {
 	.attrs = &pru_attribute_group,
 };
 
-#define PRUX_CHANNEL(num, idx, typ, mask) {						\
-		.type = typ,									\
+#define PRUX_CHANNEL(num, bits, typ,  mask) {					\
+		.type = typ,											\
 		.indexed = 1,											\
 		.channel = num,											\
 		.address = num,											\
@@ -483,33 +483,43 @@ static const struct iio_info pru_info = {
 							| BIT(IIO_CHAN_INFO_RAW),			\
 		.info_mask_shared_by_type = mask,						\
 		.info_mask_shared_by_all = mask,						\
-		.scan_index = idx,										\
+		.scan_index = num,										\
 		.scan_type = {											\
 			.sign = 'u',										\
-			.realbits = 16,										\
+			.realbits = bits,									\
 			.storagebits = 32,									\
 			.endianness = IIO_CPU,								\
 		},														\
 }
 
-#define PRU_CHANNEL(num, idx, typ)	\
-	PRUX_CHANNEL(num, idx, typ, BIT(IIO_CHAN_INFO_OVERSAMPLING_RATIO))
+#define PRU_CHANNEL(num, bits, typ)	\
+	PRUX_CHANNEL(num, bits, typ, BIT(IIO_CHAN_INFO_OVERSAMPLING_RATIO))
+
+static const struct iio_chan_spec pru_6_24_channels[] = {
+	PRU_CHANNEL(0, 24, IIO_VOLTAGE),
+	PRU_CHANNEL(1, 25, IIO_VOLTAGE),
+	PRU_CHANNEL(2, 24, IIO_VOLTAGE),
+	PRU_CHANNEL(3, 24, IIO_VOLTAGE),
+	PRU_CHANNEL(4, 24, IIO_VOLTAGE),
+	PRU_CHANNEL(5, 24, IIO_VOLTAGE),
+	IIO_CHAN_SOFT_TIMESTAMP(6),
+};
 
 static const struct iio_chan_spec pru_6_channels[] = {
-	PRU_CHANNEL(0, 0, IIO_VOLTAGE),
-	PRU_CHANNEL(1, 1, IIO_VOLTAGE),
-	PRU_CHANNEL(2, 2, IIO_VOLTAGE),
-	PRU_CHANNEL(3, 3, IIO_VOLTAGE),
-	PRU_CHANNEL(4, 4, IIO_VOLTAGE),
-	PRU_CHANNEL(5, 5, IIO_VOLTAGE),
+	PRU_CHANNEL(0, 16, IIO_VOLTAGE),
+	PRU_CHANNEL(1, 16, IIO_VOLTAGE),
+	PRU_CHANNEL(2, 16, IIO_VOLTAGE),
+	PRU_CHANNEL(3, 16, IIO_VOLTAGE),
+	PRU_CHANNEL(4, 16, IIO_VOLTAGE),
+	PRU_CHANNEL(5, 16, IIO_VOLTAGE),
 	IIO_CHAN_SOFT_TIMESTAMP(6),
 };
 
 static const struct iio_chan_spec pru_4_channels[] = {
-	PRU_CHANNEL(0, 0, IIO_VOLTAGE),
-	PRU_CHANNEL(1, 1, IIO_VOLTAGE),
-	PRU_CHANNEL(2, 2, IIO_VOLTAGE),
-	PRU_CHANNEL(3, 3, IIO_VOLTAGE),
+	PRU_CHANNEL(0, 16, IIO_VOLTAGE),
+	PRU_CHANNEL(1, 16, IIO_VOLTAGE),
+	PRU_CHANNEL(2, 16, IIO_VOLTAGE),
+	PRU_CHANNEL(3, 16, IIO_VOLTAGE),
 	IIO_CHAN_SOFT_TIMESTAMP(6),
 };
 
@@ -520,7 +530,7 @@ static const struct pru_chip_info pru_chip_info_tbl[] = {
 		.id = CHIP_060,
 	},
 	[1] = {
-		.channels = pru_6_channels,
+		.channels = pru_6_24_channels,
 		.num_channels = 7,
 		.id = CHIP_062,
 	},
@@ -666,9 +676,9 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 	if (p_st->bufferd) {
 
-		dbg1 = p_st->cpu_addr_dma[dma_id][1] & 0xFFFF;
-		dbg2 = p_st->cpu_addr_dma[dma_id][2] & 0xFFFF;
-		dbg3 = p_st->cpu_addr_dma[dma_id][3] & 0xFFFF;
+		dbg1 = p_st->cpu_addr_dma[dma_id][1];
+		dbg2 = p_st->cpu_addr_dma[dma_id][2];
+		dbg3 = p_st->cpu_addr_dma[dma_id][3];
 
 		p_st->cnted += s_cnt;
 
