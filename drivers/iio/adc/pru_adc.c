@@ -98,8 +98,7 @@ struct pru_priv {
 	struct gpio_desc		*gpio_gain0[6];
 	struct gpio_desc		*gpio_gain1[6];
 	struct gpio_desc		*gpio_gain2[6];
-	struct gpio_desc		*gpio_select_all;
-	struct gpio_desc		*gpio_select[3];
+	struct gpio_desc		*gpio_select[4];
 
 	short					offset[6];
 	int						calibscale[6];
@@ -376,7 +375,7 @@ static ssize_t pru_show_cs_chans(struct device *dev,
 	if (st->chip_info->id != CHIP_062)
 		return sprintf(buf, "%d\n", val);
 
-	for (i = 0, val = 0; i < 3; i++) {
+	for (i = 0, val = 0; i < 4; i++) {
 		if (gpiod_get_value(st->gpio_select[i]))
 			val |= (1 << i);
 	}
@@ -404,47 +403,12 @@ static ssize_t pru_set_cs_chans(struct device *dev,
 	if (val < 0)
 		return -EINVAL;
 
-	for (i = 0; i < 3; i++) {
+	for (i = 0; i < 4; i++) {
 		if (val & (1<<i))
 			gpiod_set_value(st->gpio_select[i], 1);
 		else
 			gpiod_set_value(st->gpio_select[i], 0);
 	}
-
-error_ret:
-	return ret ? ret : len;
-}
-
-static ssize_t pru_show_cs_select_all(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct pru_priv *st = iio_priv(dev_to_iio_dev(dev));
-	if (st->chip_info->id != CHIP_062)
-		return sprintf(buf, "%d\n", 0);
-
-	return sprintf(buf, "%d\n", gpiod_get_value(st->gpio_select_all));
-}
-
-static ssize_t pru_set_cs_select_all(struct device *dev,
-		struct device_attribute *attr,
-		const char *buf,
-		size_t len)
-{
-	struct pru_priv *st = iio_priv(dev_to_iio_dev(dev));
-	unsigned int val;
-	int ret;
-
-	if (st->chip_info->id != CHIP_062)
-		return 0;
-
-	ret = kstrtouint(buf, 0, &val);
-	if (ret)
-		goto error_ret;
-
-	if (val < 0)
-		return -EINVAL;
-
-	gpiod_set_value(st->gpio_select_all, val);
 
 error_ret:
 	return ret ? ret : len;
@@ -486,16 +450,12 @@ static IIO_DEVICE_ATTR(looped, (S_IWUSR | S_IRUGO),
 static IIO_DEVICE_ATTR(samplecnt, (S_IWUSR | S_IRUGO),
 		pru_show_samplecnt, pru_set_samplecnt, 0);
 
-static IIO_DEVICE_ATTR(cs_select_all, (S_IWUSR | S_IRUGO),
-		pru_show_cs_select_all, pru_set_cs_select_all, 0);
-
 static IIO_DEVICE_ATTR(cs_chans, (S_IWUSR | S_IRUGO),
 		pru_show_cs_chans, pru_set_cs_chans, 0);
 
 static struct attribute *pru_attributes[] = {
 	&iio_dev_attr_samplecnt.dev_attr.attr,
 	&iio_dev_attr_looped.dev_attr.attr,
-	&iio_dev_attr_cs_select_all.dev_attr.attr,
 	&iio_dev_attr_cs_chans.dev_attr.attr,
 	NULL,
 };
@@ -604,14 +564,14 @@ static int pru_request_gpios(struct pru_priv *st)
 	}
 
 	if (st->chip_info->id == CHIP_062) {
-		if (IS_ERR(st->gpio_select_all = devm_gpiod_get(dev, "pru,adc-select-all", GPIOD_OUT_LOW)))
-			return PTR_ERR(st->gpio_select_all);
-		if (IS_ERR(st->gpio_select[0] = devm_gpiod_get(dev, "pru,adc-select-0", GPIOD_OUT_LOW)))
+		if (IS_ERR(st->gpio_select[0] = devm_gpiod_get(dev, "pru,adc-select-a0", GPIOD_OUT_LOW)))
 			return PTR_ERR(st->gpio_select[0]);
-		if (IS_ERR(st->gpio_select[1] = devm_gpiod_get(dev, "pru,adc-select-1", GPIOD_OUT_LOW)))
+		if (IS_ERR(st->gpio_select[1] = devm_gpiod_get(dev, "pru,adc-select-a1", GPIOD_OUT_LOW)))
 			return PTR_ERR(st->gpio_select[1]);
-		if (IS_ERR(st->gpio_select[2] = devm_gpiod_get(dev, "pru,adc-select-2", GPIOD_OUT_LOW)))
+		if (IS_ERR(st->gpio_select[2] = devm_gpiod_get(dev, "pru,adc-select-a2", GPIOD_OUT_LOW)))
 			return PTR_ERR(st->gpio_select[2]);
+		if (IS_ERR(st->gpio_select[3] = devm_gpiod_get(dev, "pru,adc-select-e3", GPIOD_OUT_LOW)))
+			return PTR_ERR(st->gpio_select[3]);
 	}
 
 	return 0;
