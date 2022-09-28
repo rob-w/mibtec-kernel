@@ -50,7 +50,7 @@
 
 struct pru_prepare{
 	uint32_t size;
-	uint32_t looped;
+	uint32_t cfg;
 	uint32_t buffer_addr0;
 	uint32_t buffer_addr1;
 } __attribute__((__packed__));
@@ -76,7 +76,7 @@ struct pru_priv {
 	int 					state, bufferd;
 	int						samplecnt;
 	int						cnted;
-	uint32_t				looped;
+	bool					looped;
 	int						id;
 	struct device			*dev;
 	struct iio_dev			*indio_dev;
@@ -91,6 +91,7 @@ struct pru_priv {
 	unsigned int			num_os_ratios;
 	uint32_t				*cpu_addr_dma[2];
 	dma_addr_t				dma_handle[2];
+	unsigned				filter_mode;
 
 	struct mutex			lock; /* protect sensor state */
 	struct gpio_desc		*gpio_mux_a[6];
@@ -130,13 +131,16 @@ static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
 	struct pru_prepare prepare;
 
 	prepare.size = cnt;
-	prepare.looped = st->looped;
+	prepare.cfg = 0;
+	if (st->looped)
+		prepare.cfg |= (1<<0);
+
 	prepare.buffer_addr0 = st->dma_handle[0];
 	prepare.buffer_addr1 = st->dma_handle[1];
 	st->cnted = 0;
 
-	dev_info(st->dev, "cnt %d addr0 0x%x addr1 0x%x loop %d\n",
-		cnt, st->dma_handle[0], st->dma_handle[1], prepare.looped);
+	dev_info(st->dev, "cnt %d addr0 0x%x addr1 0x%x fmode %d loop %d cfg %d\n",
+		cnt, st->dma_handle[0], st->dma_handle[1], st->filter_mode, st->looped, prepare.cfg);
 
 	ret = rpmsg_send(st->rpdev->ept, &prepare, sizeof(prepare));
 	if (ret)
@@ -349,15 +353,12 @@ static ssize_t pru_set_looped(struct device *dev,
 		size_t len)
 {
 	struct pru_priv *st = iio_priv(dev_to_iio_dev(dev));
-	unsigned int val;
+	bool val;
 	int ret;
 
-	ret = kstrtouint(buf, 0, &val);
+	ret = kstrtobool(buf, &val);
 	if (ret)
 		goto error_ret;
-
-	if (val < 0)
-		return -EINVAL;
 
 	st->looped = val;
 
@@ -444,6 +445,45 @@ error_ret:
 	return ret ? ret : len;
 }
 
+static const char * const pru_filter_modes[] = {
+	"sinc5_dec32_1024",
+	"sinc5_dec8",
+	"sinc5_dec16",
+	"sinc3_dec32",
+	"fir",
+};
+
+static int pru_get_filter_mode(struct iio_dev *indio_dev,
+	const struct iio_chan_spec *chan)
+{
+	struct pru_priv *st = iio_priv(indio_dev);
+
+	return st->filter_mode;
+}
+
+static int pru_set_filter_mode(struct iio_dev *indio_dev,
+	const struct iio_chan_spec *chan, unsigned mode)
+{
+	struct pru_priv *st = iio_priv(indio_dev);
+
+	st->filter_mode = mode;
+
+	return 0;
+}
+
+static const struct iio_enum pru_filter_mode_enum = {
+	.items = pru_filter_modes,
+	.num_items = ARRAY_SIZE(pru_filter_modes),
+	.get = pru_get_filter_mode,
+	.set = pru_set_filter_mode,
+};
+
+static const struct iio_chan_spec_ext_info pru_ext_info[] = {
+	IIO_ENUM("filter_mode", IIO_SHARED_BY_TYPE, &pru_filter_mode_enum),
+	IIO_ENUM_AVAILABLE("filter_mode", &pru_filter_mode_enum),
+	{ },
+};
+
 static IIO_DEVICE_ATTR(looped, (S_IWUSR | S_IRUGO),
 		pru_show_looped, pru_set_looped, 0);
 
@@ -490,6 +530,7 @@ static const struct iio_info pru_info = {
 			.storagebits = 32,									\
 			.endianness = IIO_CPU,								\
 		},														\
+		.ext_info = pru_ext_info,							\
 }
 
 #define PRU_CHANNEL(num, bits, typ)	\
