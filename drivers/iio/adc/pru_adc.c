@@ -92,6 +92,7 @@ struct pru_priv {
 	uint32_t				*cpu_addr_dma[2];
 	dma_addr_t				dma_handle[2];
 	unsigned				filter_mode;
+	unsigned				dec_rate;
 
 	struct mutex			lock; /* protect sensor state */
 	struct gpio_desc		*gpio_mux_a[6];
@@ -134,14 +135,16 @@ static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
 	prepare.cfg = 0;
 	if (st->looped)
 		prepare.cfg |= (1<<0);
+	prepare.cfg |= (st->dec_rate << 1);
+	prepare.cfg |= (st->filter_mode << 4);
 
 	prepare.buffer_addr0 = st->dma_handle[0];
 	prepare.buffer_addr1 = st->dma_handle[1];
+
+	dev_info(st->dev, "cnt %d addr0 0x%x addr1 0x%x fmode %d dec %d loop %d cfg %d\n",
+		cnt, st->dma_handle[0], st->dma_handle[1], st->filter_mode, st->dec_rate, st->looped, prepare.cfg);
+
 	st->cnted = 0;
-
-	dev_info(st->dev, "cnt %d addr0 0x%x addr1 0x%x fmode %d loop %d cfg %d\n",
-		cnt, st->dma_handle[0], st->dma_handle[1], st->filter_mode, st->looped, prepare.cfg);
-
 	ret = rpmsg_send(st->rpdev->ept, &prepare, sizeof(prepare));
 	if (ret)
 		dev_err(st->dev, "rpmsg_send failed: %d\n", ret);
@@ -478,9 +481,45 @@ static const struct iio_enum pru_filter_mode_enum = {
 	.set = pru_set_filter_mode,
 };
 
+static const char * const pru_dec_rates[] = {
+	"32",
+	"64",
+	"128",
+	"256",
+	"512",
+	"1024",
+};
+
+static int pru_get_dec_rate(struct iio_dev *indio_dev,
+	const struct iio_chan_spec *chan)
+{
+	struct pru_priv *st = iio_priv(indio_dev);
+
+	return st->dec_rate;
+}
+
+static int pru_set_dec_rate(struct iio_dev *indio_dev,
+	const struct iio_chan_spec *chan, unsigned rate)
+{
+	struct pru_priv *st = iio_priv(indio_dev);
+
+	st->dec_rate = rate;
+
+	return 0;
+}
+
+static const struct iio_enum pru_dec_rate_enum = {
+	.items = pru_dec_rates,
+	.num_items = ARRAY_SIZE(pru_dec_rates),
+	.get = pru_get_dec_rate,
+	.set = pru_set_dec_rate,
+};
+
 static const struct iio_chan_spec_ext_info pru_ext_info[] = {
 	IIO_ENUM("filter_mode", IIO_SHARED_BY_TYPE, &pru_filter_mode_enum),
 	IIO_ENUM_AVAILABLE("filter_mode", &pru_filter_mode_enum),
+	IIO_ENUM("decimation_rate", IIO_SHARED_BY_TYPE, &pru_dec_rate_enum),
+	IIO_ENUM_AVAILABLE("decimation_rate", &pru_dec_rate_enum),
 	{ },
 };
 
