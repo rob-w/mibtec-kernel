@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.92b"
+#define PRU_ADC_MODULE_VERSION "1.93"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -564,7 +564,7 @@ static const struct iio_info pru_info = {
 		.info_mask_shared_by_all = mask,						\
 		.scan_index = num,										\
 		.scan_type = {											\
-			.sign = 'u',										\
+			.sign = 's',										\
 			.realbits = bits,									\
 			.storagebits = 32,									\
 			.endianness = IIO_CPU,								\
@@ -577,7 +577,7 @@ static const struct iio_info pru_info = {
 
 static const struct iio_chan_spec pru_6_24_channels[] = {
 	PRU_CHANNEL(0, 24, IIO_VOLTAGE),
-	PRU_CHANNEL(1, 25, IIO_VOLTAGE),
+	PRU_CHANNEL(1, 24, IIO_VOLTAGE),
 	PRU_CHANNEL(2, 24, IIO_VOLTAGE),
 	PRU_CHANNEL(3, 24, IIO_VOLTAGE),
 	PRU_CHANNEL(4, 24, IIO_VOLTAGE),
@@ -739,7 +739,7 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 			void *priv, u32 src)
 {
 	int i, s_cnt, dma_id;
-	uint32_t dbg1, dbg2, dbg3;
+	int32_t dbg1, dbg2, dbg3;
 	struct device *pdev = p_st->dev;
 	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
 
@@ -762,7 +762,7 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 		p_st->cnted += s_cnt;
 
-		dev_dbg(p_st->dev, "cb() dma_id %d scnt %d dbg %d %d %d\n", dma_id, s_cnt, dbg1, dbg2, dbg3);
+		dev_dbg(p_st->dev, "cb() dma_id %d scnt %d dbg %i %i %i\n", dma_id, s_cnt, dbg1, dbg2, dbg3);
 
 		if (p_st->cnted >= p_st->samplecnt) {
 			if (p_st->looped)
@@ -773,7 +773,7 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 		for (i = 0; i < s_cnt; i++)
 			iio_push_to_buffers_with_timestamp(indio_dev,
-				p_st->cpu_addr_dma[dma_id] + 1 + (i * (p_st->chip_info->num_channels - 1)),
+				(int32_t *) p_st->cpu_addr_dma[dma_id] + 1 + (i * (p_st->chip_info->num_channels - 1)),
 				iio_get_time_ns(indio_dev));
 
 		/// clear this buffer
