@@ -136,7 +136,7 @@ static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
 	if (st->looped)
 		prepare.cfg |= (1<<0);
 	prepare.cfg |= (st->dec_rate << 1);
-	prepare.cfg |= (st->filter_mode << 4);
+	prepare.cfg |= (st->filter_mode << 5);
 
 	prepare.buffer_addr0 = st->dma_handle[0];
 	prepare.buffer_addr1 = st->dma_handle[1];
