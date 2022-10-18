@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.93"
+#define PRU_ADC_MODULE_VERSION "1.94"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -69,8 +69,8 @@ struct rpmsg_pru_dev {
 	wait_queue_head_t wait_list;
 };
 
-/// 1MB pro DMA
-#define DATA_BUF_SZ			1024000
+/// 1.561MB pro DMA - pru as	1560000
+#define DATA_BUF_SZ				1561000
 
 struct pru_priv {
 	int 					state, bufferd;
@@ -114,7 +114,7 @@ struct pru_priv {
 	 *  6 * 16-bit samples + 64-bit timestamp
 	 */
 //	unsigned short			data[10] ____cacheline_aligned;
-	unsigned int			data[452] ____cacheline_aligned;
+	unsigned int			data[32] ____cacheline_aligned;/// 6 x 32bit + 64bit timestamps ?
 };
 
 struct pru_priv *p_st;
@@ -141,7 +141,7 @@ static int pru_read_samples(struct iio_dev *indio_dev, int cnt)
 	prepare.buffer_addr0 = st->dma_handle[0];
 	prepare.buffer_addr1 = st->dma_handle[1];
 
-	dev_info(st->dev, "cnt %d addr0 0x%x addr1 0x%x fmode %d dec %d loop %d cfg %d\n",
+	dev_dbg(st->dev, "cnt %d addr0 0x%x addr1 0x%x fmode %d dec %d loop %d cfg %d\n",
 		cnt, st->dma_handle[0], st->dma_handle[1], st->filter_mode, st->dec_rate, st->looped, prepare.cfg);
 
 	st->cnted = 0;
@@ -861,7 +861,7 @@ static int pru_probe(struct platform_device *pdev)
 	int ret, i;
 	struct iio_dev *indio_dev;
 
-	dev_info(dev, "%s() %s\n", __func__, PRU_ADC_MODULE_VERSION);
+	dev_info(dev, "%s() %s 2x%d bytes DMA\n", __func__, PRU_ADC_MODULE_VERSION, DATA_BUF_SZ);
 
 	indio_dev = devm_iio_device_alloc(dev, sizeof(*st));
 	if (!indio_dev)
