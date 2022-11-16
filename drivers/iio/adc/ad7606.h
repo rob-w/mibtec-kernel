@@ -65,6 +65,7 @@ struct ad7606_state {
 	unsigned int			num_scales;
 	const unsigned int		*oversampling_avail;
 	unsigned int			num_os_ratios;
+	unsigned int			usec_sleep;
 
 	struct mutex			lock; /* protect sensor state */
 	struct gpio_desc		*gpio_convst;

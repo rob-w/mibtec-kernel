@@ -29,7 +29,7 @@
 
 #include "ad7606.h"
 
-#define AD7606_MODULE_VERSION "1.3.1"
+#define AD7606_MODULE_VERSION "1.3.2"
 
 /*
  * Scales are computed as 5000/32768 and 10000/32768 respectively,
@@ -125,9 +125,7 @@ static irqreturn_t ad7606_trigger_handler(int irq, void *p)
 						   iio_get_time_ns(indio_dev));
 
 	iio_trigger_notify_done(indio_dev->trig);
-
-	///  measured to approx 1kHz
-	usleep_range(929, 930);
+	usleep_range(st->usec_sleep, st->usec_sleep+1);
 
 	/* The rising edge of the CONVST signal starts a new conversion. */
 	if (gpiod_cansleep(st->gpio_convst))
@@ -511,6 +509,37 @@ error_ret:
 	return ret ? ret : len;
 }
 
+
+static ssize_t sleep_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+
+	return sprintf(buf, "%d\n", st->usec_sleep);
+}
+
+static ssize_t sleep_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	unsigned int val;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &val);
+	if (ret)
+		goto error_ret;
+
+	if (val < 90)
+		return -EINVAL;
+	st->usec_sleep = val;
+
+error_ret:
+	return ret ? ret : len;
+}
+
+
 static IIO_DEVICE_ATTR(ai1b, (S_IWUSR | S_IRUGO),
 		ai1b_show, ai1b_set, 0);
 static IIO_DEVICE_ATTR(ai2b, (S_IWUSR | S_IRUGO),
@@ -529,6 +558,8 @@ static IIO_DEVICE_ATTR(ai8b, (S_IWUSR | S_IRUGO),
 		ai8b_show, ai8b_set, 0);
 static IIO_DEVICE_ATTR(range, (S_IWUSR | S_IRUGO),
 		range_show, range_set, 0);
+static IIO_DEVICE_ATTR(sleep, (S_IWUSR | S_IRUGO),
+		sleep_show, sleep_set, 0);
 
 static struct attribute *ad7606_attributes_os_and_range[] = {
 	&iio_dev_attr_oversampling_ratio_available.dev_attr.attr,
@@ -541,6 +572,7 @@ static struct attribute *ad7606_attributes_os_and_range[] = {
 	&iio_dev_attr_ai7b.dev_attr.attr,
 	&iio_dev_attr_ai8b.dev_attr.attr,
 	&iio_dev_attr_range.dev_attr.attr,
+	&iio_dev_attr_sleep.dev_attr.attr,
 	NULL,
 };
 
@@ -566,7 +598,7 @@ static const struct attribute_group ad7606_attribute_group_os = {
 							| BIT(IIO_CHAN_INFO_PROCESSED)				\
 							| BIT(IIO_CHAN_INFO_CALIBSCALE)				\
 							| BIT(IIO_CHAN_INFO_OFFSET),				\
-		.info_mask_shared_by_type = mask,								\
+		.info_mask_shared_by_type = 0,									\
 		.info_mask_shared_by_all = mask,								\
 		.scan_index = idx,						\
 		.scan_type = {							\
@@ -845,6 +877,8 @@ int ad7606_probe(struct device *dev, int irq, void __iomem *base_address,
 	/* tied to logic low, analog input range is +/- 5V */
 	st->range = 0;
 	st->oversampling = 1;
+	st->usec_sleep = 930;
+
 	st->scale_avail = ad7606_scale_avail;
 
 	st->reg = devm_regulator_get(dev, "avcc");
