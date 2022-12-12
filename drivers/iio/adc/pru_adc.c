@@ -39,7 +39,7 @@
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.94"
+#define PRU_ADC_MODULE_VERSION "1.95"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -47,6 +47,7 @@
 #define CHIP_054	54
 #define CHIP_060	60
 #define CHIP_062	62
+#define CHIP_070	70
 
 struct pru_prepare{
 	uint32_t size;
@@ -241,6 +242,9 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_HARDWAREGAIN:
 		*val = 0;
+		if (st->chip_info->id == CHIP_070)
+			return IIO_VAL_INT;
+
 		if (gpiod_get_value_cansleep(st->gpio_gain0[chan->address]))
 			*val |= (1<<0);
 		if (gpiod_get_value_cansleep(st->gpio_gain1[chan->address]))
@@ -255,6 +259,9 @@ static int pru_read_raw(struct iio_dev *indio_dev,
 		return IIO_VAL_INT;
 	case IIO_CHAN_INFO_ENABLE:
 		*val = 0;
+		if (st->chip_info->id == CHIP_070)
+			return IIO_VAL_INT;
+
 		if (gpiod_get_value_cansleep(st->gpio_mux_a[chan->address]))
 			*val |= (1<<0);
 
@@ -305,6 +312,9 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 		st->calibscale[chan->scan_index] = val;
 		return 0;
 	case IIO_CHAN_INFO_HARDWAREGAIN:
+		if (st->chip_info->id == CHIP_070)
+			return 0;
+
 		if (val & (1<<0))
 			gpiod_set_value_cansleep(st->gpio_gain0[chan->address], 1);
 		else
@@ -324,6 +334,9 @@ static int pru_write_raw(struct iio_dev *indio_dev,
 
 		return 0;
 	case IIO_CHAN_INFO_ENABLE:
+		if (st->chip_info->id == CHIP_070)
+			return 0;
+
 		if (val & (1<<0))
 			gpiod_set_value_cansleep(st->gpio_mux_a[chan->address], 1);
 		else
@@ -619,6 +632,11 @@ static const struct pru_chip_info pru_chip_info_tbl[] = {
 		.num_channels = 5,
 		.id = CHIP_054,
 	},
+	[3] = {
+		.channels = pru_6_channels,
+		.num_channels = 7,
+		.id = CHIP_070,
+	},
 };
 
 static int pru_request_gpios(struct pru_priv *st)
@@ -626,6 +644,9 @@ static int pru_request_gpios(struct pru_priv *st)
 	int i;
 	char pinpath[256];
 	struct device *dev = st->dev;
+
+	if (st->chip_info->id == CHIP_070)
+		return 0;
 
 	for (i = 0; i < st->chip_info->num_channels -1; i++) {
 		sprintf(pinpath, "pru,adc-%d-mux-a", i + 1);
@@ -729,6 +750,7 @@ static const struct iio_trigger_ops pru_trigger_ops = {
 };
 
 static const struct of_device_id of_pru_adc_match[] = {
+	{ .compatible = "pru-adc-070", },
 	{ .compatible = "pru-adc-060", },
 	{ .compatible = "pru-adc-062", },
 	{ .compatible = "pru-adc-054", },
@@ -789,7 +811,7 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 	p_st->data[1] = p_st->cpu_addr_dma[dma_id][2] & 0xFFFF;
 	p_st->data[2] = p_st->cpu_addr_dma[dma_id][3] & 0xFFFF;
 	p_st->data[3] = p_st->cpu_addr_dma[dma_id][4] & 0xFFFF;
-	if (p_st->chip_info->id == CHIP_060 || p_st->chip_info->id == CHIP_062) {
+	if (p_st->chip_info->id == CHIP_060 || p_st->chip_info->id == CHIP_062 || p_st->chip_info->id == CHIP_070) {
 		p_st->data[4] = p_st->cpu_addr_dma[dma_id][5] & 0xFFFF;
 		p_st->data[5] = p_st->cpu_addr_dma[dma_id][6] & 0xFFFF;
 		dev_dbg(p_st->dev, "IDD_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", dma_id,
@@ -893,6 +915,9 @@ static int pru_probe(struct platform_device *pdev)
 	} else if (of_property_match_string(dev->of_node, "compatible", "pru-adc-054") == 0) {
 		st->chip_info = &pru_chip_info_tbl[2];
 		dev_info(dev, "loading %03d 4x16bit\n", st->chip_info->id);
+	} else if (of_property_match_string(dev->of_node, "compatible", "pru-adc-070") == 0) {
+		st->chip_info = &pru_chip_info_tbl[3];
+		dev_info(dev, "loading %03d MISDIMM 6x16bit\n", st->chip_info->id);
 	} else {
 		pr_err("no compatible of_device");
 		free_dma(st);
