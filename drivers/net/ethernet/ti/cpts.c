@@ -594,7 +594,7 @@ EXPORT_SYMBOL_GPL(cpts_register);
 
 void cpts_unregister(struct cpts *cpts)
 {
-	if (WARN_ON(!cpts->clock))
+	if (IS_REACHABLE(PTP_1588_CLOCK) && WARN_ON(!cpts->clock))
 		return;
 
 	ptp_clock_unregister(cpts->clock);
