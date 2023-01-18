@@ -1,0 +1,22 @@
+/*
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+/dts-v1/;
+
+#include <dt-bindings/board/am335x-bbw-bbb-base.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "am335x-d850basis053.dtsi"
+
+/ {
+	model = "D850BASIS053 v0.40";
+	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
+
+};
+
+&am33xx_pinmux {
+	pinctrl-names = "default";
+};
