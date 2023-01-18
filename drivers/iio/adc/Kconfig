@@ -283,6 +283,17 @@ config ADI_AXI_ADC
 	  To compile this driver as a module, choose M here: the
 	  module will be called adi-axi-adc.
 
+config ADS1018
+	tristate "Texas Instruments ADS1018 ADC driver"
+	depends on SPI
+	help
+	  Say yes here to build support for Texas Instruments ADS1018
+	  spi analog to digital converter (ADC). Provides direct access
+	  via sysfs.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called ads1018.
+
 config ASPEED_ADC
 	tristate "Aspeed ADC"
 	depends on ARCH_ASPEED || COMPILE_TEST
@@ -600,6 +611,16 @@ config LTC2497
 	  To compile this driver as a module, choose M here: the module will be
 	  called ltc2497.
 
+config LTC2499
+	tristate "Linear Technology LTC2499 driver"
+	depends on I2C
+	help
+	  Say yes here to build support for Linear Technology LTC2499
+	  analog to digital converter.
+
+	  This driver can also be built as a module. If so, the module will be
+	  called ltc2499.
+
 config MAX1027
 	tristate "Maxim max1027 ADC driver"
 	depends on SPI
@@ -776,6 +797,16 @@ config PALMAS_GPADC
 	  Palmas series pmic chip by Texas Instruments (twl6035/6037)
 	  is used in smartphones and tablets and supports a 16 channel
 	  general purpose ADC.
+
+config PRU_ADC
+	tristate "PRU-ADC-Remoteproc Driver"
+	select IIO_BUFFER
+	select IIO_TRIGGERED_BUFFER
+	help
+	   Say yes here to build support for a remoteproc driver for pruss to a adc.
+
+	   To compile this driver as a module, choose M here: the
+	   module will be called pru-adc.
 
 config QCOM_VADC_COMMON
 	tristate
