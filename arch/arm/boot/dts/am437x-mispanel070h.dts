@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P070H111 v1.3.0";
+	model = "MIS P070H111 v1.4.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -560,6 +560,13 @@
 		compatible = "microchip,mcp7941x";
 		reg = <0x6f>;
 		wakeup-source;
+	};
+
+	pca9555_0: gpio_out@20 {
+		compatible = "nxp,pca9555";
+		reg = <0x20>;
+		gpio-controller;
+		#gpio-cells = <2>;
 	};
 };
 
