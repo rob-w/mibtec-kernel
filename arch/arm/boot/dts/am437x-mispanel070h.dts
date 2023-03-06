@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS P070H111 v1.3.4";
+	model = "MIS P070H111 v1.4.3";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -30,6 +30,23 @@
 		serial3 = &uart3;
 		rtc0 = &mcp_rtc;
 		rtc1 = &rtc;
+	};
+
+	pru_adc {
+		status = "okay";
+		compatible = "pru-adc-070";
+		pinctrl-names = "default";
+/*		pinctrl-0 = <&pru_adc_pins>;*/
+		ti,rproc = <&pru0_0>;
+
+		/* BONE_P8_26 gpio1_29 enable = Port Low  && SYS_RESET -> IO_EN*/
+		pru,io-enable-gpios = <&gpio1 29 GPIO_ACTIVE_HIGH>;
+
+		/* ADC CS selections */
+		pru,adc-select-e3-gpios = <&gpio2 25 GPIO_ACTIVE_HIGH>;
+		pru,adc-select-a0-gpios = <&gpio2 12 GPIO_ACTIVE_HIGH>;
+		pru,adc-select-a1-gpios = <&gpio2 22 GPIO_ACTIVE_HIGH>;
+		pru,adc-select-a2-gpios = <&gpio2 23 GPIO_ACTIVE_HIGH>;
 	};
 
 	lcd_bl: backlight {
@@ -220,6 +237,11 @@
 		>;
 	};
 
+/*	pru_adc_pins: pru_adc_pins {
+		pinctrl-single,pins = <
+		>;
+	};
+*/
 	mmc1_pins: pinmux_mmc1_pins {
 		pinctrl-single,pins = <
 			0x100 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_clk.mmc0_clk */
@@ -735,4 +757,20 @@
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&ehrpwm1_pins_default>;
 	pinctrl-1 = <&ehrpwm1_pins_sleep>;
+};
+
+&pruss_soc_bus {
+	status = "okay";
+
+	pruss1: pruss@54400000 {
+		status = "okay";
+	};
+
+	pruss0: pruss@54440000 {
+		status = "okay";
+	};
+};
+
+&pru0_0 {
+	firmware-name = "pru/d850-pru-adc-062.out";
 };
