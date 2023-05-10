@@ -34,12 +34,10 @@
 
 #include <linux/dma-mapping.h>
 
-#include <linux/rpmsg/virtio_rpmsg.h>
-
 //#define CREATE_TRACE_POINTS
 //#include <trace/events/gpio.h>
 
-#define PRU_ADC_MODULE_VERSION "1.94"
+#define PRU_ADC_MODULE_VERSION "1.95b"
 #define PRU_ADC_MODULE_DESCRIPTION "PRU ADC DRIVER"
 
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
@@ -77,7 +75,6 @@ struct pru_priv {
 	int						samplecnt;
 	int						cnted;
 	bool					looped;
-	int						id;
 	struct device			*dev;
 	struct iio_dev			*indio_dev;
 	const struct pru_chip_info	*chip_info;
@@ -111,10 +108,9 @@ struct pru_priv {
 	/*
 	 * DMA (thus cache coherency maintenance) requires the
 	 * transfer buffers to live in their own cache lines.
-	 *  6 * 16-bit samples + 64-bit timestamp
 	 */
 //	unsigned short			data[10] ____cacheline_aligned;
-	unsigned int			data[32] ____cacheline_aligned;/// 6 x 32bit + 64bit timestamps ?
+	int			data[32] ____cacheline_aligned;/// 6 x 32bit + 64bit timestamps ?
 };
 
 struct pru_priv *p_st;
@@ -681,8 +677,6 @@ static int pru_buffer_postenable(struct iio_dev *indio_dev)
 	struct pru_priv *st = iio_priv(indio_dev);
 
 	dev_dbg(st->dev, "%s()\n", __func__);
-	iio_triggered_buffer_postenable(indio_dev);
-
 	return 0;
 }
 
@@ -692,7 +686,7 @@ static int pru_buffer_predisable(struct iio_dev *indio_dev)
 
 	dev_dbg(st->dev, "%s() rebooting? rproc\n", __func__);
 	st->bufferd = 0;
-	return iio_triggered_buffer_predisable(indio_dev);
+	return 0;
 }
 
 static int pru_buffer_postdisable(struct iio_dev *indio_dev)
@@ -785,13 +779,13 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 		return 0;
 	}
 
-	p_st->data[0] = p_st->cpu_addr_dma[dma_id][1] & 0xFFFF;
-	p_st->data[1] = p_st->cpu_addr_dma[dma_id][2] & 0xFFFF;
-	p_st->data[2] = p_st->cpu_addr_dma[dma_id][3] & 0xFFFF;
-	p_st->data[3] = p_st->cpu_addr_dma[dma_id][4] & 0xFFFF;
+	p_st->data[0] = (int32_t) p_st->cpu_addr_dma[dma_id][1];
+	p_st->data[1] = (int32_t) p_st->cpu_addr_dma[dma_id][2];
+	p_st->data[2] = (int32_t) p_st->cpu_addr_dma[dma_id][3];
+	p_st->data[3] = (int32_t) p_st->cpu_addr_dma[dma_id][4];
 	if (p_st->chip_info->id == CHIP_060 || p_st->chip_info->id == CHIP_062) {
-		p_st->data[4] = p_st->cpu_addr_dma[dma_id][5] & 0xFFFF;
-		p_st->data[5] = p_st->cpu_addr_dma[dma_id][6] & 0xFFFF;
+		p_st->data[4] = (int32_t) p_st->cpu_addr_dma[dma_id][5];
+		p_st->data[5] = (int32_t) p_st->cpu_addr_dma[dma_id][6];
 		dev_dbg(p_st->dev, "IDD_%d 1:%d 2:%d 3:%d 4:%d 5:%d 6:%d\n", dma_id,
 			p_st->data[0], p_st->data[1], p_st->data[2], p_st->data[3], p_st->data[4], p_st->data[5]);
 	} else
@@ -981,7 +975,6 @@ static int pru_probe(struct platform_device *pdev)
 		unregister_rpmsg_driver(&rpmsg_pru_driver);
 		return -ENOMEM;
 	}
-	st->id = pru_rproc_get_id(st->rproc);
 
 	/// start pru execution
 	rproc_boot(st->rproc);
