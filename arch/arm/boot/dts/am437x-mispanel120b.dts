@@ -22,7 +22,7 @@
 #include <dt-bindings/input/input.h>
 
 / {
-	model = "MIS P120B110 v1.1.0";
+	model = "MIS P120B110 v1.1.1";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -711,18 +711,25 @@
 	pinctrl-0 = <&davinci_mdio_default>;
 	pinctrl-1 = <&davinci_mdio_sleep>;
 	status = "okay";
+	ethphy0: ethernet-phy@0 {
+		reg = <0>;
+	};
+
+	ethphy1: ethernet-phy@2 {
+		reg = <2>;
+	};
 };
 
 &cpsw_port1 {
-	phy_id = <&davinci_mdio_sw>, <0>;
-	phy-mode = "rgmii";
-	dual_emac_res_vlan = <1>;
+	phy-handle = <&ethphy0>;
+	phy-mode = "rgmii-rxid";
+	ti,dual-emac-pvid = <1>;
 };
 
 &cpsw_port2 {
-	phy_id = <&davinci_mdio_sw>, <2>;
-	phy-mode = "rgmii";
-	dual_emac_res_vlan = <2>;
+	phy-handle = <&ethphy1>;
+	phy-mode = "rgmii-rxid";
+	ti,dual-emac-pvid = <2>;
 };
 
 &elm {
