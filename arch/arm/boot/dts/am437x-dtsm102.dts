@@ -1,5 +1,5 @@
 /*
- * MIS www.mistec.de SO-DIMM TSM Modul
+ * MIS www.mistec.de SO-DIMM DTSM Modul 102
  * Copyright (C) 2015 - http://www.mistec.de Robert Woerle
  *
  * Copied from arch/arm/boot/dts/am437x-gp-evm.dts which has
@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS TSM100 v0.1.0";
+	model = "DTSM102 v0.1.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
