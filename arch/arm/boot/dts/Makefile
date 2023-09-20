@@ -856,7 +856,7 @@ dtb-$(CONFIG_SOC_AM43XX) += \
 	am437x-mismdis070a.dts \
 	am437x-mispanel120b.dtb \
 	am437x-mislabeler040.dtb \
-	am437x-dtsm102.dtb \
+	am437x-d880tsm092.dtb \
 dtb-$(CONFIG_SOC_OMAP5) += \
 	omap5-cm-t54.dtb \
 	omap5-igep0050.dtb \

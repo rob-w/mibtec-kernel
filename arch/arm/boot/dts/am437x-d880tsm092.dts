@@ -1,5 +1,5 @@
 /*
- * MIS www.mistec.de SO-DIMM DTSM Modul 102
+ * MIS www.mistec.de SO-DIMM D880 TSM Modul 092
  * Copyright (C) 2015 - http://www.mistec.de Robert Woerle
  *
  * Copied from arch/arm/boot/dts/am437x-gp-evm.dts which has
@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "DTSM102 v0.1.0";
+	model = "D880TSM092 v0.1.1b";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -117,7 +117,7 @@
 		/* 0x1e4 P600_182 AB25 cam1_wen.gpio4_13 IEPE1_R */
 		led_iepe1_r {
 			label = "iepe1_red";
-			gpios = <&gpio3 18 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio4 13 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "off";
 		};
 
@@ -183,6 +183,18 @@
 			gpios = <&gpio5 6 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "default-on";
 		};
+
+		eth0_phy_rst {
+			label = "eth0_rst";
+			gpios = <&gpio1 9 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "default-on";
+		};
+
+		eth1_phy_rst {
+			label = "eth1_rst";
+			gpios = <&gpio1 8 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "default-on";
+		};
 	};
 };
 
@@ -212,6 +224,9 @@
 			/* P600_36 Y15  ADC1_AIN5 */
 			/* P600_38 AE16 ADC1_AIN6 */
 			/* P600_40 AD16 ADC1_AIN7 */
+
+			0x168 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_60 L25 uart0_ctsn.gpio1_8 */
+			0x16C (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_58 J25 uart0_rtsn.gpio1_9 */
 
 			0x0ec (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_73  A24 dss_acbias.gpio2_25 */
 			0x0e0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_74  B23 dss_vsync.gpio2_22 */
@@ -427,8 +442,6 @@
 
 	uart0_pins_default: uart0_pins_default {
 		pinctrl-single,pins = <
-			0x168 (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE0) /* P600_60 L25 uart0_ctsn.uart0_ctsn */
-			0x16C (DS0_PULL_UP_DOWN_EN | INPUT_EN | MUX_MODE0) /* P600_58 J25 uart0_rtsn.uart0_rtsn */
 			0x170 (PIN_INPUT_PULLUP | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE0) /* P600_56 K25 uart0_rxd.uart0_rxd */
 			0x174 (PIN_INPUT | PULL_DISABLE | SLEWCTRL_FAST | DS0_PULL_UP_DOWN_EN | MUX_MODE0) /* P600_54 J24 uart0_txd.uart0_txd */
 		>;
@@ -436,8 +449,6 @@
 
 	uart0_pins_sleep: uart0_pins_sleep {
 		pinctrl-single,pins = <
-			0x168 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_60 L25 uart0_ctsn.gpio1_8 */
-			0x16C (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_58 J25 uart0_rtsn.gpio1_9 */
 			0x170 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_56 K25 uart0_rxd.gpio1_10 */
 			0x174 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_54 J24 uart0_txd.uart1_11 */
 		>;
@@ -656,14 +667,12 @@
 	pinctrl-0 = <&cpsw_default>;
 	pinctrl-1 = <&cpsw_sleep>;
 	status = "okay";
-	dual_emac = <1>;
 };
 
 &davinci_mdio_sw {
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&davinci_mdio_default>;
 	pinctrl-1 = <&davinci_mdio_sleep>;
-	status = "okay";
 	ethphy0: ethernet-phy@0 {
 		reg = <0>;
 	};
