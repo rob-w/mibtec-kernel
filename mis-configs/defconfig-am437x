@@ -5507,6 +5507,7 @@ CONFIG_IIO_SYSFS_TRIGGER=y
 # Pressure sensors
 #
 # CONFIG_ABP060MG is not set
+CONFIG_AP4A=m
 # CONFIG_BMP280 is not set
 # CONFIG_DLHL60D is not set
 # CONFIG_DPS310 is not set
