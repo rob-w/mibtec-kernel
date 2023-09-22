@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "D880TSM092 v0.1.1b";
+	model = "D880TSM092 v0.1.1c";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -159,48 +159,6 @@
 			linux,default-trigger = "mmc0";
 		};
 
-		/* 0x070 P600_178 A2 gpmc_wait0.gpio0_30 CAN1_TERMINATION*/
-		can1_term {
-			label = "mispanel_can1_terminator";
-			gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "off";
-		};
-
-		/* 0x090 P600_144 A9 gpmc_advn_ale.gpio2_2 UART1_TE */
-		uart1_term {
-			label = "mispanel_uart1_terminator";
-			gpios = <&gpio2 2 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "off";
-		};
-
-		/* 0x218 P600_148 AE19 cam0_data4.gpio4_26 UART2_TE */
-		uart2_term {
-			label = "mispanel_uart2_terminator";
-			gpios = <&gpio4 26 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "off";
-		};
-
-		/* 0x150 P600_160 P23  spi0_sclk.gpio0_2 INTERFACES_OFF */
-		interfaces_off {
-			label = "mispanel_interfaces_off";
-			gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "off";
-		};
-
-		/* 0x264 P600_158 P22  spi2_d0.gpio3_22 REGULATORS OFF */
-		regulators_off {
-			label = "mispanel_regulators_off";
-			gpios = <&gpio3 22 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "off";
-		};
-
-		/* 0x278 P600_166 H20  clkreq.gpio0_24 LCD_OFF */
-		lcd_off {
-			label = "mispanel_lcd_off";
-			gpios = <&gpio0 24 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "oneshot";
-		};
-
 		/* 0x258 P600_164 P24  spi4_d1.gpio5_6 ETH2_INT_N */
 		lcd_sleep {
 			label = "mispanel_lcd_sleep";
@@ -208,16 +166,18 @@
 			linux,default-trigger = "default-on";
 		};
 
+		/* 0x070 P600_178 A2 gpmc_wait0.gpio0_30 ETH1_RST */
 		eth0_phy_rst {
 			label = "eth0_rst";
-			gpios = <&gpio1 9 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "default-on";
+			gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "default-off";
 		};
 
+		/* P600_156 C10  gpmc_be0n_cle.gpio2_5 ETH2_RST */
 		eth1_phy_rst {
 			label = "eth1_rst";
-			gpios = <&gpio1 8 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "default-on";
+			gpios = <&gpio2 5 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "default-off";
 		};
 	};
 };
@@ -277,22 +237,22 @@
 			0x1dc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_116 AE21 cam1_pclk.gpio4_11 */
 
 			/* ClassName:GPIOS */
-			0x070 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_178 A2 gpmc_wait0.gpio0_30 CAN1_TERMINATION*/
+			0x070 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_178 A2 gpmc_wait0.gpio0_30 ETH1_RST*/
 			0x074 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_150 B3   gpmc_wpn.gpio0_31 UART2_RI */
 			0x078 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_152 A3   gpmc_be1n.gpio1_28 USB0_nOC */
 			0x07c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_146 A8   gpmc_csn0.gpio1_29 UART 1_RI */
-			0x090 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_144 A9 gpmc_advn_ale.gpio2_2 UART1_TE */
-			0x09c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_156 C10  gpmc_be0n_cle.gpio2_5 UV_DETECT */
-			0x150 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_160 P23  spi0_sclk.gpio0_2 INTERFACES_OFF */
+			0x090 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_144 A9 gpmc_advn_ale.gpio2_2 S1_OUT */
+			0x09c (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_156 C10  gpmc_be0n_cle.gpio2_5 ETH2_RST */
+			0x150 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_160 P23  spi0_sclk.gpio0_2 A01 */
 			0x154 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_154 T22  spi0_d0.gpio0_3 USB1_nOC */
 			0x1ac (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_162 L24  mcasp0_ahclkx.gpio3_21 ETH1_INT_N*/
 			0x1f0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_50 AD21 cam1_data2.gpio4_16 */
 			0x200 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_49  AD23 cam1_data6.gpio4_20 */
-			0x218 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)/* P600_148 AE19 cam0_data4.gpio4_26 UART2_TE */
+			0x218 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)/* P600_148 AE19 cam0_data4.gpio4_26 S2_OUT */
 			0x224 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_186 AD20 cam0_data7.gpio4_29 */
 			0x230 (PIN_INPUT_PULLDOWN | MUX_MODE7) 	/* P600_59 H22 uart3_ctsn.gpio5_0 */
 			0x258 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_164 P24  spi4_d1.gpio5_6 ETH2_INT_N */
-			0x264 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_158 P22  spi2_d0.gpio3_22 REGULATORS OFF */
+			0x264 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_158 P22  spi2_d0.gpio3_22 */
 			0x278 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_166 H20  clkreq.gpio0_24 LCD_OFF */
 		>;
 	};
