@@ -111,21 +111,21 @@
 	leds {
 		compatible = "gpio-leds";
 
-		/* 0x258 P600_164 P24  spi4_d1.gpio5_6 IEPE4_G */
+		/* 0x1ac P600_162 L24  mcasp0_ahclkx.gpio3_21 IEPE4_G */
 		led_iepe4_g {
 			label = "iepe4_green";
-			gpios = <&gpio5 6 GPIO_ACTIVE_LOW>;
-			linux,default-trigger = "off";
-		};
-
-		/* 0x1ac P600_162 L24  mcasp0_ahclkx.gpio3_21 IEPE4_R */
-		led_iepe4_r {
-			label = "iepe4_red";
 			gpios = <&gpio3 21 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "off";
 		};
 
-		/* 0x240 P600_170 G20  gpio5_10.gpio5_10 IEPE3_G *
+		/* 0x258 P600_164 P24  spi4_d1.gpio5_6 IEPE4_R */
+		led_iepe4_r {
+			label = "iepe4_red";
+			gpios = <&gpio5 6 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "off";
+		};
+
+		/* 0x240 P600_170 G20  gpio5_10.gpio5_10 IEPE3_G */
 		led_iepe3_g {
 			label = "iepe3_green";
 			gpios = <&gpio5 10 GPIO_ACTIVE_LOW>;
@@ -257,6 +257,7 @@
 			0x1f0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_50 AD21 cam1_data2.gpio4_16 */
 			0x200 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_49  AD23 cam1_data6.gpio4_20 */
 			0x218 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)/* P600_148 AE19 cam0_data4.gpio4_26 S2_OUT */
+			0x220 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_174 AE20 cam0_data6.gpio4_28 IEPE2_G */
 			0x224 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_186 AD20 cam0_data7.gpio4_29 TEST */
 			0x230 (PIN_INPUT_PULLDOWN | MUX_MODE7) 	/* P600_59 H22 uart3_ctsn.gpio5_0 */
 			0x258 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_164 P24  spi4_d1.gpio5_6 IEPE4_G */
