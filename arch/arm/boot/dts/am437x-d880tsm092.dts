@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "D880TSM092 v0.1.1f";
+	model = "D880TSM092 v0.2.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -213,9 +213,7 @@
 			0x0b8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_83  C20 dss_data6.gpio2_12 */
 			0x0bc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_84  E19 dss_data7.gpio2_13 */
 			0x0c0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_85  A19 dss_data8.gpio2_14 */
-
 			0x0c8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_87  A18 dss_data10.gpio2_16 */
-
 			0x0d0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_89  C19 dss_data12.gpio0_8 */
 			0x0d8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_91  C17 dss_data14.gpio0_10 */
 
@@ -232,19 +230,19 @@
 			0x074 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_150 B3   gpmc_wpn.gpio0_31 UART2_RI */
 			0x078 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_152 A3   gpmc_be1n.gpio1_28 USB0_nOC */
 			0x07c (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_146 A8   gpmc_csn0.gpio1_29 UART 1_RI */
-			0x090 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_144 A9 gpmc_advn_ale.gpio2_2 S1_OUT */
 			0x09c (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_156 C10  gpmc_be0n_cle.gpio2_5 ETH2_RST */
 			0x154 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_154 T22  spi0_d0.gpio0_3 USB1_nOC */
 			0x1ac (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_162 L24  mcasp0_ahclkx.gpio3_21 IEPE4_R */
 			0x1f0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_50 AD21 cam1_data2.gpio4_16 */
 			0x200 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_49  AD23 cam1_data6.gpio4_20 */
-			0x218 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)/* P600_148 AE19 cam0_data4.gpio4_26 S2_OUT */
 			0x220 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_174 AE20 cam0_data6.gpio4_28 IEPE2_G */
-			/* 0x224 (PIN_INPUT_PULLDOWN | MUX_MODE7)  P600_186 AD20 cam0_data7.gpio4_29 TEST */
 			0x230 (PIN_INPUT_PULLDOWN | MUX_MODE7) 	/* P600_59 H22 uart3_ctsn.gpio5_0 */
 			0x258 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_164 P24  spi4_d1.gpio5_6 IEPE4_G */
 			0x264 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_158 P22  spi2_d0.gpio3_22 */
 			0x278 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_166 H20  clkreq.gpio0_24 LCD_OFF */
+
+			0x090 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_144 A9 gpmc_advn_ale.gpio2_2 S1_OUT */
+			0x218 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_148 AE19 cam0_data4.gpio4_26 S2_OUT */
 
 			0x1cc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_93  AC24 cam1_data9.gpio4_7 AI1_C */
 			0x1c8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_94  AA19 cam0_data9.gpio4_6 AI8_C */
