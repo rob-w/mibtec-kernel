@@ -542,7 +542,7 @@ static irqreturn_t pru_rproc_vring_interrupt(int irq, void *data)
 }
 
 /* Kick a virtqueue. */
-static void pru_rproc_kick(struct rproc *rproc, int vq_id)
+void pru_rproc_kick(struct rproc *rproc, int vq_id)
 {
 	struct device *dev = &rproc->dev;
 	struct pru_rproc *pru = rproc->priv;
@@ -559,6 +559,7 @@ static void pru_rproc_kick(struct rproc *rproc, int vq_id)
 	if (ret < 0)
 		dev_err(dev, "pruss_intc_trigger failed: %d\n", ret);
 }
+EXPORT_SYMBOL_GPL(pru_rproc_kick);
 
 /* Register vring irq handler if needed. */
 static int pru_vring_interrupt_setup(struct rproc *rproc)
