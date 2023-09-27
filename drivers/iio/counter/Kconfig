@@ -1,0 +1,25 @@
+#
+# Counter devices
+#
+# When adding new entries keep the list in alphabetical order
+
+menu "Counters"
+
+config CNT_DMTIMER
+	tristate "Omap Timer counter driver"
+	depends on ARCH_OMAP2 || ARCH_OMAP3 || SOC_AM33XX || SOC_AM43XX
+	help
+	  Select this option to enable a Omap Timer to capture counts.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called cnt-dmtimer.
+
+config CNT_GPIO
+	tristate "gpio counter driver"
+	help
+	  Select this option to enable a gpios to capture counts.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called cnt-gpio.
+
+endmenu

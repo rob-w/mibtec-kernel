@@ -1334,6 +1334,7 @@ CONFIG_FIB_RULES=y
 # CONFIG_RFKILL is not set
 # CONFIG_NET_9P is not set
 # CONFIG_CAIF is not set
+# CONFIG_RPMSG_PROTO is not set
 # CONFIG_CEPH_LIB is not set
 # CONFIG_NFC is not set
 # CONFIG_PSAMPLE is not set
@@ -4929,7 +4930,12 @@ CONFIG_OMAP_IOMMU_DEBUG=y
 #
 # Remoteproc drivers
 #
-# CONFIG_REMOTEPROC is not set
+CONFIG_REMOTEPROC=y
+# CONFIG_REMOTEPROC_CDEV is not set
+# CONFIG_INGENIC_VPU_RPROC is not set
+# CONFIG_MTK_SCP is not set
+# CONFIG_OMAP_REMOTEPROC is not set
+# CONFIG_WKUP_M3_RPROC is not set
 # end of Remoteproc drivers
 
 #
@@ -5258,6 +5264,13 @@ CONFIG_VF610_ADC=m
 #
 # CONFIG_IIO_SSP_SENSORHUB is not set
 # end of SSP Sensor Common
+
+#
+# Counters
+#
+CONFIG_CNT_DMTIMER=m
+CONFIG_CNT_GPIO=m
+# end of Counters
 
 #
 # Digital to analog converters
