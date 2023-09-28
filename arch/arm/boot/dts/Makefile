@@ -788,47 +788,10 @@ dtb-$(CONFIG_SOC_TI81XX) += \
 	dm8168-evm.dtb \
 	dra62x-j5eco-evm.dtb
 dtb-$(CONFIG_SOC_AM33XX) += \
-	am335x-baltos-ir2110.dtb \
-	am335x-baltos-ir3220.dtb \
-	am335x-baltos-ir5221.dtb \
-	am335x-base0033.dtb \
-	am335x-bone.dtb \
-	am335x-boneblack.dtb \
-	am335x-boneblack-wireless.dtb \
-	am335x-boneblack-pruswuart.dtb \
-	am335x-boneblue.dtb \
-	am335x-bonegreen.dtb \
-	am335x-bonegreen-wireless.dtb \
-	am335x-boneblack-pps.dtb \
-	am335x-chiliboard.dtb \
-	am335x-cm-t335.dtb \
 	am335x-d850anpass060.dtb \
 	am335x-d850anpass062.dtb \
 	am335x-d850basis053.dtb \
 	am335x-d850e054.dtb \
-	am335x-evm.dtb \
-	am335x-evmsk.dtb \
-	am335x-guardian.dtb \
-	am335x-icev2.dtb \
-	am335x-icev2-prueth.dtb \
-	am335x-lxm.dtb \
-	am335x-moxa-uc-2101.dtb \
-	am335x-moxa-uc-8100-me-t.dtb \
-	am335x-nano.dtb \
-	am335x-netcan-plus-1xx.dtb \
-	am335x-netcom-plus-2xx.dtb \
-	am335x-netcom-plus-8xx.dtb \
-	am335x-pdu001.dtb \
-	am335x-pepper.dtb \
-	am335x-phycore-rdk.dtb \
-	am335x-pocketbeagle.dtb \
-	am335x-regor-rdk.dtb \
-	am335x-sancloud-bbe.dtb \
-	am335x-shc.dtb \
-	am335x-sbc-t335.dtb \
-	am335x-sl50.dtb \
-	am335x-wega-rdk.dtb \
-	am335x-osd3358-sm-red.dtb
 dtb-$(CONFIG_ARCH_OMAP4) += \
 	omap4-droid-bionic-xt875.dtb \
 	omap4-droid4-xt894.dtb \
@@ -842,14 +805,6 @@ dtb-$(CONFIG_ARCH_OMAP4) += \
 	omap4-var-dvk-om44.dtb \
 	omap4-var-stk-om44.dtb
 dtb-$(CONFIG_SOC_AM43XX) += \
-	am43x-epos-evm.dtb \
-	am43x-epos-evm-hdmi.dtb \
-	am437x-cm-t43.dtb \
-	am437x-gp-evm.dtb \
-	am437x-gp-evm-hdmi.dtb \
-	am437x-idk-evm.dtb \
-	am437x-sbc-t43.dtb \
-	am437x-sk-evm.dtb \
 	am437x-misdimm-evm.dtb \
 	am437x-mispanel070f.dtb \
 	am437x-mispanel070h.dtb \
