@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "D880TSM092 v0.2.0";
+	model = "D880TSM092 v0.2.3";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -36,8 +36,8 @@
 		#sound-dai-cells = <0>;
 		simple-audio-card,dai-link@0 {
 			format = "i2s";
-			bitclock-master = <&sound0_master>;
-			frame-master = <&sound0_master>;
+			bitclock-master = <&codec>;
+			frame-master = <&codec>;
 			sound0_master: cpu {
 				sound-dai = <&mcasp1>;
 				system-clock-frequency = <12000000>;
@@ -48,8 +48,8 @@
 				dai-tdm-slot-rx-mask = <1 1 1 1>;
 			};
 
-			codec {
-				sound-dai = <&tlv320adc6140>;
+			codec: codec {
+				sound-dai = <&tlv320adc5140>; /** as 6140 **/
 				system-clock-frequency = <12000000>;
 			};
 		};
@@ -327,7 +327,7 @@
 	mcasp1_pins: mcasp1_pins {
 		pinctrl-single,pins = <
 			0x144 (PIN_INPUT_PULLDOWN | MUX_MODE4) /* P600_120 A16  rmii1_ref_clk.mcasp1_axr3  */
-			0x108 (PIN_OUTPUT_PULLDOWN | MUX_MODE4) /* P600_122 D16  mii1_col.mcasp1_axr2 */
+			0x108 (PIN_INPUT_PULLDOWN | MUX_MODE4) /* P600_122 D16  mii1_col.mcasp1_axr2 */
 			0x10c (PIN_INPUT_PULLDOWN | MUX_MODE4) /* P600_126 B14  mii1_crs.mcasp1_aclkx */
 			0x110 (PIN_INPUT_PULLDOWN | MUX_MODE4) /* P600_128 B13  mii1_rx_er.mcasp1_fsx */
 			0x270 (PIN_INPUT_PULLDOWN | MUX_MODE3) /* P600_124 D24  xdma_event_intr0.clkout1 */
@@ -437,14 +437,14 @@
 };
 
 &i2c1 {
-	tlv320adc6140: tlv320adc6140@4c {
+	tlv320adc5140: tlv320adc5140@4c {
 		#sound-dai-cells = <0>;
-		compatible = "ti,tlv320adc6140";
+		compatible = "ti,tlv320adc5140";
 		reg = <0x4c>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&tlv320adc_pins>;
-		ti,mic-bias-source = <6>;
-		ti,vref-source = <0>;
+		ti,mic-bias-source = <1>; 				/* VREF x 1.096 */
+		ti,vref-source = <0>;  					/* 2.75V */
 		ti,pdm-edge-select = <0 1 0 1>;
 		ti,gpi-config = <2 1 1 1>;
 		ti,gpio-config = <10 2>;
@@ -579,10 +579,10 @@
 	tdm-slots = <2>;
 	/* 4 serializers */
 	serial-dir = <  /* 0: INACTIVE, 1: TX, 2: RX */
-		0 0 1 2
+		0 0 2 1
 	>;
-	tx-num-evt = <32>;
-	rx-num-evt = <32>;
+	tx-num-evt = <1>;
+	rx-num-evt = <1>;
 };
 
 &dss {
