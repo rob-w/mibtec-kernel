@@ -715,6 +715,7 @@ static int adcx140_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	/* set master/slave audio interface */
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 	case SND_SOC_DAIFMT_CBM_CFM:
+		dev_info(component->dev, "setting as master\n");
 		iface_reg2 |= ADCX140_BCLK_FSYNC_MASTER;
 		break;
 	case SND_SOC_DAIFMT_CBS_CFS:
