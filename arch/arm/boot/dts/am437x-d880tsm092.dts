@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "D880TSM092 v0.2.3";
+	model = "D880TSM092 v0.2.4";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -33,13 +33,21 @@
 	sound0: sound0 {
 		compatible = "simple-audio-card";
 		simple-audio-card,name = "D880TSM092";
+		pinctrl-names = "default";
+		pinctrl-0 = <&clkout1_pin>;
+
 		#sound-dai-cells = <0>;
 		simple-audio-card,dai-link@0 {
 			format = "i2s";
 			bitclock-master = <&codec>;
 			frame-master = <&codec>;
 			sound0_master: cpu {
+				clocks = <&clkout1_mux_ck>;
+				clock-names = "mclk";
+				assigned-clocks = <&clkout1_mux_ck>;
+				assigned-clock-parents = <&clkout1_osc_div_ck>;
 				sound-dai = <&mcasp1>;
+				mclk-fs = <128>;
 				system-clock-frequency = <12000000>;
 
 				dai-tdm-slot-num = <4>;
@@ -330,7 +338,6 @@
 			0x108 (PIN_INPUT_PULLDOWN | MUX_MODE4) /* P600_122 D16  mii1_col.mcasp1_axr2 */
 			0x10c (PIN_INPUT_PULLDOWN | MUX_MODE4) /* P600_126 B14  mii1_crs.mcasp1_aclkx */
 			0x110 (PIN_INPUT_PULLDOWN | MUX_MODE4) /* P600_128 B13  mii1_rx_er.mcasp1_fsx */
-			0x270 (PIN_INPUT_PULLDOWN | MUX_MODE3) /* P600_124 D24  xdma_event_intr0.clkout1 */
 		>;
 	};
 
@@ -350,6 +357,12 @@
 		pinctrl-single,pins = <
 			/* ClassName:CAN */
 			0x17c (PIN_INPUT | MUX_MODE1) /* P600_65 L22 uart1_rtsn.timer5 N2_IN */
+		>;
+	};
+
+	clkout1_pin: clkout1_pin {
+		pinctrl-single,pins = <
+			0x270 (PIN_INPUT_PULLDOWN | MUX_MODE3) /* P600_124 D24  xdma_event_intr0.clkout1 */
 		>;
 	};
 
@@ -460,6 +473,23 @@
 	};
 };
 
+&mcasp1 {
+	#sound-dai-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&mcasp1_pins>;
+
+	status = "okay";
+
+	op-mode = <0>; /* MCASP_IIS_MODE */
+	tdm-slots = <2>;
+	/* 4 serializers */
+	serial-dir = <  /* 0: INACTIVE, 1: TX, 2: RX */
+		0 0 2 1
+	>;
+	tx-num-evt = <1>;
+	rx-num-evt = <1>;
+};
+
 &mmc1 {
 	status = "okay";
 	vmmc-supply = <&evm_v3_3d>;
@@ -566,23 +596,6 @@
 
 &elm {
 	status = "okay";
-};
-
-&mcasp1 {
-	#sound-dai-cells = <0>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&mcasp1_pins>;
-
-	status = "okay";
-
-	op-mode = <0>; /* MCASP_IIS_MODE */
-	tdm-slots = <2>;
-	/* 4 serializers */
-	serial-dir = <  /* 0: INACTIVE, 1: TX, 2: RX */
-		0 0 2 1
-	>;
-	tx-num-evt = <1>;
-	rx-num-evt = <1>;
 };
 
 &dss {
