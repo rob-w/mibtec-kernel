@@ -1,5 +1,5 @@
 /*
- * MIS www.mistec.de SO-DIMM D880 TSM Modul 092 1 or 2 ADC
+ * MIS www.mistec.de SO-DIMM D880 TSM Modul 094 Interfaces
  * Copyright (C) 2015 - http://www.mistec.de Robert Woerle
  *
  * Copied from arch/arm/boot/dts/am437x-gp-evm.dts which has
@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "D880TSM092 v0.3.0";
+	model = "D880TSM092 v0.2.6";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -53,7 +53,7 @@
 			};
 
 			codec: codec {
-				sound-dai = <&tlv320adc5140_4c>; /** as 6140 **/
+				sound-dai = <&tlv320adc5140>; /** as 6140 **/
 			};
 		};
 	};
@@ -463,26 +463,10 @@
 };
 
 &i2c1 {
-	tlv320adc5140_4c: tlv320adc5140@4c {
+	tlv320adc5140: tlv320adc5140@4c {
 		#sound-dai-cells = <0>;
 		compatible = "ti,tlv320adc5140";
 		reg = <0x4c>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&tlv320adc_pins>;
-		ti,mic-bias-source = <1>; 				/* VREF x 1.096 */
-		ti,vref-source = <0>;  					/* 2.75V */
-		ti,pdm-edge-select = <0 1 0 1>;
-		ti,gpi-config = <0 0 0 0>;
-		ti,gpio-config = <0 0>;
-		ti,gpo-config-1 = <0 0>;
-		ti,gpo-config-2 = <0 0>;
-		reset-gpios = <&gpio5 8 GPIO_ACTIVE_HIGH>;
-	};
-
-	tlv320adc5140_4d: tlv320adc5140@4d {
-		#sound-dai-cells = <0>;
-		compatible = "ti,tlv320adc5140";
-		reg = <0x4d>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&tlv320adc_pins>;
 		ti,mic-bias-source = <1>; 				/* VREF x 1.096 */
