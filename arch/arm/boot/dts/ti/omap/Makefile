@@ -95,6 +95,10 @@ dtb-$(CONFIG_SOC_AM33XX) += \
 	am335x-cm-t335.dtb \
 	am335x-evm.dtb \
 	am335x-evmsk.dtb \
+	am335x-d850anpass060.dtb \
+	am335x-d850anpass062.dtb \
+	am335x-d850basis053.dtb \
+	am335x-d850e054.dtb \
 	am335x-guardian.dtb \
 	am335x-icev2.dtb \
 	am335x-lxm.dtb \
@@ -121,8 +125,16 @@ dtb-$(CONFIG_SOC_AM33XX) += \
 dtb-$(CONFIG_SOC_AM43XX) += \
 	am43x-epos-evm.dtb \
 	am437x-cm-t43.dtb \
+	am437x-d880tsm092.dtb \
 	am437x-gp-evm.dtb \
 	am437x-idk-evm.dtb \
+	am437x-misdimm-evm.dtb \
+	am437x-mispanel070f.dtb \
+	am437x-mispanel070h.dtb \
+	am437x-mismdis070a.dts \
+	am437x-mispanel120b.dtb \
+	am437x-mislabeler040.dtb \
+	am437x-d880tsm092.dtb \
 	am437x-sbc-t43.dtb \
 	am437x-sk-evm.dtb
 
