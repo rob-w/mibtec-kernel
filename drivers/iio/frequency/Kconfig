@@ -21,6 +21,15 @@ config AD9523
 	  To compile this driver as a module, choose M here: the
 	  module will be called ad9523.
 
+config PRU_DMTIMER
+	tristate "Omap Timer counter driver"
+	depends on ARCH_OMAP2 || ARCH_OMAP3 || SOC_AM33XX || SOC_AM43XX
+	help
+	  Select this option to enable a Omap Timer to capture counts.
+	  It uses pru to poll the timer hardware and measure.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called pru-dmtimer.
 endmenu
 
 #
