@@ -19,8 +19,8 @@
 #include <linux/of_device.h>
 #include <linux/rpmsg.h>
 #include <linux/remoteproc.h>
-#include <linux/pruss.h>
-
+#include <linux/pruss_driver.h>
+#include <linux/platform_device.h>
 #include <linux/platform_data/dmtimer-omap.h>
 
 #include <linux/clocksource.h>
@@ -183,9 +183,11 @@ static void pru_dmtimer_enable_irq(int id, struct pru_dmtimer_pdata *st)
     unsigned int interrupt_mask;
 
     interrupt_mask = OMAP_TIMER_INT_CAPTURE;
-    __omap_dm_timer_int_enable(st->capture_timer[id], interrupt_mask);
-    st->capture_timer[id]->context.tier = interrupt_mask;
-    st->capture_timer[id]->context.twer = interrupt_mask;
+//	omap_dm_timer_set_int_enable
+
+ //   __omap_dm_timer_int_enable(st->capture_timer[id], interrupt_mask);
+ //   st->capture_timer[id]->context.tier = interrupt_mask;
+ //   st->capture_timer[id]->context.twer = interrupt_mask;
 }
 
 static void pru_dmtimer_cleanup_timer(int id, struct pru_dmtimer_pdata *st)
@@ -216,13 +218,13 @@ static void pru_dmtimer_setup_capture(int id, struct pru_dmtimer_pdata *st)
 {
 	struct omap_dm_timer *timer = st->capture_timer[id];
 	const struct omap_dm_timer_ops *timer_ops = st->timer_ops[id];
-	u32 ctrl;
+	u32 ctrl = 0;
 	int idx;
 
 	timer_ops->set_source(timer, OMAP_TIMER_SRC_SYS_CLK);
 	timer_ops->enable(timer);
 
-	ctrl = __omap_dm_timer_read(timer, OMAP_TIMER_CTRL_REG, timer->posted);
+//	ctrl = __omap_dm_timer_read(timer, OMAP_TIMER_CTRL_REG, timer->posted);
 
 	// reload prescaler
 	ctrl &= ~(OMAP_TIMER_CTRL_PRE | (0x07 << 2));
@@ -235,7 +237,7 @@ static void pru_dmtimer_setup_capture(int id, struct pru_dmtimer_pdata *st)
 
 	// autoreload
 	ctrl |= OMAP_TIMER_CTRL_AR;
-	__omap_dm_timer_write(timer, OMAP_TIMER_LOAD_REG, 0, timer->posted);
+//	__omap_dm_timer_write(timer, OMAP_TIMER_LOAD_REG, 0, timer->posted);
 
 	// start timer
 	ctrl |= OMAP_TIMER_CTRL_ST;
@@ -243,12 +245,12 @@ static void pru_dmtimer_setup_capture(int id, struct pru_dmtimer_pdata *st)
 	// set capture
 	ctrl |= OMAP_TIMER_CTRL_CAPTMODE | OMAP_TIMER_CTRL_TCM_LOWTOHIGH | OMAP_TIMER_CTRL_GPOCFG;
 
-	__omap_dm_timer_load_start(timer, ctrl, 0, timer->posted);
+//	__omap_dm_timer_load_start(timer, ctrl, 0, timer->posted);
 
 	/* Save the context */
-	timer->context.tclr = ctrl;
-	timer->context.tldr = 0;
-	timer->context.tcrr = 0;
+//	timer->context.tclr = ctrl;
+//	timer->context.tldr = 0;
+//	timer->context.tcrr = 0;
 }
 
 static int pru_dmtimer_init_timer(int id, struct device_node *t_dn, struct pru_dmtimer_pdata *st)
@@ -747,7 +749,7 @@ static int pru_dmtimer_probe(struct platform_device *pdev)
 	indio_dev->num_channels = st->chip_info->num_channels;
 
 	st->trig = devm_iio_trigger_alloc(dev, "%s-dev%d",
-					  indio_dev->name, indio_dev->id);
+					  indio_dev->name, iio_device_id(indio_dev));
 	if (!st->trig)
 		return -ENOMEM;
 
@@ -848,9 +850,9 @@ static struct platform_driver pru_dmtimer = {
 		.of_match_table = of_pru_dmtimer_match,
 	},
 };
-
-MODULE_SOFTDEP("pre: pru_rproc")
 module_platform_driver(pru_dmtimer);
+
+MODULE_SOFTDEP("pre: pru_rproc");
 MODULE_AUTHOR("Robert Wörle <rwoerle@mibtec.de>");
 MODULE_DESCRIPTION("Omap Timer counter driver");
 MODULE_LICENSE("GPL v2");
