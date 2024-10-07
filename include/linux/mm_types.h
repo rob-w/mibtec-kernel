@@ -584,7 +584,7 @@ struct vm_area_struct {
 	 * To modify use vm_flags_{init|reset|set|clear|mod} functions.
 	 */
 	union {
-		const vm_flags_t vm_flags;
+		vm_flags_t vm_flags;
 		vm_flags_t __private __vm_flags;
 	};
 
