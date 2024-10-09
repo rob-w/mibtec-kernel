@@ -22,7 +22,7 @@
 #include <dt-bindings/input/input.h>
 
 / {
-	model = "MIS P120B110 v1.4.0";
+	model = "MIS P120B110 v1.4.2";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -39,7 +39,7 @@
 		pwms = <&ecap0 0 125000 PWM_POLARITY_INVERTED>;
 
 		/* 0x250 P600_172 P25 164 spi4_sclk.gpio5_4 LCD_STANDBY */
-		enable-gpios = <&gpio5 4 GPIO_ACTIVE_LOW>;
+		enable-gpios = <&gpio5 4 GPIO_ACTIVE_HIGH>;
 
 		/* PWM starts at 75 and we make 16 levels */
 		brightness-levels = <0 75 87 99 111 123 135 147 159 171 183 195 207 219 231 243 255>;

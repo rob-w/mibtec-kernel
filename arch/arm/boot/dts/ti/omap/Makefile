@@ -126,6 +126,8 @@ dtb-$(CONFIG_SOC_AM43XX) += \
 	am43x-epos-evm.dtb \
 	am437x-cm-t43.dtb \
 	am437x-d880tsm092.dtb \
+	am437x-d880tsm093.dtb \
+	am437x-d880tsm094.dtb \
 	am437x-gp-evm.dtb \
 	am437x-idk-evm.dtb \
 	am437x-misdimm-evm.dtb \
@@ -134,8 +136,6 @@ dtb-$(CONFIG_SOC_AM43XX) += \
 	am437x-mismdis070a.dts \
 	am437x-mispanel120b.dtb \
 	am437x-mislabeler040.dtb \
-	am437x-d880tsm092.dtb \
-	am437x-d880tsm094.dtb \
 	am437x-sbc-t43.dtb \
 	am437x-sk-evm.dtb
 

@@ -32,7 +32,7 @@
 
 	sound0: sound0 {
 		compatible = "simple-audio-card";
-		simple-audio-card,name = "D880TSM092";
+		simple-audio-card,name = "D880TSM093";
 		pinctrl-names = "default";
 		pinctrl-0 = <&clkout1_pin>;
 
