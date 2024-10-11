@@ -21,6 +21,16 @@
 	compatible = "ti,am4372","ti,am43";
 	som = "MISDIMM 1.0.2";
 
+	aliases {
+		serial1 = &uart1;
+		serial2 = &uart2;
+		serial3 = &uart3;
+		rtc0 = &rtc;
+		mmc0 = &mmc2;
+		mmc1 = &mmc1;
+		mmc2 = &mmc3;
+	};
+
 	evm_v3_3d: fixedregulator-v3_3d {
 		compatible = "regulator-fixed";
 		regulator-name = "evm_v3_3d";
