@@ -492,7 +492,7 @@
 		ti,gpio-config = <0 0>;
 		ti,gpo-config-1 = <0 0>;
 		ti,gpo-config-2 = <0 0>;
-		reset-gpios = <&gpio5 8 GPIO_ACTIVE_HIGH>;
+		/*reset-gpios = <&gpio5 8 GPIO_ACTIVE_HIGH>;*/
 	};
 
 	tmp102: tmp102@48 {
