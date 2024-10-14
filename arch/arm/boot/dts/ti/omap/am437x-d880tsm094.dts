@@ -20,15 +20,8 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "D880TSM092 v0.2.6";
+	model = "D880TSM094 v0.3.0";
 	compatible = "ti,am4372","ti,am43";
-
-	aliases {
-		serial1 = &uart1;
-		serial2 = &uart2;
-		serial3 = &uart3;
-		rtc0 = &rtc;
-	};
 
 	sound0: sound0 {
 		compatible = "simple-audio-card";

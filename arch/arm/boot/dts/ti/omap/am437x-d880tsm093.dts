@@ -1,5 +1,5 @@
 /*
- * MIS www.mistec.de SO-DIMM D880 TSM Modul 092 1 or 2 ADC
+ * MIS www.mistec.de SO-DIMM D880 TSM Modul 093 2 ADC
  * Copyright (C) 2015 - http://www.mistec.de Robert Woerle
  *
  * Copied from arch/arm/boot/dts/am437x-gp-evm.dts which has
@@ -20,15 +20,8 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "D880TSM092 v0.3.1";
+	model = "D880TSM093 v0.3.2";
 	compatible = "ti,am4372","ti,am43";
-
-	aliases {
-		serial1 = &uart1;
-		serial2 = &uart2;
-		serial3 = &uart3;
-		rtc0 = &rtc;
-	};
 
 	sound0: sound0 {
 		compatible = "simple-audio-card";
