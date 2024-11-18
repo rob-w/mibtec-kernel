@@ -2571,10 +2571,8 @@ irqreturn_t vring_interrupt(int irq, void *_vq)
 {
 	struct vring_virtqueue *vq = to_vvq(_vq);
 
-	if (!more_used(vq)) {
+	if (!more_used(vq))
 		pr_debug("virtqueue interrupt with no work for %p\n", vq);
-		return IRQ_NONE;
-	}
 
 	if (unlikely(vq->broken)) {
 #ifdef CONFIG_VIRTIO_HARDEN_NOTIFICATION
