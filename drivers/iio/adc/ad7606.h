@@ -100,6 +100,10 @@ struct ad7606_state {
 	unsigned int			num_scales;
 	const unsigned int		*oversampling_avail;
 	unsigned int			num_os_ratios;
+	unsigned int			usec_sleep;
+	long unsigned int		aixb[8];
+	short					offset[16];
+	int						calibscale[16];
 	int (*write_scale)(struct iio_dev *indio_dev, int ch, int val);
 	int (*write_os)(struct iio_dev *indio_dev, int val);
 
@@ -110,6 +114,7 @@ struct ad7606_state {
 	struct gpio_desc		*gpio_standby;
 	struct gpio_desc		*gpio_frstdata;
 	struct gpio_descs		*gpio_os;
+	struct gpio_descs		*gpio_aixb;
 	struct iio_trigger		*trig;
 	struct completion		completion;
 

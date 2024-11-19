@@ -134,6 +134,7 @@ static irqreturn_t ad7606_trigger_handler(int irq, void *p)
 						   iio_get_time_ns(indio_dev));
 
 	iio_trigger_notify_done(indio_dev->trig);
+	usleep_range(st->usec_sleep, st->usec_sleep+1);
 	/* The rising edge of the CONVST signal starts a new conversion. */
 	gpiod_set_value_cansleep(st->gpio_convst, 1);
 
@@ -307,12 +308,211 @@ static ssize_t ad7606_oversampling_ratio_avail(struct device *dev,
 				 st->num_os_ratios, false);
 }
 
+static ssize_t ai1b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%ld\n", st->aixb[0]);
+}
+
+static ssize_t ai2b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%ld\n", st->aixb[1]);
+}
+
+static ssize_t ai3b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%ld\n", st->aixb[2]);
+}
+
+static ssize_t ai4b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%ld\n", st->aixb[3]);
+}
+
+static ssize_t ai5b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%ld\n", st->aixb[4]);
+}
+
+static ssize_t ai6b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%ld\n", st->aixb[5]);
+}
+
+static ssize_t ai7b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%ld\n", st->aixb[6]);
+}
+
+static ssize_t ai8b_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	return sprintf(buf, "%ld\n", st->aixb[7]);
+}
+
+static ssize_t aixb_set(struct device *dev,
+		const char *buf, int id,
+		size_t len)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	unsigned int val;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &val);
+	if (ret)
+		goto error_ret;
+
+	if (val < 0)
+		return -EINVAL;
+
+	st->aixb[id] = val;
+	gpiod_set_array_value_cansleep(ARRAY_SIZE(st->aixb), st->gpio_aixb->desc, st->gpio_aixb->info, st->aixb);
+
+error_ret:
+	return ret ? ret : len;
+}
+
+static ssize_t ai1b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 0, len);
+}
+
+static ssize_t ai2b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 1, len);
+}
+
+static ssize_t ai3b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 2, len);
+}
+
+static ssize_t ai4b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 3, len);
+}
+
+static ssize_t ai5b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 4, len);
+}
+
+static ssize_t ai6b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 5, len);
+}
+
+static ssize_t ai7b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 6, len);
+}
+
+static ssize_t ai8b_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	return aixb_set(dev, buf, 7, len);
+}
+
+static ssize_t sleep_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+
+	return sprintf(buf, "%d\n", st->usec_sleep);
+}
+
+static ssize_t sleep_set(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf,
+		size_t len)
+{
+	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
+	unsigned int val;
+	int ret;
+
+	ret = kstrtouint(buf, 0, &val);
+	if (ret)
+		goto error_ret;
+
+	if (val < 90)
+		return -EINVAL;
+	st->usec_sleep = val;
+
+error_ret:
+	return ret ? ret : len;
+}
+
 static IIO_DEVICE_ATTR(oversampling_ratio_available, 0444,
 		       ad7606_oversampling_ratio_avail, NULL, 0);
+
+static IIO_DEVICE_ATTR(ai1b, (S_IWUSR | S_IRUGO),
+		ai1b_show, ai1b_set, 0);
+static IIO_DEVICE_ATTR(ai2b, (S_IWUSR | S_IRUGO),
+		ai2b_show, ai2b_set, 0);
+static IIO_DEVICE_ATTR(ai3b, (S_IWUSR | S_IRUGO),
+		ai3b_show, ai3b_set, 0);
+static IIO_DEVICE_ATTR(ai4b, (S_IWUSR | S_IRUGO),
+		ai4b_show, ai4b_set, 0);
+static IIO_DEVICE_ATTR(ai5b, (S_IWUSR | S_IRUGO),
+		ai5b_show, ai5b_set, 0);
+static IIO_DEVICE_ATTR(ai6b, (S_IWUSR | S_IRUGO),
+		ai6b_show, ai6b_set, 0);
+static IIO_DEVICE_ATTR(ai7b, (S_IWUSR | S_IRUGO),
+		ai7b_show, ai7b_set, 0);
+static IIO_DEVICE_ATTR(ai8b, (S_IWUSR | S_IRUGO),
+		ai8b_show, ai8b_set, 0);
+static IIO_DEVICE_ATTR(sleep, (S_IWUSR | S_IRUGO),
+		sleep_show, sleep_set, 0);
 
 static struct attribute *ad7606_attributes_os_and_range[] = {
 	&iio_dev_attr_in_voltage_scale_available.dev_attr.attr,
 	&iio_dev_attr_oversampling_ratio_available.dev_attr.attr,
+	&iio_dev_attr_ai1b.dev_attr.attr,
+	&iio_dev_attr_ai2b.dev_attr.attr,
+	&iio_dev_attr_ai3b.dev_attr.attr,
+	&iio_dev_attr_ai4b.dev_attr.attr,
+	&iio_dev_attr_ai5b.dev_attr.attr,
+	&iio_dev_attr_ai6b.dev_attr.attr,
+	&iio_dev_attr_ai7b.dev_attr.attr,
+	&iio_dev_attr_ai8b.dev_attr.attr,
+	&iio_dev_attr_sleep.dev_attr.attr,
 	NULL,
 };
 
@@ -462,7 +662,13 @@ static int ad7606_request_gpios(struct ad7606_state *st)
 	st->gpio_os = devm_gpiod_get_array_optional(dev,
 						    "adi,oversampling-ratio",
 						    GPIOD_OUT_LOW);
-	return PTR_ERR_OR_ZERO(st->gpio_os);
+	if (IS_ERR(st->gpio_os))
+		return PTR_ERR(st->gpio_os);
+
+	st->gpio_aixb = devm_gpiod_get_array_optional(dev,
+						    "adi,aixb-i",
+						    GPIOD_OUT_LOW);
+	return PTR_ERR_OR_ZERO(st->gpio_aixb);
 }
 
 /*
@@ -582,6 +788,9 @@ int ad7606_probe(struct device *dev, int irq, void __iomem *base_address,
 	/* tied to logic low, analog input range is +/- 5V */
 	st->range[0] = 0;
 	st->oversampling = 1;
+
+	st->usec_sleep = 930;
+
 	st->scale_avail = ad7606_scale_avail;
 	st->num_scales = ARRAY_SIZE(ad7606_scale_avail);
 
