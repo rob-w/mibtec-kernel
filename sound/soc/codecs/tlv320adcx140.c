@@ -117,7 +117,7 @@ static const struct reg_default adcx140_reg_defaults[] = {
 	{ ADCX140_DRE_CFG0, 0x7b },
 	{ ADCX140_AGC_CFG0, 0xe7 },
 	{ ADCX140_IN_CH_EN, 0xf0 },
-	{ ADCX140_ASI_OUT_CH_EN, 0x00 },
+	{ ADCX140_ASI_OUT_CH_EN, 0xf0 },
 	{ ADCX140_PWR_CFG, 0x00 },
 	{ ADCX140_DEV_STS0, 0x00 },
 	{ ADCX140_DEV_STS1, 0x80 },
@@ -1189,7 +1189,7 @@ static int adcx140_i2c_probe(struct i2c_client *i2c)
 	}
 
 	i2c_set_clientdata(i2c, adcx140);
-
+	dev_info(&i2c->dev, "probed\n");
 	return devm_snd_soc_register_component(&i2c->dev,
 					       &soc_codec_driver_adcx140,
 					       adcx140_dai_driver, 1);

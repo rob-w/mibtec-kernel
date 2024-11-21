@@ -704,7 +704,7 @@ static int simple_soc_probe(struct snd_soc_card *card)
 	ret = asoc_simple_init_aux_jacks(priv, PREFIX);
 	if (ret < 0)
 		return ret;
-
+	dev_info(simple_priv_to_dev(priv), "probed\n");
 	return 0;
 }
 
