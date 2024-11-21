@@ -713,7 +713,7 @@ static int rpmsg_recv_single(struct virtproc_info *vrp, struct device *dev,
 	struct rpmsg_hdr fake_msg;
 	struct scatterlist sg;
 	bool little_endian = virtio_is_little_endian(vrp->vdev);
-	unsigned int msg_len = __rpmsg16_to_cpu(little_endian, msg->len);
+	unsigned int msg_len;
 	int err;
 
 	if (!len) {
@@ -721,9 +721,11 @@ static int rpmsg_recv_single(struct virtproc_info *vrp, struct device *dev,
 		fake_msg.src = 0x1f;
 		fake_msg.flags = 0;
 		fake_msg.reserved = 0;
-		fake_msg.len = 0;
+		fake_msg.len = 16;
 		msg = &fake_msg;
 	}
+
+	msg_len = __rpmsg16_to_cpu(little_endian, msg->len);
 
 	dev_dbg(dev, "From: 0x%x, To: 0x%x, Len: %d, Flags: %d, Reserved: %d\n",
 		__rpmsg32_to_cpu(little_endian, msg->src),
