@@ -60,13 +60,14 @@ struct tmp102 {
 /* convert left adjusted 13-bit TMP102 register value to milliCelsius */
 static inline int tmp102_reg_to_mC(s16 val)
 {
-	return ((val & ~0x01) * 1000) / 128;
+	int32_t tmp = ((val & ~0x01) * 625) / 100;
+	return (tmp);
 }
 
 /* convert milliCelsius to left adjusted 13-bit TMP102 register value */
 static inline u16 tmp102_mC_to_reg(int val)
 {
-	return (val * 128) / 1000;
+	return (val * 100) / 625;
 }
 
 static int tmp102_read(struct device *dev, enum hwmon_sensor_types type,
