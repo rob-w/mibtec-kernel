@@ -35,18 +35,46 @@
 			bitclock-master = <&cpu>;
 			frame-master = <&cpu>;
 			bitclock-inversion;
-			sound0_master: cpu {
+			sound0_0_slave: cpu {
 				sound-dai = <&mcasp1>;
 				system-clock-frequency = <24576000>;
 				system-clock-direction-out;
-				dai-tdm-slot-num = <4>;
+				dai-tdm-slot-num = <8>;
 				dai-tdm-slot-width = <32>;
-				dai-tdm-slot-tx-mask = <0 0 0 0>;
-				dai-tdm-slot-rx-mask = <1 1 1 1>;
+				dai-tdm-slot-tx-mask = <0 0 0 0 0 0 0 0>;
+				dai-tdm-slot-rx-mask = <1 1 1 1 1 1 1 1>;
 			};
 
-			codec: codec {
+			codec_0: codec_0 {
 				sound-dai = <&tlv320adc5140_4c>; /** as 6140 **/
+				dai-tdm-slot-num = <8>;
+				dai-tdm-slot-width = <32>;
+				dai-tdm-slot-tx-mask = <0 0 0 0 0 0 0 0>;  /* Use first four channels in TDM bus */
+				dai-tdm-slot-rx-mask = <1 1 1 1 0 0 0 0>;
+			};
+		};
+
+		simple-audio-card,dai-link@1 {
+			format = "dsp_b";
+			bitclock-master = <&cpu>;
+			frame-master = <&cpu>;
+			bitclock-inversion;
+			sound0_1_slave: cpu {
+				sound-dai = <&mcasp1>;
+				system-clock-frequency = <24576000>;
+				system-clock-direction-out;
+				dai-tdm-slot-num = <8>;
+				dai-tdm-slot-width = <32>;
+				dai-tdm-slot-tx-mask = <0 0 0 0 0 0 0 0>;
+				dai-tdm-slot-rx-mask = <1 1 1 1 1 1 1 1>;
+			};
+
+			codec_1: codec_1 {
+				sound-dai = <&tlv320adc5140_4d>; /** as 6140 **/
+				dai-tdm-slot-num = <8>;
+				dai-tdm-slot-width = <32>;
+				dai-tdm-slot-tx-mask = <0 0 0 0 0 0 0 0>;   /* Use last four channels of TDM bus */
+				dai-tdm-slot-rx-mask = <0 0 0 0 1 1 1 1>;
 			};
 		};
 	};
@@ -476,8 +504,8 @@
 		#sound-dai-cells = <0>;
 		compatible = "ti,tlv320adc5140";
 		reg = <0x4d>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&tlv320adc_pins>;
+/*		pinctrl-names = "default";
+		pinctrl-0 = <&tlv320adc_pins>;*/
 		ti,mic-bias-source = <1>; 				/* VREF x 1.096 */
 		ti,vref-source = <0>;  					/* 2.75V */
 		ti,pdm-edge-select = <0 1 0 1>;
