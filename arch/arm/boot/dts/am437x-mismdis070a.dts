@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.9.4";
+	model = "MIS MDIS070A v0.10.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -587,6 +587,18 @@
 	pressure_2: press@38 {
 		compatible = "fujikara,ap4a";
 		reg = <0x38>;
+		prefetchpause = <200>;
+	};
+
+	pressure_3: press@da {
+		compatible = "weifengheng,wf100dp";
+		reg = <0xda>;
+		prefetchpause = <200>;
+	};
+
+	pressure_4: press@db {
+		compatible = "weifengheng,wf100dp";
+		reg = <0xdb>;
 		prefetchpause = <200>;
 	};
 

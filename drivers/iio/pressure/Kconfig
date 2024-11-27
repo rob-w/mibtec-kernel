@@ -139,4 +139,13 @@ config AP4A
 
 	  To compile this driver as a module, choose M here: the module will
 	  be called ap4a.
+
+config WF100DP
+	tristate "Weifengheng W100DP Pressure Sensors"
+	depends on I2C
+	help
+	  Say Y here to build support for the Weifenghen W100DP Pressure Sensor.
+
+	  To compile this driver as a module, choose M here: the module will
+	  be called w100dp.
 endmenu
