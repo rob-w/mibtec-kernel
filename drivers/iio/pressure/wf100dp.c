@@ -59,30 +59,39 @@ static int wf100dp_read_channel(struct wf100dp *adc,
 				struct iio_chan_spec const *channel, int *value)
 {
 	signed int ret;
-	u8 outbuf[] = {0};
+	u8 outbuf[2];
 	u8 in_buf[4];
 
-	ret = i2c_master_send(adc->i2c, outbuf, 1);
-
+	/// request single conversion
+	outbuf[0] = 0x30;
+	outbuf[1] = 0x0A;
+	ret = i2c_master_send(adc->i2c, outbuf, 2);
 	if (ret < 0)
 		return -EBUSY;
 	else if (ret != 1)
 		return -EIO;
 
-	ret = i2c_master_recv(adc->i2c, in_buf, 4);
+	if (channel->type == IIO_TEMP)
+		outbuf[0] = 0x09;
+	else
+		outbuf[0] = 0x06;
+	ret = i2c_master_send(adc->i2c, outbuf, 1);
+	if (ret < 0)
+		return -EBUSY;
+	else if (ret != 1)
+		return -EIO;
 
+	ret = i2c_master_recv(adc->i2c, in_buf, 3);
 	if (ret < 0)
 		return -EBUSY;
 	else if (ret != 4)
 		return -EIO;
 
 	if (channel->type == IIO_TEMP) {
-		*value = (in_buf[2] << 8 | in_buf[3]);
+		*value = (in_buf[0] << 8 | in_buf[1]);
 		*value >>= channel->scan_type.shift;
 	} else {
-		*value = (in_buf[0] << 8 | in_buf[1]);
-		/// MASK away status bits
-		*value &= 0x3fff;
+		*value = (in_buf[0] << 16 | in_buf[1] << 8 | in_buf[2]);
 	}
 
 	return (0);
