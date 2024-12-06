@@ -368,8 +368,8 @@ static int wf100dp_remove(struct i2c_client *client)
 }
 
 static const struct i2c_device_id wf100dp_id[] = {
-	{ "wf100dp_0", 0 },
-	{ "wf100dp_1", 1 },
+	{ "wf100dp", 0 },
+	{ "wf100dc", 1 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, wf100dp_id);
