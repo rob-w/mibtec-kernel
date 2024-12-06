@@ -143,6 +143,13 @@
 			linux,default-trigger = "off";
 		};
 
+		/* 0x1f0 P600_50  AD21 cam1_data2.gpio4_16 pressure_seleect */
+		press_sel {
+			label = "pressure_select";
+			gpios = <&gpio4 16 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "default-off";
+		};
+
 		/* 0x16C P600_58 J25 uart0_rtsn.gpio1_9 ETH1_OFF */
 		eth1_off {
 			label = "mispanel_eth1_off";
@@ -225,7 +232,6 @@
 			0x1a0 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_180 L23  mcasp0_aclkr.gpio3_18 EE_WP_BASEBOARD */
 			0x1a4 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_176 K23  mcasp0_fsr.gpio3_19 FOOT_SWITCH-1 */
 			0x1ac (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_162 L24  mcasp0_ahclkx.gpio3_21 ETH1_INT_N*/
-			0x1f0 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_50  AD21 cam1_data2.gpio4_16 NC*/
 			0x1f4 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_48  AE22 cam1_data3.gpio4_17 FOOT_GND_SWITCH */
 			0x200 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_49  AD23 cam1_data6.gpio4_20 RTC-MFP */
 			0x204 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_47  AE24 cam1_data7.gpio4_21 */
@@ -590,15 +596,9 @@
 		prefetchpause = <200>;
 	};
 
-	pressure_3: press@da {
+	pressure_3: press@6d {
 		compatible = "weifengheng,wf100dp";
-		reg = <0xda>;
-		prefetchpause = <200>;
-	};
-
-	pressure_4: press@db {
-		compatible = "weifengheng,wf100dp";
-		reg = <0xdb>;
+		reg = <0x6d>;
 		prefetchpause = <200>;
 	};
 
