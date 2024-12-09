@@ -25,8 +25,9 @@
 #include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
 
-#define DRIVER_VERSION "v0.1"
-#define MAX_RAW		15565
+#define DRIVER_VERSION "v0.2"
+#define TEMP_ZERO	32768
+#define PRESS_ZERO	8388608
 
 #define WF100DP_CHAN(index, _type, _info)		\
 	{										\
@@ -68,7 +69,7 @@ static int wf100dp_read_channel(struct wf100dp *adc,
 	ret = i2c_master_send(adc->i2c, outbuf, 2);
 	if (ret < 0)
 		return -EBUSY;
-	else if (ret != 1)
+	else if (ret != 2)
 		return -EIO;
 
 	if (channel->type == IIO_TEMP)
@@ -84,15 +85,13 @@ static int wf100dp_read_channel(struct wf100dp *adc,
 	ret = i2c_master_recv(adc->i2c, in_buf, 3);
 	if (ret < 0)
 		return -EBUSY;
-	else if (ret != 4)
+	else if (ret != 3)
 		return -EIO;
 
-	if (channel->type == IIO_TEMP) {
+	if (channel->type == IIO_TEMP)
 		*value = (in_buf[0] << 8 | in_buf[1]);
-		*value >>= channel->scan_type.shift;
-	} else {
+	else
 		*value = (in_buf[0] << 16 | in_buf[1] << 8 | in_buf[2]);
-	}
 
 	return (0);
 }
@@ -103,8 +102,7 @@ static int wf100dp_read_raw(struct iio_dev *iio,
 {
 	struct wf100dp *adc = iio_priv(iio);
 	int err;
-	unsigned long long tmp;
-	int range = 0;
+	s64 tmp;
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
@@ -128,27 +126,24 @@ static int wf100dp_read_raw(struct iio_dev *iio,
 			return (err);
 
 		if (channel->type == IIO_TEMP) {
-			*val1 = ((*val1 - 512) * 9765);
-			*val1 = div_s64((s64) *val1, 10000);
+			if (*val1 >= TEMP_ZERO)
+				*val1 -= 65844;
+			else
+				*val1 -= 308;
+			*val1 = div_s64((s64) *val1 * 10, 256);
 		}
 
 		if (channel->type == IIO_PRESSURE) {
-			if (adc->offset[channel->channel] > 0) {
+			if (adc->offset[channel->channel] > 0)
 				*val1 -= adc->offset[channel->channel];
-				range = MAX_RAW - adc->offset[channel->channel];
-			}
-
-			if (adc->scale[channel->channel]) {
-				if (range > 0) {
-					tmp = div_s64((s64) adc->scale[channel->channel]* 1000, range);
-					*val1 = div_s64(((s64)*val1 * tmp), 1000);
-				} else
-					*val1 = 0;
-			}
+			if (*val1 >= PRESS_ZERO)
+				*val1 -= 16777216;
+			*val1 = *val1 * 600;
+			tmp = div_s64((s64) *val1, 8388608);
+			*val1 = tmp + 440;
+//			if (adc->scale[channel->channel]) {
+//			}
 		}
-
-		if (*val1 < 0)
-			*val1 = 0;
 
 		return IIO_VAL_INT;
 
@@ -335,6 +330,7 @@ static int wf100dp_probe(struct i2c_client *client,
 	adc->i2c = client;
 	adc->id = (u8)(id->driver_data);
 	adc->prefetch = 0;
+	adc->scale[0] = 10000;
 
 	if (client->dev.of_node) {
 		err = wf100dp_of_probe(client, adc);
