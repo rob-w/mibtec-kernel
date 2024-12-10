@@ -1,6 +1,5 @@
 /*
- * ap4a.c - driver for the Fujikara AP4/AG4 pressure sensors
- *
+ * ap4a.c - driver for the Wengfengheng WF100DP pressure sensor
  * Copyright (C) 2017, Robert Woerle
  * Author: Robert Wörle <robert@linuxdevelopment.de>
  *
@@ -24,6 +23,7 @@
 #include <linux/workqueue.h>
 #include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
+#include <linux/gpio/consumer.h>
 
 #define DRIVER_VERSION "v0.2"
 #define TEMP_ZERO	32768
@@ -49,11 +49,12 @@ struct wf100dp {
 	u8 speedmode;
 	u16 channels;
 	u32 prefetch;
-	u32 offset[2];
-	u32 scale[2];
-	u32 fetched[2];
+	u32 offset[4];
+	u32 scale[4];
+	u32 fetched[4];
 	struct work_struct fetch_work;
 	struct mutex lock;
+	struct gpio_desc *pressure_select;
 };
 
 static int wf100dp_read_channel(struct wf100dp *adc,
@@ -62,6 +63,11 @@ static int wf100dp_read_channel(struct wf100dp *adc,
 	signed int ret;
 	u8 outbuf[2];
 	u8 in_buf[4];
+
+	if (channel->channel == 2 || channel->channel == 3)
+		gpiod_set_value(adc->pressure_select, 1);
+	else
+		gpiod_set_value(adc->pressure_select, 0);
 
 	/// request single conversion
 	outbuf[0] = 0x30;
@@ -198,7 +204,7 @@ static void fetch_thread(struct work_struct *work_arg)
 
 	while (adc->prefetch) {
 		chan = indio_dev->channels;
-		for (i = 0; i < 2; i++) {
+		for (i = 0; i < 4; i++) {
 			err = wf100dp_read_channel(adc, chan, &val1);
 			if (!err) {
 				adc->fetched[i] = val1;
@@ -271,6 +277,16 @@ static const struct iio_chan_spec wf100dp_channels[] = {
 			IIO_TEMP,
 			BIT(IIO_CHAN_INFO_RAW)|\
 			BIT(IIO_CHAN_INFO_PROCESSED)),
+	WF100DP_CHAN(2,
+			IIO_PRESSURE,
+			BIT(IIO_CHAN_INFO_RAW)|\
+			BIT(IIO_CHAN_INFO_OFFSET)|\
+			BIT(IIO_CHAN_INFO_SCALE)|\
+			BIT(IIO_CHAN_INFO_PROCESSED)),
+	WF100DP_CHAN(3,
+			IIO_TEMP,
+			BIT(IIO_CHAN_INFO_RAW)|\
+			BIT(IIO_CHAN_INFO_PROCESSED)),
 };
 
 static const struct iio_info wf100dp_info = {
@@ -331,12 +347,16 @@ static int wf100dp_probe(struct i2c_client *client,
 	adc->id = (u8)(id->driver_data);
 	adc->prefetch = 0;
 	adc->scale[0] = 10000;
+	adc->scale[1] = 10000;
 
 	if (client->dev.of_node) {
 		err = wf100dp_of_probe(client, adc);
 		if (err)
 			dev_err(&client->dev, "invalid devicetree data");
 	}
+
+	if (IS_ERR(adc->pressure_select = devm_gpiod_get(&client->dev, "wf100dp,pressure-select", GPIOD_OUT_LOW)))
+		return PTR_ERR(adc->pressure_select);
 
 	mutex_init(&adc->lock);
 
