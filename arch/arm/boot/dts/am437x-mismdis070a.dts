@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.10.0";
+	model = "MIS MDIS070A v0.11.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -141,13 +141,6 @@
 			label = "mispanel_lcd_standby";
 			gpios = <&gpio5 6 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "off";
-		};
-
-		/* 0x1f0 P600_50  AD21 cam1_data2.gpio4_16 pressure_seleect */
-		press_sel {
-			label = "pressure_select";
-			gpios = <&gpio4 16 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "default-off";
 		};
 
 		/* 0x16C P600_58 J25 uart0_rtsn.gpio1_9 ETH1_OFF */
@@ -600,6 +593,7 @@
 		compatible = "weifengheng,wf100dp";
 		reg = <0x6d>;
 		prefetchpause = <200>;
+		wf100dp,pressure-select-gpios = <&gpio4 16 GPIO_ACTIVE_HIGH>; /* 0x1f0 P600_50  AD21 cam1_data2.gpio4_16 pressure_select */
 	};
 
 	tlc59116@60 {
