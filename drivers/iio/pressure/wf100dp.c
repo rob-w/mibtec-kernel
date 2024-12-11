@@ -25,7 +25,7 @@
 #include <linux/iio/sysfs.h>
 #include <linux/gpio/consumer.h>
 
-#define DRIVER_VERSION "v0.2"
+#define DRIVER_VERSION "v0.3"
 #define TEMP_ZERO	32768
 #define PRESS_ZERO	8388608
 
@@ -64,11 +64,12 @@ static int wf100dp_read_channel(struct wf100dp *adc,
 	u8 outbuf[2];
 	u8 in_buf[4];
 
-	if (channel->channel == 2 || channel->channel == 3)
+	if (channel->channel > 1)
 		gpiod_set_value(adc->pressure_select, 1);
 	else
 		gpiod_set_value(adc->pressure_select, 0);
 
+	msleep(1);
 	/// request single conversion
 	outbuf[0] = 0x30;
 	outbuf[1] = 0x0A;
@@ -144,11 +145,10 @@ static int wf100dp_read_raw(struct iio_dev *iio,
 				*val1 -= adc->offset[channel->channel];
 			if (*val1 >= PRESS_ZERO)
 				*val1 -= 16777216;
-			*val1 = *val1 * 600;
-			tmp = div_s64((s64) *val1, 8388608);
-			*val1 = tmp + 440;
-//			if (adc->scale[channel->channel]) {
-//			}
+			tmp = div_s64((s64) *val1 * 600, 8388608);
+			*val1 = (tmp + 440) * adc->scale[channel->channel];
+			if (*val1 < 0)
+				*val1 = 0;
 		}
 
 		return IIO_VAL_INT;
@@ -346,8 +346,10 @@ static int wf100dp_probe(struct i2c_client *client,
 	adc->i2c = client;
 	adc->id = (u8)(id->driver_data);
 	adc->prefetch = 0;
-	adc->scale[0] = 10000;
-	adc->scale[1] = 10000;
+	adc->scale[0] = 10;
+	adc->scale[1] = 1;
+	adc->scale[2] = 10;
+	adc->scale[3] = 1;
 
 	if (client->dev.of_node) {
 		err = wf100dp_of_probe(client, adc);
