@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.9.4";
+	model = "MIS MDIS070A v0.9.5";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -574,6 +574,13 @@
 		prefetchpause = <200>;
 	};
 
+	pressure_3: press@6d {
+		compatible = "weifengheng,wf100dp";
+		reg = <0x6d>;
+		prefetchpause = <200>;
+		wf100dp,pressure-select-gpios = <&gpio4 16 GPIO_ACTIVE_HIGH>; /* 0x1f0 P600_50  AD21 cam1_data2.gpio4_16 pressure_select */
+	};
+
 	tlc59116@60 {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -672,6 +679,7 @@
 	pinctrl-0 = <&mmc1_pins>;
 	pinctrl-1 = <&mmc1_sleep_pins>;
 	cd-gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+	cd-debounce-delay-ms = <2>;
 };
 
 &uart0 {
