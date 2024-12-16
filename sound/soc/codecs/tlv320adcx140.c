@@ -113,7 +113,7 @@ static const struct reg_default adcx140_reg_defaults[] = {
 	{ ADCX140_CH8_CFG3, 0x80 },
 	{ ADCX140_CH8_CFG4, 0x00 },
 	{ ADCX140_DSP_CFG0, 0x01 },
-	{ ADCX140_DSP_CFG1, 0x40 },
+	{ ADCX140_DSP_CFG1, 0x00 },/// disable biquads
 	{ ADCX140_DRE_CFG0, 0x7b },
 	{ ADCX140_AGC_CFG0, 0xe7 },
 	{ ADCX140_IN_CH_EN, 0xf0 },
