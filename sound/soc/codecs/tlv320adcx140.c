@@ -969,7 +969,7 @@ static const struct snd_kcontrol_new adcx140_snd_controls_1[] = {
 static int adcx140_reset(struct adcx140_priv *adcx140)
 {
 	int ret = 0;
-	dev_info(adcx140->dev, "%s\n", __func__);
+
 	if (adcx140->gpio_reset) {
 		gpiod_direction_output(adcx140->gpio_reset, 0);
 		/* 8.4.1: wait for hw shutdown (25ms) + >= 1ms */
@@ -991,7 +991,7 @@ static void adcx140_pwr_ctrl(struct adcx140_priv *adcx140, bool power_state)
 	int pwr_ctrl = 0;
 	int ret = 0;
 	struct snd_soc_component *component = adcx140->component;
-	dev_info(adcx140->dev, "%s\n", __func__);
+
 	if (power_state)
 		pwr_ctrl = ADCX140_PWR_CFG_ADC_PDZ | ADCX140_PWR_CFG_PLL_PDZ;
 
@@ -1017,7 +1017,7 @@ static int adcx140_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_component *component = dai->component;
 	struct adcx140_priv *adcx140 = snd_soc_component_get_drvdata(component);
 	u8 data = 0;
-	dev_info(adcx140->dev, "%s\n", __func__);
+
 	switch (params_width(params)) {
 	case 16:
 		data = ADCX140_16_BIT_WORD;
@@ -1056,7 +1056,7 @@ static int adcx140_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	u8 iface_reg2 = 0;
 	int offset = 0;
 	bool inverted_bclk = false;
-	dev_info(adcx140->dev, "%s\n", __func__);
+
 	/* set master/slave audio interface */
 	switch (fmt & SND_SOC_DAIFMT_CLOCK_PROVIDER_MASK) {
 	case SND_SOC_DAIFMT_CBP_CFP:
