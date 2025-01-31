@@ -971,13 +971,15 @@ static int adcx140_reset(struct adcx140_priv *adcx140)
 	int ret = 0;
 
 	if (adcx140->gpio_reset) {
+		dev_info(adcx140->dev, "hw reset\n");
 		gpiod_direction_output(adcx140->gpio_reset, 0);
 		/* 8.4.1: wait for hw shutdown (25ms) + >= 1ms */
 		usleep_range(30000, 100000);
 		gpiod_direction_output(adcx140->gpio_reset, 1);
 	} else {
-		ret = regmap_write(adcx140->regmap, ADCX140_SW_RESET,
-				   ADCX140_RESET);
+		dev_info(adcx140->dev, "sw reset igored\n");
+//		ret = regmap_write(adcx140->regmap, ADCX140_SW_RESET,
+//				   ADCX140_RESET);
 	}
 
 	/* 8.4.2: wait >= 10 ms after entering sleep mode. */
@@ -1039,6 +1041,8 @@ static int adcx140_hw_params(struct snd_pcm_substream *substream,
 
 	adcx140_pwr_ctrl(adcx140, false);
 
+	regmap_write(adcx140->regmap, ADCX140_ASI_OUT_CH_EN, 0xf0);
+
 	snd_soc_component_update_bits(component, ADCX140_ASI_CFG0,
 			    ADCX140_WORD_LEN_MSK, data);
 
@@ -1061,8 +1065,10 @@ static int adcx140_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	switch (fmt & SND_SOC_DAIFMT_CLOCK_PROVIDER_MASK) {
 	case SND_SOC_DAIFMT_CBP_CFP:
 		iface_reg2 |= ADCX140_BCLK_FSYNC_MASTER;
+		dev_info(component->dev, "CBP_CFP\n");
 		break;
 	case SND_SOC_DAIFMT_CBC_CFC:
+		dev_info(component->dev, "CBC_CFC\n");
 		break;
 	default:
 		dev_err(component->dev, "Invalid DAI clock provider\n");
@@ -1120,7 +1126,9 @@ static int adcx140_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	snd_soc_component_update_bits(component, ADCX140_MST_CFG0,
 				      ADCX140_BCLK_FSYNC_MASTER, iface_reg2);
 
-	/* Configure data offset */
+	/* Configure data offset & TX LSB high-z*/
+	offset |= (1<<7);
+	printk("ASI_CFG1 %d\n", offset);
 	snd_soc_component_update_bits(component, ADCX140_ASI_CFG1,
 				      ADCX140_TX_OFFSET_MASK, offset);
 
@@ -1278,9 +1286,9 @@ static int adcx140_codec_probe(struct snd_soc_component *component)
 
 	bias_cfg = bias_source << ADCX140_MIC_BIAS_SHIFT | vref_source;
 
-	ret = adcx140_reset(adcx140);
-	if (ret)
-		goto out;
+//	ret = adcx140_reset(adcx140);
+//	if (ret)
+//		goto out;
 
 	if (adcx140->supply_areg == NULL)
 		sleep_cfg_val |= ADCX140_AREG_INTERNAL;
@@ -1503,6 +1511,8 @@ static int adcx140_i2c_probe(struct i2c_client *i2c)
 	}
 
 	i2c_set_clientdata(i2c, adcx140);
+
+	adcx140_reset(adcx140);
 
 	if (i2c->addr == 0x4c) {
 		dev_info(&i2c->dev, "probed 0x%x\n", i2c->addr);
