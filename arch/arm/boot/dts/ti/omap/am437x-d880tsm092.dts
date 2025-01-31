@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "D880TSM092 v0.3.2";
+	model = "D880TSM092 v0.3.3";
 	compatible = "ti,am4372","ti,am43";
 
 	sound0: sound0 {
@@ -38,7 +38,6 @@
 			sound0_master: cpu {
 				sound-dai = <&mcasp1>;
 				system-clock-frequency = <24576000>;
-				system-clock-direction-out;
 				dai-tdm-slot-num = <4>;
 				dai-tdm-slot-width = <32>;
 				dai-tdm-slot-tx-mask = <0 0 0 0>;
@@ -491,8 +490,8 @@
 	serial-dir = <  /* 0: INACTIVE, 1: TX, 2: RX */
 		0 0 2 0
 	>;
-	tx-num-evt = <1>;
-	rx-num-evt = <1>;
+	tx-num-evt = <32>;
+	rx-num-evt = <32>;
 };
 
 &mmc1 {
