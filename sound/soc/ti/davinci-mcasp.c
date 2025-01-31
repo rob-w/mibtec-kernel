@@ -461,6 +461,7 @@ static int davinci_mcasp_set_dai_fmt(struct snd_soc_dai *cpu_dai,
 		break;
 	case SND_SOC_DAIFMT_DSP_B:
 	case SND_SOC_DAIFMT_AC97:
+		dev_dbg(mcasp->dev, "FMT DSP_B\n");
 		mcasp_clr_bits(mcasp, DAVINCI_MCASP_TXFMCTL_REG, FSXDUR);
 		mcasp_clr_bits(mcasp, DAVINCI_MCASP_RXFMCTL_REG, FSRDUR);
 		/* No delay after FS */
@@ -675,6 +676,7 @@ static int davinci_mcasp_set_sysclk(struct snd_soc_dai *dai, int clk_id,
 	if (dir == SND_SOC_CLOCK_IN) {
 		switch (clk_id) {
 		case MCASP_CLK_HCLK_AHCLK:
+			dev_dbg(mcasp->dev,"set_sysclk HCLK_AHCLK\n");
 			mcasp_clr_bits(mcasp, DAVINCI_MCASP_AHCLKXCTL_REG,
 				       AHCLKXE);
 			mcasp_clr_bits(mcasp, DAVINCI_MCASP_AHCLKRCTL_REG,
