@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "D880TSM093 v0.3.5";
+	model = "D880TSM093 v0.3.8";
 	compatible = "ti,am4372","ti,am43";
 
 	sound0: sound0 {
@@ -38,7 +38,6 @@
 			cpu {
 				sound-dai = <&mcasp1>;
 				system-clock-frequency = <24576000>;
-				system-clock-direction-out;
 				dai-tdm-slot-num = <8>;
 				dai-tdm-slot-width = <32>;
 				dai-tdm-slot-tx-mask = <0 0 0 0 0 0 0 0>;
@@ -46,7 +45,7 @@
 			};
 
 			codec@0 {
-				sound-dai = <&tlv320adc5140_4c>; /** as 6140 **/
+				sound-dai = <&tlv320adc5140_4c>;
 			};
 		};
 
@@ -58,7 +57,6 @@
 			cpu {
 				sound-dai = <&mcasp1>;
 				system-clock-frequency = <24576000>;
-				system-clock-direction-out;
 				dai-tdm-slot-num = <8>;
 				dai-tdm-slot-width = <32>;
 				dai-tdm-slot-tx-mask = <0 0 0 0 0 0 0 0>;
@@ -66,7 +64,7 @@
 			};
 
 			codec@1 {
-				sound-dai = <&tlv320adc5140_4d>; /** as 6140 **/
+				sound-dai = <&tlv320adc5140_4d>;
 			};
 		};
 	};
@@ -293,8 +291,8 @@
 			0x0ac (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_80  C21 dss_data3.gpio2_9  DATA3 */
 			0x0b0 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_81  A20 dss_data4.gpio2_10 DATA4 */
 
-			0x0c4 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_86  B19 dss_data9.gpio2_15  DO4 */
-			0x0cc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_88  B18 dss_data11.gpio2_17 DO3 */
+			0x0c4 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_86  B19 dss_data9.gpio2_15  DO4 NC*/
+			0x0cc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_88  B18 dss_data11.gpio2_17 DO3 NC*/
 			0x0d4 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_90  D19 dss_data13.gpio0_9  DO2 */
 			0x0dc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_92  D17 dss_data15.gpio0_11 DO1 */
 		>;
@@ -489,6 +487,7 @@
 		ti,gpio-config = <0 0>;
 		ti,gpo-config-1 = <0 0>;
 		ti,gpo-config-2 = <0 0>;
+		ti,asi-tx-drive = <1>;
 		reset-gpios = <&gpio5 8 GPIO_ACTIVE_HIGH>;
 	};
 
@@ -496,6 +495,9 @@
 		#sound-dai-cells = <0>;
 		compatible = "ti,tlv320adc5140";
 		reg = <0x4d>;
+/*		pinctrl-names = "default";
+		pinctrl-0 = <&tlv320adc_pins>;
+		reset-gpios = <&gpio5 8 GPIO_ACTIVE_HIGH>;*/
 		ti,mic-bias-source = <1>; 				/* VREF x 1.096 */
 		ti,vref-source = <0>;  					/* 2.75V */
 		ti,pdm-edge-select = <0 1 0 1>;
@@ -503,6 +505,7 @@
 		ti,gpio-config = <0 0>;
 		ti,gpo-config-1 = <0 0>;
 		ti,gpo-config-2 = <0 0>;
+		ti,asi-tx-drive = <1>;
 	};
 
 	tmp102: tmp102@48 {
