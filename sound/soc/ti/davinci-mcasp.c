@@ -1008,6 +1008,8 @@ static int mcasp_i2s_hw_param(struct davinci_mcasp *mcasp, int stream,
 		active_serializers = DIV_ROUND_UP(channels, active_slots);
 		if (active_serializers == 1)
 			active_slots = channels;
+		dev_dbg(mcasp->dev, "point 1 stream:%d chan:%d active:%d mask %d total_slots:%d\n",
+			stream, channels, active_slots, mcasp->tdm_mask[stream], total_slots);
 		for (i = 0; i < total_slots; i++) {
 			if ((1 << i) & mcasp->tdm_mask[stream]) {
 				mask |= (1 << i);
