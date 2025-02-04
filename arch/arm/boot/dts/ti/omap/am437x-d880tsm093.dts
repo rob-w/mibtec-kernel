@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "D880TSM093 v0.3.8";
+	model = "D880TSM093 v0.3.9";
 	compatible = "ti,am4372","ti,am43";
 
 	sound0: sound0 {
@@ -526,8 +526,8 @@
 	/* 4 serializers */
 	/* 0: INACTIVE, 1: TX, 2: RX */
 	serial-dir = < 0 0 2 0 >;
-	tx-num-evt = <32>;
-	rx-num-evt = <32>;
+	tx-num-evt = <8>;
+	rx-num-evt = <8>;
 };
 
 &mmc1 {
