@@ -1128,7 +1128,6 @@ static int adcx140_set_dai_fmt(struct snd_soc_dai *codec_dai,
 
 	/* Configure data offset & TX LSB high-z*/
 	offset |= (1<<7);
-	printk("ASI_CFG1 %d\n", offset);
 	snd_soc_component_update_bits(component, ADCX140_ASI_CFG1,
 				      ADCX140_TX_OFFSET_MASK, offset);
 
