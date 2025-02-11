@@ -13,7 +13,7 @@
 #include "am335x-bone-common.dtsi"
 
 / {
-	baseboard = "D850BASIS053 v0.5";
+	baseboard = "D850BASIS053 v0.6";
 	compatible = "ti,am335x-bone-black", "ti,am335x-bone", "ti,am33xx";
 
 	DI_1_2 {
@@ -50,11 +50,11 @@
 			gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "heartbeat";
 		};
-		/// BONE_P8_06
+		/// BONE_P8_06 RED
 		basis_led_4 {
 			label = "basis_led_4";
 			gpios = <&gpio1 3 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "heartbeat";
+			linux,default-trigger = "none";
 		};
 
 		dig_out_1 {
