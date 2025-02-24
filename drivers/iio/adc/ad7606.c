@@ -50,8 +50,6 @@ static const unsigned int ad7616_oversampling_avail[8] = {
 
 static int ad7606_reset(struct ad7606_state *st)
 {
-	dev_dbg(st->dev, "%s()\n", __func__);
-
 	if (st->gpio_reset) {
 		gpiod_set_value_cansleep(st->gpio_reset, 1);
 		ndelay(100); /* t_reset >= 100ns */
@@ -66,7 +64,7 @@ static int ad7606_read_samples(struct ad7606_state *st)
 {
 	unsigned int num = st->chip_info->num_channels -1;
 	bool is_curr_n_volt = st->chip_info->is_curr_n_volt;
-	uint16_t *data = st->data;
+	int16_t *data = st->data;
 	int ret;
 
 	dev_dbg(st->dev, "%s()\n", __func__);
@@ -140,6 +138,7 @@ static int ad7606_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 		ret = -ETIMEDOUT;
 		goto error_ret;
 	}
+//	gpiod_set_value_cansleep(st->gpio_convst, 0);
 
 	ret = ad7606_read_samples(st);
 	if (ret == 0)
@@ -382,6 +381,7 @@ static ssize_t aixb_set(struct device *dev,
 		return -EINVAL;
 
 	st->aixb[id] = val;
+
 	gpiod_set_array_value_cansleep(ARRAY_SIZE(st->aixb),
 		st->gpio_aixb->desc, st->gpio_aixb->info, st->aixb);
 
