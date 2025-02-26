@@ -29,7 +29,7 @@
 
 #include "ad7606.h"
 
-#define AD7606_MODULE_VERSION "2.0.1"
+#define AD7606_MODULE_VERSION "2.0.2"
 
 /*
  * Scales are computed as 5000/32768 and 10000/32768 respectively,
@@ -580,7 +580,7 @@ static const struct attribute_group ad7606_attribute_group_os = {
 		.scan_type = {							\
 			.sign = 'i',						\
 			.realbits = 16,						\
-			.storagebits = 32,					\
+			.storagebits = 16,					\
 			.endianness = IIO_CPU,				\
 		},										\
 }
