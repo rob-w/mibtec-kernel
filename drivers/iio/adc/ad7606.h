@@ -66,7 +66,7 @@ struct ad7606_state {
 	const unsigned int		*oversampling_avail;
 	unsigned int			num_os_ratios;
 	unsigned int			usec_sleep;
-	long unsigned int		aixb[8];
+	long unsigned int		aixb;
 	short					offset[16];
 	int						calibscale[16];
 	int (*write_scale)(struct iio_dev *indio_dev, int ch, int val);

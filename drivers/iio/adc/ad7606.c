@@ -29,7 +29,7 @@
 
 #include "ad7606.h"
 
-#define AD7606_MODULE_VERSION "2.0.2"
+#define AD7606_MODULE_VERSION "2.0.3"
 
 /*
  * Scales are computed as 5000/32768 and 10000/32768 respectively,
@@ -171,18 +171,8 @@ static int ad7606_read_raw(struct iio_dev *indio_dev,
 		ret = ad7606_scan_direct(indio_dev, chan->address);
 		iio_device_release_direct_mode(indio_dev);
 
-		/// if we are set to CURRENT we zero a voltage read and vice versa
-//		if ((st->aixb[chan->address] && chan->type == IIO_CURRENT)
-//			|| (!st->aixb[chan->address] && chan->type == IIO_VOLTAGE) ) {
-//			*val = 0;
-//			return IIO_VAL_INT;
-//		}
-
 		pin_range = gpiod_get_value_cansleep(st->gpio_range);
 		ret -= st->offset[chan->scan_index];
-
-		if (!st->aixb[chan->address])
-			pin_range += 2;
 
 		if ((short) ret < 0)
 			is_neg = 1;
@@ -277,7 +267,6 @@ static int ad7606_write_raw(struct iio_dev *indio_dev,
 		values[2] = (i & 0x04) >> 2;
 
 		mutex_lock(&st->lock);
-//		gpiod_set_array_value_cansleep(ARRAY_SIZE(values), st->gpio_os->desc, values);
 		gpiod_set_array_value_cansleep(ARRAY_SIZE(values),
 			st->gpio_os->desc, st->gpio_os->info, values);
 
@@ -313,56 +302,56 @@ static ssize_t ai1b_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
-	return sprintf(buf, "%ld\n", st->aixb[0]);
+	return sprintf(buf, "%ld\n", (st->aixb & 1<<0));
 }
 
 static ssize_t ai2b_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
-	return sprintf(buf, "%ld\n", st->aixb[1]);
+	return sprintf(buf, "%ld\n", (st->aixb & 1<<1) >> 1);
 }
 
 static ssize_t ai3b_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
-	return sprintf(buf, "%ld\n", st->aixb[2]);
+	return sprintf(buf, "%ld\n", (st->aixb & 1<<2) >> 2);
 }
 
 static ssize_t ai4b_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
-	return sprintf(buf, "%ld\n", st->aixb[3]);
+	return sprintf(buf, "%ld\n", (st->aixb & 1<<3) >> 3);
 }
 
 static ssize_t ai5b_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
-	return sprintf(buf, "%ld\n", st->aixb[4]);
+	return sprintf(buf, "%ld\n", (st->aixb & 1<<4) >> 4);
 }
 
 static ssize_t ai6b_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
-	return sprintf(buf, "%ld\n", st->aixb[5]);
+	return sprintf(buf, "%ld\n", (st->aixb & 1<<5) >> 5);
 }
 
 static ssize_t ai7b_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
-	return sprintf(buf, "%ld\n", st->aixb[6]);
+	return sprintf(buf, "%ld\n", (st->aixb & 1<<6) >> 6);
 }
 
 static ssize_t ai8b_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
-	return sprintf(buf, "%ld\n", st->aixb[7]);
+	return sprintf(buf, "%ld\n", (st->aixb & 1<<7) >> 7);
 }
 
 static ssize_t aixb_set(struct device *dev,
@@ -371,19 +360,24 @@ static ssize_t aixb_set(struct device *dev,
 {
 	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
 	unsigned int val;
+	DECLARE_BITMAP(values, 8);
+
 	int ret;
 
 	ret = kstrtouint(buf, 0, &val);
 	if (ret)
 		goto error_ret;
 
-	if (val < 0)
+	/// bool cast
+	if (val < 0 || val > 1)
 		return -EINVAL;
+	if (val)
+		st->aixb |= (1<<id);
+	else
+		st->aixb &= ~(1<<id);
 
-	st->aixb[id] = val;
-
-	gpiod_set_array_value_cansleep(ARRAY_SIZE(st->aixb),
-		st->gpio_aixb->desc, st->gpio_aixb->info, st->aixb);
+	values[0] = st->aixb;
+	gpiod_set_array_value_cansleep(8, st->gpio_aixb->desc, st->gpio_aixb->info, values);
 
 error_ret:
 	return ret ? ret : len;
