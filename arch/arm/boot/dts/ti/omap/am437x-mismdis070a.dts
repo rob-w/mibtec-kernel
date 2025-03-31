@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.9.5";
+	model = "MIS MDIS070A v0.12.0";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -677,7 +677,7 @@
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&mmc1_pins>;
 	pinctrl-1 = <&mmc1_sleep_pins>;
-	cd-gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+	cd-gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
 	cd-debounce-delay-ms = <2>;
 };
 
