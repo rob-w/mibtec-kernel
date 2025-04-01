@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS MDIS070A v0.12.0";
+	model = "MIS MDIS070A v0.12.1";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -37,25 +37,32 @@
 		pwms = <&ecap0 0 50000 PWM_POLARITY_INVERTED>;
 
 		/* 0x250 P600_172 P25 164 spi4_sclk.gpio5_4 BACKLIGHT_ON */
-		enable-gpios = <&gpio5 4 GPIO_ACTIVE_LOW>;
+		enable-gpios = <&gpio5 4 GPIO_ACTIVE_HIGH>;
 
-		brightness-levels = < 0  1  2  3  4  5  6  7  8  9
-				     10 11 12 13 14 15 16 17 18 19
-				     20 21 22 23 24 25 26 27 28 29
-				     30 31 32 33 34 35 36 37 38 39
-				     40 41 42 43 44 45 46 47 48 49
-				     50 51 52 53 54 55 56 57 58 59
-				     60 61 62 63 64 65 66 67 68 69
-				     70 71 72 73 74 75 76 77 78 79
-				     80 81 82 83 84 85 86 87 88 89
-				     90 91 92 93 94 95 96 97 98 99
-				    100>;
-		default-brightness-level = <0>;
+		/* PWM starts at 75 and we make 16 levels */
+		brightness-levels = <0 75 87 99 111 123 135 147 159 171 183 195 207 219 231 243 255>;
+		default-brightness-level = <16>;
 	};
 
 	lcd0: display {
-		compatible = "edt,ep0700M09";
+		compatible = "panel-dpi";
 		label = "lcd";
+		panel-timing {
+			clock-frequency = <51200000>;
+			hactive = <1024>;
+			vactive = <600>;
+			hfront-porch = <3>;
+			hback-porch = <2>;
+			hsync-len = <128>;
+			vback-porch = <2>;
+			vfront-porch = <2>;
+			vsync-len = <2>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			de-active = <1>;
+			pixelclk-active = <1>;
+		};
+
 		port {
 			lcd_in: endpoint {
 				remote-endpoint = <&dpi_out>;
@@ -123,8 +130,8 @@
 		/* 0x258 P600_164 P24  spi4_d1.gpio5_6 LCD_STANDBY */
 		lcd_sleep {
 			label = "mispanel_lcd_standby";
-			gpios = <&gpio5 6 GPIO_ACTIVE_LOW>;
-			linux,default-trigger = "off";
+			gpios = <&gpio5 6 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "default-on";
 		};
 
 		/* 0x16C P600_58 J25 uart0_rtsn.gpio1_9 ETH1_OFF */
@@ -749,7 +756,6 @@
 	pinctrl-0 = <&cpsw_default>;
 	pinctrl-1 = <&cpsw_sleep>;
 	status = "okay";
-	dual_emac = <1>;
 };
 
 &davinci_mdio_sw {
@@ -757,12 +763,26 @@
 	pinctrl-0 = <&davinci_mdio_default>;
 	pinctrl-1 = <&davinci_mdio_sleep>;
 	status = "okay";
+	ethphy0: ethernet-phy@0 {
+		reg = <0>;
+	};
+
+	ethphy1: ethernet-phy@2 {
+		reg = <2>;
+	};
+
 };
 
 &cpsw_port1 {
-	phy_id = <&davinci_mdio_sw>, <0>;
-	phy-mode = "rgmii";
-	dual_emac_res_vlan = <1>;
+	phy-handle = <&ethphy0>;
+	phy-mode = "rgmii-rxid";
+	ti,dual-emac-pvid = <1>;
+};
+
+&cpsw_port2 {
+	phy-handle = <&ethphy1>;
+	phy-mode = "rgmii-rxid";
+	ti,dual-emac-pvid = <2>;
 };
 
 &elm {
