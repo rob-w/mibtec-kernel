@@ -20,6 +20,7 @@
 #include <linux/sysfs.h>
 #include <linux/util_macros.h>
 
+#include <linux/hrtimer.h>
 #include <linux/iio/iio.h>
 #include <linux/iio/buffer.h>
 #include <linux/iio/sysfs.h>
@@ -29,7 +30,7 @@
 
 #include "ad7606.h"
 
-#define AD7606_MODULE_VERSION "2.0.3"
+#define AD7606_MODULE_VERSION "2.1.0"
 
 /*
  * Scales are computed as 5000/32768 and 10000/32768 respectively,
@@ -116,13 +117,23 @@ static irqreturn_t ad7606_trigger_handler(int irq, void *p)
 						   iio_get_time_ns(indio_dev));
 
 	iio_trigger_notify_done(indio_dev->trig);
-	usleep_range(st->usec_sleep, st->usec_sleep+1);
-	/* The rising edge of the CONVST signal starts a new conversion. */
-	gpiod_set_value_cansleep(st->gpio_convst, 1);
-
 	mutex_unlock(&st->lock);
 
 	return IRQ_HANDLED;
+}
+
+static enum hrtimer_restart ad7606_hrtimer_callback(struct hrtimer *timer)
+{
+	struct ad7606_state *st = container_of(timer, struct ad7606_state, hr_timer);
+
+	dev_dbg(st->dev, "%s() timer conv start\n", __func__);
+    // Restart the timer (optional)
+    hrtimer_forward_now(timer, ns_to_ktime(st->ns_sleep));
+
+	/* The rising edge of the CONVST signal starts a new conversion. */
+	gpiod_set_value_cansleep(st->gpio_convst, 1);
+
+    return HRTIMER_RESTART; // Or use HRTIMER_NORESTART if it should not repeat
 }
 
 static int ad7606_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
@@ -138,7 +149,6 @@ static int ad7606_scan_direct(struct iio_dev *indio_dev, unsigned int ch)
 		ret = -ETIMEDOUT;
 		goto error_ret;
 	}
-//	gpiod_set_value_cansleep(st->gpio_convst, 0);
 
 	ret = ad7606_read_samples(st);
 	if (ret == 0)
@@ -480,15 +490,15 @@ error_ret:
 }
 
 
-static ssize_t sleep_show(struct device *dev,
+static ssize_t ns_period_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ad7606_state *st = iio_priv(dev_to_iio_dev(dev));
 
-	return sprintf(buf, "%d\n", st->usec_sleep);
+	return sprintf(buf, "%d\n", st->ns_sleep);
 }
 
-static ssize_t sleep_set(struct device *dev,
+static ssize_t ns_period_set(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf,
 		size_t len)
@@ -501,9 +511,9 @@ static ssize_t sleep_set(struct device *dev,
 	if (ret)
 		goto error_ret;
 
-	if (val < 90)
+	if (val < 976560) /// allow for 1024khz bottom low
 		return -EINVAL;
-	st->usec_sleep = val;
+	st->ns_sleep = val;
 
 error_ret:
 	return ret ? ret : len;
@@ -528,8 +538,8 @@ static IIO_DEVICE_ATTR(ai8b, (S_IWUSR | S_IRUGO),
 		ai8b_show, ai8b_set, 0);
 static IIO_DEVICE_ATTR(range, (S_IWUSR | S_IRUGO),
 		range_show, range_set, 0);
-static IIO_DEVICE_ATTR(sleep, (S_IWUSR | S_IRUGO),
-		sleep_show, sleep_set, 0);
+static IIO_DEVICE_ATTR(ns_period, (S_IWUSR | S_IRUGO),
+		ns_period_show, ns_period_set, 0);
 
 static struct attribute *ad7606_attributes_os_and_range[] = {
 	&iio_dev_attr_oversampling_ratio_available.dev_attr.attr,
@@ -542,7 +552,7 @@ static struct attribute *ad7606_attributes_os_and_range[] = {
 	&iio_dev_attr_ai7b.dev_attr.attr,
 	&iio_dev_attr_ai8b.dev_attr.attr,
 	&iio_dev_attr_range.dev_attr.attr,
-	&iio_dev_attr_sleep.dev_attr.attr,
+	&iio_dev_attr_ns_period.dev_attr.attr,
 	NULL,
 };
 
@@ -722,13 +732,20 @@ static irqreturn_t ad7606_interrupt(int irq, void *dev_id)
 	struct iio_dev *indio_dev = dev_id;
 	struct ad7606_state *st = iio_priv(indio_dev);
 
+	dev_dbg(st->dev, "%s(%d)\n", __func__, iio_buffer_enabled(indio_dev));
+
 	if (iio_buffer_enabled(indio_dev)) {
-		gpiod_set_value_cansleep(st->gpio_convst, 0);
-		iio_trigger_poll_nested(st->trig);
+		if (ad7606_read_samples(st) == 0)
+			iio_push_to_buffers_with_timestamp(indio_dev, st->data,
+						   iio_get_time_ns(indio_dev));
+
+//		gpiod_set_value_cansleep(st->gpio_convst, 0);
+//		iio_trigger_poll_nested(st->trig);
 	} else {
 		complete(&st->completion);
 	}
 
+	gpiod_set_value_cansleep(st->gpio_convst, 0);
 	return IRQ_HANDLED;
 };
 
@@ -748,9 +765,9 @@ static int ad7606_buffer_postenable(struct iio_dev *indio_dev)
 {
 	struct ad7606_state *st = iio_priv(indio_dev);
 
-	dev_dbg(st->dev, "%s()\n", __func__);
-	gpiod_set_value_cansleep(st->gpio_convst, 1);
-
+	dev_dbg(st->dev, "%s() timer starts\n", __func__);
+    // Start the timer
+    hrtimer_start(&st->hr_timer, ns_to_ktime(st->ns_sleep), HRTIMER_MODE_REL_HARD);
 	return 0;
 }
 
@@ -758,7 +775,8 @@ static int ad7606_buffer_predisable(struct iio_dev *indio_dev)
 {
 	struct ad7606_state *st = iio_priv(indio_dev);
 
-	dev_dbg(st->dev, "%s()\n", __func__);
+	dev_dbg(st->dev, "%s() timer stops\n", __func__);
+	hrtimer_cancel(&st->hr_timer);
 	gpiod_set_value_cansleep(st->gpio_convst, 0);
 
 	return 0;
@@ -830,7 +848,7 @@ int ad7606_probe(struct device *dev, int irq, void __iomem *base_address,
 	/* tied to logic low, analog input range is +/- 5V */
 	st->range = 0;
 	st->oversampling = 1;
-	st->usec_sleep = 891;
+	st->ns_sleep = 1000000000;// 1s in ns
 
 	st->scale_avail = ad7606_scale_avail;
 
@@ -893,6 +911,12 @@ int ad7606_probe(struct device *dev, int irq, void __iomem *base_address,
 
 	st->trig->ops = &ad7606_trigger_ops;
 	st->trig->dev.parent = dev;
+
+	// Initialize the timer
+	hrtimer_init(&st->hr_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_HARD);
+	// Set the callback function
+	st->hr_timer.function = ad7606_hrtimer_callback;
+
 	iio_trigger_set_drvdata(st->trig, indio_dev);
 	ret = devm_iio_trigger_register(dev, st->trig);
 	if (ret)
