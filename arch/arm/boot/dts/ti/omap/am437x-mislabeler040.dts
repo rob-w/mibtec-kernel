@@ -20,7 +20,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 
 / {
-	model = "MIS LABELER040 v1.5.6";
+	model = "MIS LABELER040 v1.7.1";
 	compatible = "ti,am4372","ti,am43";
 
 	aliases {
@@ -197,7 +197,7 @@
 			0x1d8 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_114 AC23 cam1_vd.gpio4_10 */
 			0x1dc (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_116 AE21 cam1_pclk.gpio4_11 PFK-S1 */
 
-			0x040 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_153 C3 gpmc_a0.gpio1_16 CPU1_GPIOB */
+			0x040 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_153 C3 gpmc_a0.gpio1_16 CPU1_GPIOB */
 			0x044 (PIN_INPUT_PULLDOWN | MUX_MODE7)	/* P600_143 C5 gpmc_a1.gpio1_17 PLC-RESERVE */
 			0x048 (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_157 C6 gpmc_a2.gpio1_18 CPU1_BOOT_NUART */
 			0x04c (PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* P600_159 A4 gpmc_a3.gpio1_19 CPU1_NFAULT */
@@ -239,16 +239,39 @@
 			0x200 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_49  AD23 cam1_data6.gpio4_20 PLC-READY */
 			0x204 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_47  AE24 cam1_data7.gpio4_21 PLC-ERROR */
 
-			0x218 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_148 AE19 cam0_data4.gpio4_26 TODO -> PLC-STOP */
+			0x218 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_148 AE19 cam0_data4.gpio4_26  PLC-STOP */
 
 			0x228 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_55 H25 uart3_rxd.gpio5_2 ENA_CAN1_WCK_PWR */
 			0x22c (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_53 H24 uart3_txd.gpio5_3 EN_EMG_PWR */
-			0x230 (PIN_OUTPUT_PULLDOWN | MUX_MODE8) /* P600_59 H22 uart3_ctsn.gpio5_0 ENA_CAN2_WCK_PWR*/
+			0x230 (PIN_OUTPUT_PULLDOWN | MUX_MODE7) /* P600_59 H22 uart3_ctsn.gpio5_0 ENA_CAN2_WCK_PWR*/
 
 			0x240 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_170 G20  gpio5_10.gpio5_10 LCD_DIMO */
 			0x258 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_164 P24  spi4_d1.gpio5_6 */
 			0x264 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* P600_158 P22  spi2_d0.gpio3_22 */
 			0x278 (PIN_OUTPUT_PULLUP | MUX_MODE7) /* P600_166 H20  clkreq.gpio0_24 LCD_OFF */
+		>;
+	};
+
+	mmc1_pins: pinmux_mmc1_pins {
+		pinctrl-single,pins = <
+			0x100 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_clk.mmc0_clk */
+			0x104 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_cmd.mmc0_cmd */
+			0x0f0 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat0.mmc0_dat0 */
+			0x0f4 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat1.mmc0_dat1 */
+			0x0f8 (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat2.mmc0_dat2 */
+			0x0fc (PIN_INPUT_PULLUP | MUX_MODE0) /* mmc0_dat3.mmc0_dat3 */
+			0x160 (PIN_INPUT_PULLDOWN | MUX_MODE7) /* spi0_cs1.mmc0_sdcd HACK to card detec both */
+		>;
+	};
+
+	mmc1_sleep_pins: pinmux_mmc1_sleep_pins {
+		pinctrl-single,pins = <
+			0x100 (PIN_INPUT_PULLDOWN | MUX_MODE7)
+			0x104 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0f0 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0f4 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0f8 (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
+			0x0fc (PIN_INPUT | PULL_DISABLE | MUX_MODE7)
 		>;
 	};
 
@@ -512,8 +535,10 @@
 	vmmc-supply = <&evm_v3_3d>;
 	bus-width = <4>;
 	pinctrl-names = "default", "sleep";
-	/* we got rid of pins here to reuse them */
-	/* but keep device enabled to not disturb numbering of mmcblkN */
+	pinctrl-0 = <&mmc1_pins>;
+	pinctrl-1 = <&mmc1_sleep_pins>;
+	cd-gpios = <&gpio0 6 GPIO_ACTIVE_HIGH>;
+	/* got a possible adapter for it now */
 };
 
 &uart0 {
