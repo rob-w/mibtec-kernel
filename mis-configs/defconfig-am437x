@@ -2318,13 +2318,13 @@ CONFIG_I2C_HELPER_AUTO=y
 # CONFIG_I2C_BCM2835 is not set
 # CONFIG_I2C_BCM_IPROC is not set
 # CONFIG_I2C_BCM_KONA is not set
-CONFIG_I2C_BRCMSTB=y
+# CONFIG_I2C_BRCMSTB is not set
 # CONFIG_I2C_CADENCE is not set
 # CONFIG_I2C_CBUS_GPIO is not set
 # CONFIG_I2C_DAVINCI is not set
 # CONFIG_I2C_DESIGNWARE_PLATFORM is not set
 # CONFIG_I2C_DIGICOLOR is not set
-CONFIG_I2C_EMEV2=m
+# CONFIG_I2C_EMEV2 is not set
 # CONFIG_I2C_EXYNOS5 is not set
 # CONFIG_I2C_GPIO is not set
 # CONFIG_I2C_GXP is not set
@@ -2788,7 +2788,7 @@ CONFIG_GPIO_SYSCON=y
 # CONFIG_GPIO_MAX7300 is not set
 # CONFIG_GPIO_MAX732X is not set
 CONFIG_GPIO_PCA953X=m
-# CONFIG_GPIO_PCA953X_IRQ is not set
+CONFIG_GPIO_PCA953X_IRQ=y
 # CONFIG_GPIO_PCA9570 is not set
 CONFIG_GPIO_PCF857X=y
 CONFIG_GPIO_TPIC2810=m
@@ -4277,8 +4277,9 @@ CONFIG_SND_SOC_TWL6040=m
 
 CONFIG_SND_SIMPLE_CARD_UTILS=m
 CONFIG_SND_SIMPLE_CARD=m
-# CONFIG_SND_AUDIO_GRAPH_CARD is not set
-# CONFIG_SND_AUDIO_GRAPH_CARD2 is not set
+CONFIG_SND_AUDIO_GRAPH_CARD=m
+CONFIG_SND_AUDIO_GRAPH_CARD2=m
+# CONFIG_SND_AUDIO_GRAPH_CARD2_CUSTOM_SAMPLE is not set
 # CONFIG_SND_TEST_COMPONENT is not set
 # CONFIG_SND_VIRTIO is not set
 CONFIG_HID_SUPPORT=y
@@ -5208,7 +5209,70 @@ CONFIG_VIRTIO_MMIO=y
 
 # CONFIG_GREYBUS is not set
 # CONFIG_COMEDI is not set
-# CONFIG_STAGING is not set
+CONFIG_STAGING=y
+# CONFIG_OCTEON_ETHERNET is not set
+
+#
+# IIO staging drivers
+#
+
+#
+# Accelerometers
+#
+# CONFIG_ADIS16203 is not set
+# CONFIG_ADIS16240 is not set
+# end of Accelerometers
+
+#
+# Analog to digital converters
+#
+# CONFIG_AD7816 is not set
+# end of Analog to digital converters
+
+#
+# Analog digital bi-direction converters
+#
+# CONFIG_ADT7316 is not set
+# end of Analog digital bi-direction converters
+
+#
+# Direct Digital Synthesis
+#
+# CONFIG_AD9832 is not set
+# CONFIG_AD9834 is not set
+# end of Direct Digital Synthesis
+
+#
+# Network Analyzer, Impedance Converters
+#
+# CONFIG_AD5933 is not set
+# end of Network Analyzer, Impedance Converters
+
+#
+# Resolver to digital converters
+#
+# CONFIG_AD2S1210 is not set
+# end of Resolver to digital converters
+# end of IIO staging drivers
+
+# CONFIG_USB_EMXX is not set
+# CONFIG_STAGING_MEDIA is not set
+# CONFIG_STAGING_BOARD is not set
+# CONFIG_LTE_GDM724X is not set
+# CONFIG_FB_TFT is not set
+CONFIG_BCM_VIDEOCORE=y
+# CONFIG_BCM2835_VCHIQ is not set
+# CONFIG_SND_BCM2835 is not set
+# CONFIG_PI433 is not set
+# CONFIG_XIL_AXIS_FIFO is not set
+# CONFIG_FIELDBUS_DEV is not set
+CONFIG_GPIB=m
+CONFIG_GPIB_COMMON=m
+CONFIG_GPIB_AGILENT_82357A=m
+# CONFIG_GPIB_NI_USB is not set
+# CONFIG_GPIB_FLUKE is not set
+# CONFIG_GPIB_GPIO is not set
+# CONFIG_GPIB_LPVO is not set
 # CONFIG_GOLDFISH is not set
 # CONFIG_CHROME_PLATFORMS is not set
 # CONFIG_MELLANOX_PLATFORM is not set
@@ -5728,10 +5792,10 @@ CONFIG_TEGRA124_EMC=y
 # CONFIG_TEGRA210_EMC is not set
 CONFIG_IIO=y
 CONFIG_IIO_BUFFER=y
-# CONFIG_IIO_BUFFER_CB is not set
-# CONFIG_IIO_BUFFER_DMA is not set
-# CONFIG_IIO_BUFFER_DMAENGINE is not set
-# CONFIG_IIO_BUFFER_HW_CONSUMER is not set
+CONFIG_IIO_BUFFER_CB=y
+CONFIG_IIO_BUFFER_DMA=y
+CONFIG_IIO_BUFFER_DMAENGINE=y
+CONFIG_IIO_BUFFER_HW_CONSUMER=y
 CONFIG_IIO_KFIFO_BUF=y
 CONFIG_IIO_TRIGGERED_BUFFER=y
 CONFIG_IIO_CONFIGFS=y
@@ -5739,7 +5803,7 @@ CONFIG_IIO_TRIGGER=y
 CONFIG_IIO_CONSUMERS_PER_TRIGGER=2
 # CONFIG_IIO_SW_DEVICE is not set
 CONFIG_IIO_SW_TRIGGER=y
-# CONFIG_IIO_TRIGGERED_EVENT is not set
+CONFIG_IIO_TRIGGERED_EVENT=y
 
 #
 # Accelerometers
@@ -6015,6 +6079,7 @@ CONFIG_MCP4725=m
 # Clock Generator/Distribution
 #
 # CONFIG_AD9523 is not set
+CONFIG_CNT_GPIO=m
 CONFIG_PRU_DMTIMER=m
 # end of Clock Generator/Distribution
 
