@@ -13,9 +13,9 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include "ni_usb_gpib.h"
-#include "gpibP.h"
-#include "nec7210.h"
-#include "tnt4882_registers.h"
+#include <linux/gpibP.h>
+#include <linux/nec7210.h>
+#include <linux/tnt4882_registers.h>
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("GPIB driver for National Instruments USB devices");

@@ -11,7 +11,7 @@
 #include <linux/semaphore.h>
 #include <linux/usb.h>
 #include <linux/timer.h>
-#include "gpibP.h"
+#include <linux/gpibP.h>
 
 enum {
 	USB_VENDOR_ID_NI = 0x3923
