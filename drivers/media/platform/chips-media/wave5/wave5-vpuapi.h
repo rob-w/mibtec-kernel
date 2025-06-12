@@ -596,6 +596,7 @@ struct enc_wave_param {
 	u32 forced_idr_header_enable: 1; /* enable header encoding before IDR frame */
 	u32 constraint_set1_flag: 1; /* enable CBP */
 	u32 forced_idr_pictype_enable: 1;
+	u32 bg_detection: 1; /* enable background detection */
 };
 
 struct enc_open_param {
@@ -794,6 +795,7 @@ struct vpu_device {
 	struct kthread_worker *worker;
 	int vpu_poll_interval;
 	int num_clks;
+	bool opp_table_detected;
 	unsigned long opp_pixel_rate;
 	unsigned long opp_freq;
 };
@@ -852,6 +854,7 @@ struct vpu_instance {
 	bool nv21;
 	bool eos;
 	bool retry;
+	bool empty_queue;
 	int queuing_num;
 	struct mutex feed_lock; /* lock for feeding bitstream buffers */
 	struct vpu_buf bitstream_vbuf;

@@ -266,10 +266,6 @@ static void k3_r5_rproc_mbox_callback(struct mbox_client *client, void *data)
 	const char *name = kproc->rproc->name;
 	u32 msg = omap_mbox_message(data);
 
-	/* Do not forward message from a detached core */
-	if (kproc->rproc->state == RPROC_DETACHED)
-		return;
-
 	dev_dbg(dev, "mbox msg: 0x%x\n", msg);
 
 	switch (msg) {
@@ -320,10 +316,6 @@ static void k3_r5_rproc_kick(struct rproc *rproc, int vqid)
 	mbox_msg_t msg = (mbox_msg_t)vqid;
 	int ret;
 
-	/* Do not forward message to a detached core */
-	if (kproc->rproc->state == RPROC_DETACHED)
-		return;
-
 	/* send the index of the triggered virtqueue in the mailbox payload */
 	ret = mbox_send_message(kproc->mbox, (void *)msg);
 	if (ret < 0)
@@ -340,15 +332,6 @@ static int k3_r5_split_reset(struct k3_r5_core *core)
 		dev_err(core->dev, "local-reset assert failed, ret = %d\n",
 			ret);
 		return ret;
-	}
-
-	ret = core->ti_sci->ops.dev_ops.put_device(core->ti_sci,
-						   core->ti_sci_id);
-	if (ret) {
-		dev_err(core->dev, "module-reset assert failed, ret = %d\n",
-			ret);
-		if (reset_control_deassert(core->reset))
-			dev_warn(core->dev, "local-reset deassert back failed\n");
 	}
 
 	return ret;
@@ -795,21 +778,18 @@ static int k3_r5_rproc_start(struct rproc *rproc)
 		ret = k3_r5_core_run(core);
 		if (ret)
 			return ret;
+
+		core->released_from_reset = true;
+		wake_up_interruptible(&cluster->core_transition);
 	}
 
-	kproc->rproc->state = RPROC_RUNNING;
-	goto release_wait;
+	return 0;
 
 unroll_core_run:
 	list_for_each_entry_continue(core, &cluster->cores, elem) {
 		if (k3_r5_core_halt(core))
 			dev_warn(core->dev, "core halt back failed\n");
 	}
-
-release_wait:
-	core->released_from_reset = true;
-	wake_up_interruptible(&cluster->core_transition);
-
 	return ret;
 }
 
@@ -843,7 +823,7 @@ static int k3_r5_rproc_stop(struct rproc *rproc)
 	struct k3_r5_rproc *kproc = rproc->priv;
 	struct k3_r5_cluster *cluster = kproc->cluster;
 	struct device *dev = kproc->dev;
-	struct k3_r5_core *core1, *core = kproc->core;
+	struct k3_r5_core *core = kproc->core;
 	unsigned long msg = RP_MBOX_SHUTDOWN;
 	int ret;
 	u32 stat = 0;
@@ -864,15 +844,6 @@ static int k3_r5_rproc_stop(struct rproc *rproc)
 			return 0;
 		}
 
-		/* do not allow core 0 to stop before core 1 */
-		core1 = list_last_entry(&cluster->cores, struct k3_r5_core,
-					elem);
-		if (core != core1 && core1->rproc->state != RPROC_OFFLINE) {
-			dev_err(dev, "%s: can not stop core 0 before core 1\n",
-				__func__);
-			ret = -EPERM;
-			goto out;
-		}
 		reinit_completion(&kproc->shut_comp);
 		ret = mbox_send_message(kproc->mbox, (void *)msg);
 		if (ret < 0) {
@@ -1560,7 +1531,7 @@ init_rmem:
 			dev_err(dev,
 				"Timed out waiting for %s core to power up!\n",
 				rproc->name);
-			return ret;
+			goto err_powerup;
 		}
 	}
 
@@ -1576,6 +1547,7 @@ err_split:
 		}
 	}
 
+err_powerup:
 	rproc_del(rproc);
 err_add:
 	k3_r5_reserved_mem_exit(kproc);

@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0-only OR MIT
 /*
  * Device Tree Source for J784S4 SoC Family Main Domain peripherals
  *
- * Copyright (C) 2022 Texas Instruments Incorporated - https://www.ti.com/
+ * Copyright (C) 2022-2024 Texas Instruments Incorporated - https://www.ti.com/
  */
 
 #include <dt-bindings/mux/mux.h>
@@ -1037,30 +1037,6 @@
 		power-domains = <&k3_pds 241 TI_SCI_PD_EXCLUSIVE>;
 		sram = <&main_navss_sram>;
 		sram-size = <0x10000>;
-		operating-points-v2 = <&vpu_opp_table_0>;
-		vpu_opp_table_0: opp-table {
-			compatible = "operating-points-v2";
-			opp-20000000 {
-				opp-hz = /bits/ 64 <20000000>;
-			};
-
-			opp-100000000 {
-				opp-hz = /bits/ 64 <100000000>;
-			};
-
-			opp-200000000 {
-				opp-hz = /bits/ 64 <200000000>;
-			};
-
-			opp-400000000 {
-				opp-hz = /bits/ 64 <400000000>;
-			};
-
-			opp-600000000 {
-				opp-hz = /bits/ 64 <600000000>;
-			};
-		};
-
 	};
 
 	vpu1: video-codec@4220000 {
@@ -1071,30 +1047,6 @@
 		power-domains = <&k3_pds 242 TI_SCI_PD_EXCLUSIVE>;
 		sram = <&main_navss_sram>;
 		sram-size = <0x10000>;
-		operating-points-v2 = <&vpu_opp_table_1>;
-		vpu_opp_table_1: opp-table {
-			compatible = "operating-points-v2";
-			opp-20000000 {
-				opp-hz = /bits/ 64 <20000000>;
-			};
-
-			opp-100000000 {
-				opp-hz = /bits/ 64 <100000000>;
-			};
-
-			opp-200000000 {
-				opp-hz = /bits/ 64 <200000000>;
-			};
-
-			opp-400000000 {
-				opp-hz = /bits/ 64 <400000000>;
-			};
-
-			opp-500000000 {
-				opp-hz = /bits/ 64 <600000000>;
-			};
-		};
-
 	};
 
 	main_sdhci0: mmc@4f80000 {
@@ -2250,7 +2202,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		power-domains = <&k3_pds 376 TI_SCI_PD_EXCLUSIVE>;
-		clocks = <&k3_clks 376 1>;
+		clocks = <&k3_clks 376 0>;
 		status = "disabled";
 	};
 
@@ -2261,7 +2213,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		power-domains = <&k3_pds 377 TI_SCI_PD_EXCLUSIVE>;
-		clocks = <&k3_clks 377 1>;
+		clocks = <&k3_clks 377 0>;
 		status = "disabled";
 	};
 
@@ -2272,7 +2224,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		power-domains = <&k3_pds 378 TI_SCI_PD_EXCLUSIVE>;
-		clocks = <&k3_clks 378 1>;
+		clocks = <&k3_clks 378 0>;
 		status = "disabled";
 	};
 
@@ -2283,7 +2235,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		power-domains = <&k3_pds 379 TI_SCI_PD_EXCLUSIVE>;
-		clocks = <&k3_clks 379 1>;
+		clocks = <&k3_clks 379 0>;
 		status = "disabled";
 	};
 
@@ -2294,7 +2246,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		power-domains = <&k3_pds 380 TI_SCI_PD_EXCLUSIVE>;
-		clocks = <&k3_clks 380 1>;
+		clocks = <&k3_clks 380 0>;
 		status = "disabled";
 	};
 
@@ -2305,7 +2257,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		power-domains = <&k3_pds 381 TI_SCI_PD_EXCLUSIVE>;
-		clocks = <&k3_clks 381 1>;
+		clocks = <&k3_clks 381 0>;
 		status = "disabled";
 	};
 
@@ -2316,7 +2268,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		power-domains = <&k3_pds 382 TI_SCI_PD_EXCLUSIVE>;
-		clocks = <&k3_clks 382 1>;
+		clocks = <&k3_clks 382 0>;
 		status = "disabled";
 	};
 
@@ -2327,7 +2279,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		power-domains = <&k3_pds 383 TI_SCI_PD_EXCLUSIVE>;
-		clocks = <&k3_clks 383 1>;
+		clocks = <&k3_clks 383 0>;
 		status = "disabled";
 	};
 

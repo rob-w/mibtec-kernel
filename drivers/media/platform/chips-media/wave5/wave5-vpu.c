@@ -50,7 +50,8 @@ static void wave5_vpu_handle_irq(void *dev_id)
 	u32 seq_done;
 	u32 cmd_done;
 	u32 irq_reason;
-	struct vpu_instance *inst;
+	u32 irq_subreason;
+	struct vpu_instance *inst, *tmp;
 	struct vpu_device *dev = dev_id;
 
 	irq_reason = wave5_vdi_read_register(dev, W5_VPU_VINT_REASON);
@@ -60,8 +61,7 @@ static void wave5_vpu_handle_irq(void *dev_id)
 	wave5_vdi_write_register(dev, W5_VPU_VINT_REASON_CLR, irq_reason);
 	wave5_vdi_write_register(dev, W5_VPU_VINT_CLEAR, 0x1);
 
-	list_for_each_entry(inst, &dev->instances, list) {
-
+	list_for_each_entry_safe(inst, tmp, &dev->instances, list) {
 		if (irq_reason & BIT(INT_WAVE5_INIT_SEQ) ||
 		    irq_reason & BIT(INT_WAVE5_ENC_SET_PARAM)) {
 			if (seq_done & BIT(inst->id)) {
@@ -76,8 +76,10 @@ static void wave5_vpu_handle_irq(void *dev_id)
 		    irq_reason & BIT(INT_WAVE5_ENC_PIC)) {
 			if (cmd_done & BIT(inst->id)) {
 				cmd_done &= ~BIT(inst->id);
-				wave5_vdi_write_register(dev, W5_RET_QUEUE_CMD_DONE_INST,
-							 cmd_done);
+				irq_subreason = wave5_vdi_read_register(dev, W5_VPU_VINT_REASON);
+				if (!(irq_subreason & BIT(INT_WAVE5_DEC_PIC)))
+					wave5_vdi_write_register(dev, W5_RET_QUEUE_CMD_DONE_INST,
+							cmd_done);
 				inst->ops->finish_process(inst);
 			}
 		}
@@ -278,9 +280,15 @@ static int wave5_vpu_probe(struct platform_device *pdev)
 		}
 	}
 
+	dev->opp_table_detected = TRUE;
 	ret = dev_pm_opp_of_add_table(&pdev->dev);
-	if (ret && ret != -ENODEV)
+	if (ret == -ENODEV) {
+		dev->opp_table_detected = FALSE;
+		dev_err(&pdev->dev, "OPP table not found in device tree\n");
+	} else if (ret < 0) {
 		dev_err(&pdev->dev, "Invalid OPP table in device tree\n");
+		goto err_vdi_release;
+	}
 
 	INIT_LIST_HEAD(&dev->instances);
 	ret = v4l2_device_register(&pdev->dev, &dev->v4l2_dev);

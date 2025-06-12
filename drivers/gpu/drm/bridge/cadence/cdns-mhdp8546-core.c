@@ -2054,6 +2054,9 @@ static void cdns_mhdp_atomic_enable(struct drm_bridge *bridge,
 	mhdp_state = to_cdns_mhdp_bridge_state(new_state);
 
 	mhdp_state->current_mode = drm_mode_duplicate(bridge->dev, mode);
+	if (!mhdp_state->current_mode)
+		return;
+
 	drm_mode_set_name(mhdp_state->current_mode);
 
 	dev_dbg(mhdp->dev, "%s: Enabling mode %s\n", __func__, mode->name);
@@ -2389,18 +2392,20 @@ static void cdns_mhdp_modeset_retry_fn(struct work_struct *work)
 
 	mhdp = container_of(work, typeof(*mhdp), modeset_retry_work);
 
-	conn = &mhdp->connector;
+	if (mhdp->connector.dev) {
+		conn = &mhdp->connector;
+		/* Grab the locks before changing connector property */
+		mutex_lock(&conn->dev->mode_config.mutex);
 
-	/* Grab the locks before changing connector property */
-	mutex_lock(&conn->dev->mode_config.mutex);
-
-	/*
-	 * Set connector link status to BAD and send a Uevent to notify
-	 * userspace to do a modeset.
-	 */
-	drm_connector_set_link_status_property(conn, DRM_MODE_LINK_STATUS_BAD);
-	mutex_unlock(&conn->dev->mode_config.mutex);
-
+		/*
+		 * Set connector link status to BAD and send a Uevent to notify
+		 * userspace to do a modeset.
+		 */
+		drm_connector_set_link_status_property(conn, DRM_MODE_LINK_STATUS_BAD);
+		mutex_unlock(&conn->dev->mode_config.mutex);
+	} else {
+		mhdp->plugged = false;
+	}
 	/* Send Hotplug uevent so userspace can reprobe */
 	drm_kms_helper_hotplug_event(mhdp->bridge.dev);
 }

@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: GPL-2.0-only OR MIT
 /*
  * Device Tree Source for AM6 SoC Family MCU Domain peripherals
  *
- * Copyright (C) 2016-2020 Texas Instruments Incorporated - https://www.ti.com/
+ * Copyright (C) 2016-2024 Texas Instruments Incorporated - https://www.ti.com/
  */
 
 &cbass_mcu {
@@ -431,6 +431,14 @@
 			ti,btcm-enable = <1>;
 			ti,loczrama = <1>;
 		};
+	};
+
+	mcu_esm: esm@40800000 {
+		compatible = "ti,j721e-esm";
+		reg = <0x00 0x40800000 0x00 0x1000>;
+		bootph-pre-ram;
+		/* Interrupt sources: mrti0, mrti1 */
+		ti,esm-pins = <104>, <105>;
 	};
 
 	mcu_rti1: watchdog@40610000 {
