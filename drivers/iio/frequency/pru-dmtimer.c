@@ -37,7 +37,7 @@
 
 //#include <linux/rpmsg/virtio_rpmsg.h>
 
-#define PRU_DMTIMER_VERSION "0.3.1"
+#define PRU_DMTIMER_VERSION "0.3.2"
 #define PRU_DMTIMER_MODULE_DESCRIPTION "PRU CNT-DMTIMER DRIVER"
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
 
@@ -81,7 +81,8 @@ struct pru_dmtimer_pdata {
 	unsigned int			num_prescaler;
 	const unsigned int		*prescale_avail;
 
-	struct mutex			lock;
+	struct mutex			mutex;
+	spinlock_t				lock;
 	struct iio_trigger		*trig;
 
 	struct omap_dm_timer *capture_timer[2];
@@ -100,6 +101,7 @@ struct pru_dmtimer_pdata {
 	struct rpmsg_device 	*rpdev;
 	struct pruss			*pruss;
 	struct rproc			*rproc;
+	struct timer_list	minmhz_timer;
 	int data[4] ____cacheline_aligned; /// 1 x 32bit + 64bit timestamps ?
 };
 struct pru_dmtimer_pdata *p_st;
@@ -116,12 +118,16 @@ static int pru_dmtimer_kick(struct iio_dev *indio_dev, int cnt)
 	prepare.min = st->min_mhz;
 	prepare.buffer_addr0 = st->dma_handle[0];
 	prepare.buffer_addr1 = st->dma_handle[1];
-
+	dev_info(st->dev, "rpmsg_send cnt:%d base:%d min:%d\n", cnt, base, prepare.min);
 	st->cnted = 0;
 	ret = rpmsg_send(st->rpdev->ept, &prepare, sizeof(prepare));
 	if (ret)
 		dev_err(st->dev, "rpmsg_send failed: %d\n", ret);
 
+	if (st->min_mhz <= 0) /// protect neg or div 0
+		mod_timer(&st->minmhz_timer, jiffies + (1250)); /// 80mHz
+	else
+		mod_timer(&st->minmhz_timer, jiffies + (1000000 / st->min_mhz));
 	return ret;
 }
 
@@ -132,6 +138,12 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 	int32_t dbg[10];
 	struct device *pdev = p_st->dev;
 	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
+
+	/// we got a call, so redo the timer
+	if (p_st->min_mhz <= 0) /// protect neg or div 0
+		mod_timer(&p_st->minmhz_timer, jiffies + (1250)); /// 80mHz
+	else
+		mod_timer(&p_st->minmhz_timer, jiffies + (1000000 / p_st->min_mhz));
 
 	if (p_st->cpu_addr_dma[0][0])
 		dma_id = 0;
@@ -146,7 +158,7 @@ static int rpmsg_pru_cb(struct rpmsg_device *rpdev, void *data, int len,
 	dbg[4] = p_st->cpu_addr_dma[dma_id][5];
 	dbg[5] = p_st->cpu_addr_dma[dma_id][s_cnt];
 
-	dev_dbg(p_st->dev, "cb() chans %d d0:%d d1:%d dma_id %d "
+	dev_info(p_st->dev, "cb() chans %d d0:%d d1:%d dma_id %d "
 						"scnt %d 1:%d 2:%d 3:%d 4:%d 5:%d %d:%d\n", p_st->chip_info->num_channels,
 						p_st->cpu_addr_dma[0][0], p_st->cpu_addr_dma[1][0], dma_id, s_cnt,
 						dbg[0], dbg[1], dbg[2], dbg[3], dbg[4], s_cnt+1, dbg[5]);
@@ -291,11 +303,11 @@ static irqreturn_t pru_dmtimer_trigger_handler(int irq, void *p)
 	struct pru_dmtimer_pdata *st = iio_priv(indio_dev);
 	dev_info(st->dev, "%s()\n", __func__);
 
-	mutex_lock(&st->lock);
+	mutex_lock(&st->mutex);
 	st->bufferd = 1;
 	pru_dmtimer_kick(indio_dev, st->samplecnt);
 	iio_trigger_notify_done(indio_dev->trig);
-	mutex_unlock(&st->lock);
+	mutex_unlock(&st->mutex);
 
 	return IRQ_HANDLED;
 }
@@ -452,11 +464,19 @@ static struct attribute *pru_dmtimer_attributes[] = {
 static const struct attribute_group pru_dmtimer_attribute_group = {
 	.attrs = pru_dmtimer_attributes,
 };
-
+/*
+static int pru_dmtimer_set_watermark(struct iio_dev *indio_dev, unsigned int val)
+{
+	struct pru_dmtimer_pdata *st = iio_priv(indio_dev);
+	dev_info(st->dev, "set_watermark %d\n", val);
+	return 0;
+}
+*/
 static const struct iio_info pru_dmtimer_info = {
 	.read_raw = pru_dmtimer_read_raw,
 	.write_raw = pru_dmtimer_write_raw,
 	.attrs = &pru_dmtimer_attribute_group,
+//	.set_watermark = pru_dmtimer_set_watermark,
 };
 
 #define PRU_DMTIMER_CHANNEL(num) {								\
@@ -525,6 +545,22 @@ static int pru_dmtimer_buffer_postdisable(struct iio_dev *indio_dev)
 
 	dev_dbg(st->dev, "%s()\n", __func__);
 	return 0;
+}
+
+static void pru_dmtimer_minhz_tm(struct timer_list *t)
+{
+	struct pru_dmtimer_pdata *st = from_timer(st, t, minmhz_timer);
+	struct device *pdev = st->dev;
+	struct iio_dev *indio_dev = dev_get_drvdata(pdev);
+
+	/// push 0 dat to buffers
+	iio_push_to_buffers_with_timestamp(indio_dev, 0, iio_get_time_ns(indio_dev));
+	iio_push_to_buffers_with_timestamp(indio_dev, 0, iio_get_time_ns(indio_dev));
+
+	if (st->min_mhz <= 0) /// protect neg or div 0
+		mod_timer(&st->minmhz_timer, jiffies + (1250)); /// 80mHz
+	else
+		mod_timer(&st->minmhz_timer, jiffies + (1000000 / st->min_mhz));
 }
 
 static int pru_dmtimer_trigger_set_state(struct iio_trigger *trig, bool enable)
@@ -727,8 +763,6 @@ static int pru_dmtimer_probe(struct platform_device *pdev)
 	}
 
 	st->dev = dev;
-	mutex_init(&st->lock);
-
 	st->chip_info = &pru_dmtimer_info_tbl[0];
 	st->num_prescaler = st->chip_info->prescale_num;
 	st->prescale_avail = st->chip_info->prescale_avail;
@@ -786,6 +820,11 @@ static int pru_dmtimer_probe(struct platform_device *pdev)
 	st->state = 1;
 	init_completion(&st->completion);
 
+	// timer to push 0 < min_mhz
+	timer_setup(&st->minmhz_timer, pru_dmtimer_minhz_tm, 0);
+	mutex_init(&st->mutex);
+//	spin_lock_init(&st->lock);
+
 	for (id = 0; id < 2; id++) {
 		pru_dmtimer_clocksource_init(id, st);
 		pru_dmtimer_enable_irq(id, st);
@@ -825,6 +864,8 @@ static int pru_dmtimer_remove(struct platform_device *pdev)
 	struct iio_dev *indio_dev = dev_get_drvdata(dev);
 	struct pru_dmtimer_pdata *st = iio_priv(indio_dev);
 	int id;
+
+	del_timer_sync(&st->minmhz_timer);
 
 	for (id = 0; id < 2; id++) {
 		st->timer_ops[id]->set_int_disable(st->capture_timer[id], OMAP_TIMER_INT_CAPTURE | OMAP_TIMER_INT_OVERFLOW);
