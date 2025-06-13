@@ -16,6 +16,15 @@ config ABP060MG
 	  To compile this driver as a module, choose M here: the module
 	  will be called abp060mg.
 
+config AP4A
+	tristate "Fujikara AP4/AG4 Pressure Sensors"
+	depends on I2C
+	help
+	  Say Y here to build support for the Fujikara AP4xx Pressure Sensor.
+
+	  To compile this driver as a module, choose M here: the module will
+	  be called ap4a.
+
 config BMP280
 	tristate "Bosch Sensortec BMP180/BMP280/BMP380/BMP580 pressure sensor driver"
 	depends on (I2C || SPI_MASTER)
@@ -256,6 +265,15 @@ config HP206C
 
 	  This driver can also be built as a module. If so, the module will
 	  be called hp206c.
+
+config WF100DP
+	tristate "Weifengheng W100DP Pressure Sensors"
+	depends on I2C
+	help
+	  Say Y here to build support for the Weifenghen W100DP Pressure Sensor.
+
+	  To compile this driver as a module, choose M here: the module will
+	  be called w100dp.
 
 config ZPA2326
 	tristate "Murata ZPA2326 pressure sensor driver"
