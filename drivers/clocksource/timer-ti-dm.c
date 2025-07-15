@@ -871,6 +871,28 @@ static int omap_dm_timer_set_pwm(struct omap_dm_timer *cookie, int def_on,
 	return 0;
 }
 
+static int omap_dm_timer_set_ctrl(struct omap_dm_timer *cookie, int value)
+{
+	struct dmtimer *timer;
+	struct device *dev;
+	int rc;
+
+	timer = to_dmtimer(cookie);
+	if (unlikely(!timer))
+		return -EINVAL;
+
+	dev = &timer->pdev->dev;
+	rc = pm_runtime_resume_and_get(dev);
+	if (rc)
+		return rc;
+
+	dmtimer_write(timer, OMAP_TIMER_CTRL_REG, value);
+
+	pm_runtime_put_sync(dev);
+
+	return 0;
+}
+
 static int omap_dm_timer_get_pwm_status(struct omap_dm_timer *cookie)
 {
 	struct dmtimer *timer;
@@ -1241,6 +1263,7 @@ static const struct omap_dm_timer_ops dmtimer_ops = {
 	.set_load = omap_dm_timer_set_load,
 	.set_match = omap_dm_timer_set_match,
 	.set_pwm = omap_dm_timer_set_pwm,
+	.set_ctrl = omap_dm_timer_set_ctrl,
 	.get_pwm_status = omap_dm_timer_get_pwm_status,
 	.set_prescaler = omap_dm_timer_set_prescaler,
 	.read_counter = omap_dm_timer_read_counter,
