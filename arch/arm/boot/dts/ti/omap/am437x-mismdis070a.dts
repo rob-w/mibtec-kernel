@@ -48,7 +48,8 @@
 		compatible = "panel-dpi";
 		label = "lcd";
 		panel-timing {
-			clock-frequency = <51200000>;
+/*			clock-frequency = <51200000>;*/
+			clock-frequency = <42000000>; // 42 MHz for 60 Hz
 			hactive = <1024>;
 			vactive = <600>;
 			hfront-porch = <3>;
