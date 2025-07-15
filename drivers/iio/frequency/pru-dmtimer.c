@@ -37,7 +37,7 @@
 
 //#include <linux/rpmsg/virtio_rpmsg.h>
 
-#define PRU_DMTIMER_VERSION "0.3.3"
+#define PRU_DMTIMER_VERSION "0.3.4"
 #define PRU_DMTIMER_MODULE_DESCRIPTION "PRU CNT-DMTIMER DRIVER"
 #define SND_RCV_ADDR_BITS	DMA_BIT_MASK(32)
 
