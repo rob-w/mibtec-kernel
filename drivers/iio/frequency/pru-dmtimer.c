@@ -195,11 +195,7 @@ static void pru_dmtimer_enable_irq(int id, struct pru_dmtimer_pdata *st)
     unsigned int interrupt_mask;
 
     interrupt_mask = OMAP_TIMER_INT_CAPTURE;
-//	omap_dm_timer_set_int_enable
-
- //   __omap_dm_timer_int_enable(st->capture_timer[id], interrupt_mask);
- //   st->capture_timer[id]->context.tier = interrupt_mask;
- //   st->capture_timer[id]->context.twer = interrupt_mask;
+	st->timer_ops[id]->set_int_enable(st->capture_timer[id], OMAP_TIMER_INT_CAPTURE | OMAP_TIMER_INT_OVERFLOW);
 }
 
 static void pru_dmtimer_cleanup_timer(int id, struct pru_dmtimer_pdata *st)
@@ -231,38 +227,20 @@ static void pru_dmtimer_setup_capture(int id, struct pru_dmtimer_pdata *st)
 	struct omap_dm_timer *timer = st->capture_timer[id];
 	const struct omap_dm_timer_ops *timer_ops = st->timer_ops[id];
 	u32 ctrl = 0;
-	int idx;
 
 	timer_ops->set_source(timer, OMAP_TIMER_SRC_SYS_CLK);
 	timer_ops->enable(timer);
 
-//	ctrl = __omap_dm_timer_read(timer, OMAP_TIMER_CTRL_REG, timer->posted);
-
-	// reload prescaler
-	ctrl &= ~(OMAP_TIMER_CTRL_PRE | (0x07 << 2));
-	idx = find_prescaler_idx(st, st->prescaler);
-
-	if (idx >= 0x01 && idx <= 0x08) {
-		ctrl |= OMAP_TIMER_CTRL_PRE;
-		ctrl |= (idx - 1) << 2;
-	}
-
+	timer_ops->set_prescaler(timer, st->prescaler);
+	ctrl = timer_ops->get_pwm_status(st->capture_timer[id]);
 	// autoreload
 	ctrl |= OMAP_TIMER_CTRL_AR;
-//	__omap_dm_timer_write(timer, OMAP_TIMER_LOAD_REG, 0, timer->posted);
-
 	// start timer
 	ctrl |= OMAP_TIMER_CTRL_ST;
-
 	// set capture
 	ctrl |= OMAP_TIMER_CTRL_CAPTMODE | OMAP_TIMER_CTRL_TCM_LOWTOHIGH | OMAP_TIMER_CTRL_GPOCFG;
-
-//	__omap_dm_timer_load_start(timer, ctrl, 0, timer->posted);
-
-	/* Save the context */
-//	timer->context.tclr = ctrl;
-//	timer->context.tldr = 0;
-//	timer->context.tcrr = 0;
+	timer_ops->set_ctrl(timer, ctrl);
+	timer_ops->set_load(timer, 0);
 }
 
 static int pru_dmtimer_init_timer(int id, struct device_node *t_dn, struct pru_dmtimer_pdata *st)
